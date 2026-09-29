@@ -20,6 +20,22 @@ if (result.status !== 0) {
     process.exit(result.status ?? 1);
 }
 await cp('public', 'www', { recursive: true });
+// Optional voice following. Shipped only when `npm run voice:fetch` has verified the NPL-1.2 model into vendor/.
+// Without it the app hides the feature (no manifest). The single-file preview never includes it.
+const { VOICE_DIR, VOICE_ASSETS } = await import('./fetch-voice-model.mjs');
+const voiceReady = (await Promise.all(VOICE_ASSETS.map(a => access(path.join(VOICE_DIR, a.name)).then(() => true, () => false)))).every(Boolean);
+if (voiceReady) {
+    const { build: bundle } = await import('esbuild');
+    await bundle({ entryPoints: ['voice/worker.ts'], outfile: 'www/voice/worker.js', bundle: true, format: 'esm', target: 'es2022', minify: true, logLevel: 'warning' });
+    await cp('node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', 'www/voice/ort-wasm-simd-threaded.wasm');
+    await mkdir('www/voice/models', { recursive: true });
+    for (const a of VOICE_ASSETS) await cp(path.join(VOICE_DIR, a.name), 'www/voice/models/' + a.name);
+    await cp('licenses/NPL-1.2.txt', 'www/voice/models/LICENSE-NPL-1.2.txt');
+    await writeFile('www/voice/manifest.json', JSON.stringify({ worker: 'worker.js', worklet: 'capture-worklet.js', model: 'models/' + VOICE_ASSETS[0].name, corpus: 'models/' + VOICE_ASSETS[1].name, licence: 'models/LICENSE-NPL-1.2.txt', sha256: Object.fromEntries(VOICE_ASSETS.map(a => [a.name, a.sha256])) }, null, 2));
+    console.log('Voice following included (Tilawa / Quran-Lab model, NPL-1.2: no charge for the app or any feature it powers).');
+}
+else
+    console.log('Voice following not included: run `npm run voice:fetch` to download the model.');
 const data = await readFile('src/data.ts', 'utf8');
 await writeFile('www/content-manifest.json', JSON.stringify({ version: 'starter-1', source: 'Quran.com Arabic chapter text', captured: '2026-09-28', chapters: [1, 103, 108, 109, 110, 112, 113, 114], ayahCount: 37, teacherReview: 'pending', sha256: createHash('sha256').update(data).digest('hex'), note: 'Checksum detects source-file changes; it is not religious or editorial certification.' }, null, 2));
 const jsFiles = (await readdir('www/js')).filter(f => f.endsWith('.js'));

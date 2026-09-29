@@ -32,6 +32,14 @@
 - [ ] Verify native safe areas, keyboard behavior, text zoom, system bars, launcher icons and splash appearance.
 - [ ] Confirm external source/tafsir links open outside the privileged app WebView.
 
+## Voice following (experimental)
+
+- [x] Model files are checksum-pinned, fetched at build time, and not committed; the app makes no network call to use them.
+- [x] Browser end-to-end check: a recorded recitation of Al-Ikhlas (fake microphone) is followed ayah by ayah and word by word; stop ends capture; nothing is written to progress.
+- [ ] Test on a physical iPhone and Android phone: permission prompt, first-load time, memory, heat/battery, interruption (call, Siri, lock), and that capture stops on Stop/leave/background.
+- [ ] Evaluate following accuracy with real learners' recitation (not only a professional reciter), including noise and children's voices; document failure modes.
+- [ ] Legal review of NPL-1.2 for the intended distribution; confirm the app and this feature stay free of charge and advertising.
+
 ## Quran and learning quality
 
 - [ ] Qualified reviewer checks the Arabic corpus and all displayed glyphs/marks against the chosen convention.

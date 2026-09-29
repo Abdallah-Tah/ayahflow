@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl } from '../www/js/data.js';
-import { STATE_VERSION, locateGuess, identicalAyahs, ayahWords, surahRecallQueue, sessionRecap, initialState, dayKey, calendarDistance, streak, rng, shuffle, comparable, keyFor, eligible, allItems, planSession, questionFor, applyAnswer, retention, dueItems, weakItems, completedAccuracy, validateState } from '../www/js/engine.js';
+import { STATE_VERSION, recitedWordIndices, locateGuess, identicalAyahs, ayahWords, surahRecallQueue, sessionRecap, initialState, dayKey, calendarDistance, streak, rng, shuffle, comparable, keyFor, eligible, allItems, planSession, questionFor, applyAnswer, retention, dueItems, weakItems, completedAccuracy, validateState } from '../www/js/engine.js';
 import { allTranslationKeys, tr } from '../www/js/i18n.js';
 const START = new Date(2026, 8, 28, 12).getTime();
 const item = (mode = 'next', surah = 112, ayah = 1) => ({ key: keyFor(mode, surah, ayah), mode, surah, ayah, reason: 'new' });
@@ -89,11 +89,11 @@ test('All user-facing dictionary entries have English, French and Arabic transla
     } });
 test('Shuffling is deterministic and does not mutate its input', () => { const a = [1, 2, 3, 4, 5]; assert.deepEqual(shuffle(a, rng(7)), shuffle(a, rng(7))); assert.deepEqual(a, [1, 2, 3, 4, 5]); });
 
-const legacy = (version) => { const s = advance(initialState(), item(), true, 0, 'legacy'); s.version = version; if (version < 3) { delete s.arabicSize; delete s.readingLayout; } if (version < 2) delete s.theme; return JSON.parse(JSON.stringify(s)); };
+const legacy = (version) => { const s = advance(initialState(), item(), true, 0, 'legacy'); s.version = version; if (version < 4) delete s.voiceFollowConsent; if (version < 3) { delete s.arabicSize; delete s.readingLayout; } if (version < 2) delete s.theme; return JSON.parse(JSON.stringify(s)); };
 test('Version 1 and 2 saves migrate to the current schema without losing progress', () => {
-    assert.equal(STATE_VERSION, 3);
+    assert.equal(STATE_VERSION, 4);
     const v1 = validateState(legacy(1));
-    assert.equal(v1.version, 3); assert.equal(v1.theme, 'system'); assert.equal(v1.arabicSize, 'm'); assert.equal(v1.readingLayout, 'cards');
+    assert.equal(v1.version, 4); assert.equal(v1.voiceFollowConsent, false); assert.equal(v1.theme, 'system'); assert.equal(v1.arabicSize, 'm'); assert.equal(v1.readingLayout, 'cards');
     assert.equal(v1.xp, 10); assert.equal(v1.attempts.length, 1); assert(v1.cards[item().key]);
     const v2 = legacy(2); v2.theme = 'light';
     const m2 = validateState(v2);
@@ -149,4 +149,34 @@ test('Session recap reads only that session\'s saved evidence, in order', () => 
     assert.equal(sessionRecap(s, 'missing').length, 0);
     assert.equal(s.cards['locate:113:2'].evidence, 'quiz');
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).cards, s.cards);
+});
+
+test('Voice-following consent is never granted by migration and must be a boolean', () => {
+    const v3 = legacy(3); v3.arabicSize = 'l';
+    const m = validateState(v3);
+    assert.equal(m.version, 4); assert.equal(m.voiceFollowConsent, false); assert.equal(m.arabicSize, 'l'); assert.deepEqual(m.cards, validateState(legacy(1)).cards);
+    assert.equal(validateState({ ...initialState(), voiceFollowConsent: true }).voiceFollowConsent, true);
+    assert.throws(() => validateState({ ...initialState(), voiceFollowConsent: 'yes' }), /voice/);
+    assert.equal(initialState().voiceFollowConsent, false);
+});
+test('Recited-word mapping skips stand-alone pause marks and nothing else', () => {
+    const t = verse(110, 3), words = ayahWords(t);
+    assert.equal(words.length, 8); assert.equal(words[4], 'ۚ');
+    assert.deepEqual(recitedWordIndices(t), [0, 1, 2, 3, 5, 6, 7]);
+    for (const s of SURAH_DATA) s.verses.forEach((v, i) => { if (!(s.id === 110 && i === 2)) assert.deepEqual(recitedWordIndices(v), ayahWords(v).map((_, k) => k), `${s.id}:${i + 1}`); });
+});
+test('Recited words line up one-to-one with the bundled recogniser corpus (when fetched)', async (t) => {
+    const { readFile } = await import('node:fs/promises');
+    let corpus;
+    try { corpus = JSON.parse(await readFile(new URL('../vendor/tilawa/zipformer_quran.json', import.meta.url), 'utf8')); }
+    catch { t.skip('voice model not fetched (npm run voice:fetch)'); return; }
+    for (const s of SURAH_DATA) {
+        const cs = corpus.surahs.find(x => x.n === s.id);
+        assert.equal(cs.ayahs.length, s.count, `surah ${s.id} ayah count`);
+        s.verses.forEach((v, i) => {
+            const ours = recitedWordIndices(v).map(k => ayahWords(v)[k]), theirs = cs.ayahs[i].w.map(w => w[2]);
+            assert.equal(ours.length, theirs.length, `${s.id}:${i + 1} word count`);
+            ours.forEach((w, k) => assert.equal(comparable(w), comparable(theirs[k]), `${s.id}:${i + 1} word ${k}`));
+        });
+    }
 });

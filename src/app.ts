@@ -1,9 +1,10 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, type RuleId } from './data.js';
-import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, surahRecallQueue, sessionRecap, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
+import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
+import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
 type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings';
 let state: AppState = initialState();
 let view: View = 'today';
@@ -20,6 +21,10 @@ let unsavedClip: Recording | null = null;
 let locateSurah: number | null = null;
 let locateAyah: number | null = null;
 let wordsShown = 0;
+let voiceAvailable = false;
+/** Live voice-following position. Display only: never saved, never counted as evidence. */
+let follow: { status: 'off' | 'loading' | 'listening'; surah: number | null; ayah: number | null; word: number; total: number; matched: number[]; done: Set<string>; outside: string | null } = { status: 'off', surah: null, ayah: null, word: -1, total: 0, matched: [], done: new Set(), outside: null };
+const followOff = () => { follow = { status: 'off', surah: null, ayah: null, word: -1, total: 0, matched: [], done: new Set(), outside: null }; };
 const CONTENT_VERSION = 'starter-1';
 let lastResult: {
     sessionId: string;
@@ -86,15 +91,67 @@ function surahRows(): string { let surahs = SURAH_DATA.filter(s => `${s.name} ${
     surahs = surahs.filter(s => state.bookmarks.some(k => k.startsWith(`${s.id}:`))); if (!surahs.length)
     return `<p class="empty">${t(libraryFilter === 'bookmarks' ? 'noBookmarks' : 'noResults')}</p>`; return surahs.map(s => `<button class="surah-row" data-action="read-surah" data-surah="${s.id}"><span class="surah-number">${num(s.id)}</span><span class="grow"><h3>${escapeHtml(s.name)}</h3><p>${num(s.count)} ${t('ayahs')} · ${t('juz')} ${num(s.juz)} · ${ic('download', 10)}</p></span><span class="arabic" lang="ar">${s.ar}</span></button>`).join(''); }
 function quranView(): string { return `<p class="eyebrow mt12">${t('starter')}</p><h1 class="page-title">${t('readerTitle')}</h1><p class="page-sub">${t('readerSub')}</p><button class="feature-wide row mb16" data-action="read-last"><span class="gold">${ic('bookmark', 23)}</span><span class="grow"><span class="tiny muted">${t('lastRead')}</span><h3>${escapeHtml(chapter(state.readPosition.surah).name)} · ${num(state.readPosition.ayah)}</h3></span>${ic('chevron', 16)}</button><label class="search-box">${ic('search', 18)}<input id="surah-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${escapeHtml(libraryQuery)}"></label><div class="segment"><button data-action="library-filter" data-filter="all" class="${libraryFilter === 'all' ? 'active' : ''}">${t('all')}</button><button data-action="library-filter" data-filter="bookmarks" class="${libraryFilter === 'bookmarks' ? 'active' : ''}">${t('bookmarks')} · ${num(state.bookmarks.length)}</button></div><div id="surah-list">${surahRows()}</div><p class="gentle">${t('offline')} · ${t('source')}: Quran.com</p>`; }
+/** Word spans for highlighting. Joined with single spaces they reproduce the source string exactly. */
+const wordSpans = (text: string) => ayahWords(text).map((w, i) => `<span class="w" data-w="${i}">${escapeHtml(w)}</span>`).join(' ');
+function followWhere(): string {
+    if (follow.status === 'loading') return t('followNote');
+    if (follow.surah && follow.ayah) return `${t('following')}: ${escapeHtml(chapter(follow.surah).name)} · ${ref(follow.surah, follow.ayah)}`;
+    if (follow.outside) return `${t('followOutside')} · <bdi>${follow.outside}</bdi>`;
+    return t('followNote');
+}
+function followBar(): string { return view === 'reader' && follow.status !== 'off' ? `<div class="follow-bar" role="status" aria-live="polite"><span class="live-dot ${follow.status}" aria-hidden="true"></span><div class="grow"><strong class="small">${t(follow.status === 'loading' ? 'followLoading' : 'followListening')}</strong><p id="follow-where">${followWhere()}</p></div><button class="button secondary" data-action="follow-stop">${ic('stop', 16)} ${t('followStop')}</button></div>` : ''; }
+/** Applies the live position to the rendered reader without re-rendering (keeps scroll and focus). */
+function applyFollow(scroll = false): void {
+    root.querySelectorAll('.following, .recited, .words-live').forEach(el => el.classList.remove('following', 'recited', 'words-live'));
+    root.querySelectorAll('.w-now, .w-done').forEach(el => el.classList.remove('w-now', 'w-done'));
+    const where = root.querySelector('#follow-where');
+    if (where) where.innerHTML = followWhere();
+    if (view !== 'reader' || follow.status !== 'listening')
+        return;
+    for (const k of follow.done) { const [s, a] = k.split(':').map(Number); if (s === readerSurah) root.querySelector(`#ayah-${a}`)?.classList.add('recited'); }
+    if (follow.surah !== readerSurah || !follow.ayah)
+        return;
+    const el = root.querySelector<HTMLElement>(`#ayah-${follow.ayah}`);
+    if (!el)
+        return;
+    el.classList.add('following');
+    const map = recitedWordIndices(verse(follow.surah, follow.ayah));
+    if (follow.total === map.length) { // Only when the recogniser's words line up with the displayed words.
+        const spans = el.querySelectorAll<HTMLElement>('.w');
+        el.classList.add('words-live');
+        follow.matched.forEach(i => spans[map[i] ?? -1]?.classList.add('w-done'));
+        if (follow.word >= 0) spans[map[follow.word] ?? -1]?.classList.add('w-now');
+    }
+    if (scroll)
+        el.scrollIntoView({ behavior: state.reducedMotion ? 'instant' : 'smooth', block: 'center' });
+}
+function onFollow(e: FollowEvent): void {
+    if (e.type === 'loading' || e.type === 'listening') { follow.status = e.type; render(); return; }
+    if (e.type === 'stopped') { followOff(); render(); return; }
+    if (e.type === 'error') { followOff(); render(); toast(t(e.reason === 'mic' ? 'micError' : 'followError')); return; }
+    const known = SURAH_DATA.some(x => x.id === e.surah) && e.ayah >= 1 && e.ayah <= chapter(e.surah).count;
+    if (!known) { follow.outside = `${e.surah}:${e.ayah}`; follow.surah = follow.ayah = null; applyFollow(); return; }
+    follow.outside = null;
+    if (e.type === 'verse') { // Emitted once an ayah has been heard; the live cursor comes from word events.
+        follow.done.add(`${e.surah}:${e.ayah}`);
+        if (follow.ayah !== null) { applyFollow(); return; }
+    }
+    const moved = follow.surah !== e.surah || follow.ayah !== e.ayah;
+    follow.surah = e.surah; follow.ayah = e.ayah;
+    follow.word = e.type === 'word' ? e.word : -1; follow.total = e.type === 'word' ? e.total : 0; follow.matched = e.type === 'word' ? e.matched : [];
+    if (readerSurah !== e.surah) { readerSurah = e.surah; render(); }
+    applyFollow(moved);
+}
 function readerView(): string {
     const s = chapter(readerSurah);
     const head = `<div class="reader-heading"><p class="eyebrow">${t('surah')} ${num(s.id)} · ${num(s.count)} ${t('ayahs')}</p><div class="cartouche">${surahFrame()}<p class="arabic" lang="ar">${s.ar}</p></div><h1>${escapeHtml(s.name)}</h1></div>`;
     const layout = `<div class="segment" role="group" aria-label="${t('layout')}">${(['cards', 'flow'] as const).map(l => `<button data-action="layout" data-layout="${l}" class="${state.readingLayout === l ? 'active' : ''}" aria-pressed="${state.readingLayout === l}">${ic(l === 'cards' ? 'layers' : 'flow', 15)} ${t(l === 'cards' ? 'layoutCards' : 'layoutFlow')}</button>`).join('')}</div>`;
     const recite = s.count <= 15 ? `<button class="feature-wide row mb16" data-action="recite-surah" data-surah="${s.id}"><span class="gold">${ic('eye', 23)}</span><span class="grow"><h3>${t('reciteSurah')}</h3><p>${t('reciteSurahSub')}</p></span>${chevronEnd()}</button>` : '';
     const body = state.readingLayout === 'flow'
-        ? `<div class="mushaf-page"><p class="arabic flow-text" lang="ar" dir="rtl">${s.verses.map((text, i) => `<span class="flow-ayah" id="ayah-${i + 1}">${escapeHtml(text)}</span> ${marker(i + 1)}`).join(' ')}</p></div>`
-        : s.verses.map((text, i) => { const a = i + 1, k = `${s.id}:${a}`, saved = state.bookmarks.includes(k); return `<article class="ayah-card" id="ayah-${a}"><div class="row between"><span class="ayah-meta">${ref(s.id, a)}</span><div class="ayah-tools"><button class="icon-button" data-action="play-verse" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('play')} ${s.id}:${a}">${ic('play')}</button><button class="icon-button ${saved ? 'active' : ''}" data-action="bookmark" data-surah="${s.id}" data-ayah="${a}" aria-label="${t(saved ? 'removeBookmark' : 'bookmark')} ${s.id}:${a}" aria-pressed="${saved}">${ic('bookmark')}</button><button class="icon-button" data-action="record-ayah" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('recite')} ${s.id}:${a}">${ic('mic')}</button><button class="icon-button" data-action="report" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('reportIssue')} ${s.id}:${a}">${ic('flag')}</button></div></div><p class="arabic ayah-text" lang="ar" dir="rtl"><span class="ayah-src">${escapeHtml(text)}</span> ${marker(a)}</p><a class="text-link" href="https://quran.com/${s.id}/${a}" target="_blank" rel="noopener noreferrer">${t('translation')} ${ic('arrow', 12)}</a></article>`; }).join('');
-    return `${head}${layout}${recite}<div class="notice mb16">${ic('book', 18)}<p>${t('translation')}</p></div>${body}<p class="gentle">${t('source')}: <a href="${s.source}" target="_blank" rel="noopener noreferrer">Quran.com</a></p>`;
+        ? `<div class="mushaf-page"><p class="arabic flow-text" lang="ar" dir="rtl">${s.verses.map((text, i) => `<span class="flow-ayah" id="ayah-${i + 1}">${wordSpans(text)}</span> ${marker(i + 1)}`).join(' ')}</p></div>`
+        : s.verses.map((text, i) => { const a = i + 1, k = `${s.id}:${a}`, saved = state.bookmarks.includes(k); return `<article class="ayah-card" id="ayah-${a}"><div class="row between"><span class="ayah-meta">${ref(s.id, a)}</span><div class="ayah-tools"><button class="icon-button" data-action="play-verse" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('play')} ${s.id}:${a}">${ic('play')}</button><button class="icon-button ${saved ? 'active' : ''}" data-action="bookmark" data-surah="${s.id}" data-ayah="${a}" aria-label="${t(saved ? 'removeBookmark' : 'bookmark')} ${s.id}:${a}" aria-pressed="${saved}">${ic('bookmark')}</button><button class="icon-button" data-action="record-ayah" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('recite')} ${s.id}:${a}">${ic('mic')}</button><button class="icon-button" data-action="report" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('reportIssue')} ${s.id}:${a}">${ic('flag')}</button></div></div><p class="arabic ayah-text" lang="ar" dir="rtl"><span class="ayah-src">${wordSpans(text)}</span> ${marker(a)}</p><a class="text-link" href="https://quran.com/${s.id}/${a}" target="_blank" rel="noopener noreferrer">${t('translation')} ${ic('arrow', 12)}</a></article>`; }).join('');
+    const listen = voiceAvailable && follow.status === 'off' ? `<button class="feature-wide row mb16" data-action="follow"><span class="gold">${ic('mic', 23)}</span><span class="grow"><h3>${t('follow')}</h3><p>${t('followSub')}</p></span><span class="pill gold">${t('experimental')}</span></button>` : '';
+    return `${head}${layout}${listen}${recite}<div class="notice mb16">${ic('book', 18)}<p>${t('translation')}</p></div>${body}<p class="gentle">${t('source')}: <a href="${s.source}" target="_blank" rel="noopener noreferrer">Quran.com</a></p>`;
 }
 function currentQuestion() { const s = state.session!; return questionFor(s.queue[s.index]!, s.seed + s.index * 107); }
 function recallBody(q: Question, s: Session): string {
@@ -147,12 +204,12 @@ function lessonView(): string { const l = LESSONS.find(l => l.id === lessonId)!;
 function clipCard(clip: Recording, unsaved = false): string { return `<div class="audio-row"><div class="row between"><span><strong>${unsaved ? t('yourRecording') : escapeHtml(chapter(clip.surah).name)}</strong><p class="tiny muted">${ref(clip.surah, clip.ayah)} · ${Math.round(clip.duration)}s${unsaved ? '' : ` · ${new Date(clip.createdAt).toLocaleDateString(state.locale)}`}</p></span>${actionButton('play-recording', ic('play'), 'icon-button', `data-id="${clip.id}" aria-label="${t('play')}"`)}</div><div class="row between mt12">${wave()}<div class="row gap8">${unsaved ? actionButton('save-recording', ic('download', 17), 'icon-button', `aria-label="${t('saveRecording')}"`) : actionButton('share-recording', ic('share', 17), 'icon-button', `data-id="${clip.id}" aria-label="${t('share')}"`)}${actionButton('delete-recording', ic('trash', 17), 'icon-button', `data-id="${clip.id}" aria-label="${t('delete')}"`)}</div></div>${unsaved ? `<p class="tiny muted mt12">${t('saveRecording')}</p>` : ''}</div>`; }
 function reciteView(): string { return `<p class="eyebrow mt12">${t('recite')}</p><h1 class="page-title">${t('studio')}</h1><p class="page-sub">${t('studioSub')}</p><div class="record-selector"><select id="recite-surah" aria-label="${t('surah')}" ${recordingActive() ? 'disabled' : ''}>${SURAH_DATA.map(s => `<option value="${s.id}" ${s.id === reciteSurah ? 'selected' : ''}>${escapeHtml(state.locale === 'ar' ? s.ar : s.name)}</option>`).join('')}</select><select id="recite-ayah" aria-label="${t('ayah')}" ${recordingActive() ? 'disabled' : ''}>${chapter(reciteSurah).verses.map((_, i) => `<option value="${i + 1}" ${i + 1 === reciteAyah ? 'selected' : ''}>${t('ayah')} ${num(i + 1)}</option>`).join('')}</select></div><div class="question-ayah"><p class="arabic center" lang="ar">${escapeHtml(verse(reciteSurah, reciteAyah))}</p><p class="verse-key">${ref(reciteSurah, reciteAyah)}</p></div><div class="audio-row row"><span class="gold">${ic('headphones', 21)}</span><div class="grow"><strong>${t('reference')}</strong><p class="tiny muted">${t('audioProvider')}</p></div>${actionButton('play-verse', ic('play'), 'icon-button', `data-surah="${reciteSurah}" data-ayah="${reciteAyah}" aria-label="${t('play')}"`)}</div><div class="record-control"><button class="record-button ${recordingActive() ? 'live' : ''}" data-action="record" aria-label="${t(recordingActive() ? 'stop' : 'record')}">${ic(recordingActive() ? 'stop' : 'mic', 36)}</button><p class="small">${t(recordingActive() ? 'recording' : 'record')}</p><p class="record-timer" id="record-timer">${recordingActive() ? '00:00' : '90s max'}</p></div>${unsavedClip ? clipCard(unsavedClip, true) : ''}<div class="notice">${ic('shield', 20)}<div><strong>${t('noScore')}</strong><p>${t('noScoreSub')}</p></div></div><p class="gentle">${t('privateRecording')}</p><section class="section"><div class="row between"><h2 class="section-title">${t('savedRecordings')}</h2><span class="pill">${num(savedClips.length)}</span></div>${savedClips.length ? savedClips.sort((a, b) => b.createdAt - a.createdAt).map(r => clipCard(r)).join('') : `<p class="empty">${t('noRecordings')}</p>`}</section>`; }
 function progressView(): string { const accuracy = completedAccuracy(state), cards = Object.values(state.cards), retainedCards = cards.filter(c => retention(c) === 'retained'), weak = weakItems(state); return `<p class="eyebrow mt12">${t('deviceOnly')}</p><h1 class="page-title">${t('progressTitle')}</h1><p class="page-sub">${t('progressSub')}</p><div class="progress-cards"><div class="metric"><div class="progress-ring" style="--percent:${accuracy ?? 0}%"><span>${accuracy === null ? '—' : num(accuracy) + '%'}</span></div><div class="grow"><h2 class="section-title">${t('quizAccuracy')}</h2><p class="label">${accuracy === null ? t('notYet') : `${num(state.attempts.filter(a => a.mode !== 'recall').length)} ${t('reviewed')}`}</p></div></div><div class="metric"><p class="value">${num(streak(state.days))}</p><p class="label">${t('dayStreak')}</p></div><div class="metric"><p class="value">${num(retainedCards.length)}</p><p class="label">${t('retained')}</p></div></div><div class="mt20">${miniNotice('retentionNote')}</div><section class="section week-card"><h2 class="section-title">${t('week')}</h2>${weekMarkup()}</section><section class="section"><h2 class="section-title mb16">${t('needsPractice')}</h2><div class="stack">${weak.length ? weak.map(c => `<button class="weak-row" data-action="practice-weak" data-key="${c.key}"><span class="gold">${ic('loop', 22)}</span><span class="grow"><h3>${escapeHtml(chapter(c.surah).name)} · ${ref(c.surah, c.ayah)}</h3><p>${t(c.mode)} · ${num(c.lapses)} ${t('missedChecks')}</p></span>${ic('chevron', 16)}</button>`).join('') : `<p class="empty">${t('noWeakness')}</p>`}</div></section><section class="section"><h2 class="section-title mb16">${t('surahProgress')}</h2>${SURAH_DATA.filter(s => state.selectedSurahs.includes(s.id)).map(s => { const seen = new Set(cards.filter(c => c.surah === s.id).map(c => c.ayah)).size; return `<div class="mini-stats"><div class="row between"><span class="small">${escapeHtml(s.name)}</span><span class="tiny muted">${num(seen)} / ${num(s.count)} ${t('ayahs')}</span></div><div class="bar-track mt12"><span style="width:${seen / s.count * 100}%"></span></div></div>`; }).join('')}</section><section class="section"><div class="mini-stats row between"><span class="small">${t('selfChecks')}</span><span class="gold">${num(state.recallSelfChecks)}</span></div><div class="mini-stats row between"><span class="small">${t('teacherVerified')}</span><span class="tiny muted">${t('unavailable')}</span></div></section>`; }
-function settingsView(): string { return `<h1 class="page-title">${t('settings')}</h1><section class="settings-section"><h2>${t('language')}</h2><div class="segment">${(['en', 'fr', 'ar'] as const).map((l, i) => `<button class="${state.locale === l ? 'active' : ''}" data-action="language" data-locale="${l}" lang="${l}">${['English', 'Français', 'العربية'][i]}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('appearance')}</h2><div class="segment" role="group" aria-label="${t('appearance')}">${(['system', 'light', 'dark'] as const).map(theme => `<button data-action="theme" data-theme="${theme}" class="${state.theme === theme ? 'active' : ''}" aria-pressed="${state.theme === theme}">${t(theme)}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('arabicSize')}</h2><div class="segment" role="group" aria-label="${t('arabicSize')}">${(['s', 'm', 'l', 'xl'] as const).map((z, i) => `<button data-action="arabic-size" data-size="${z}" class="${state.arabicSize === z ? 'active' : ''}" aria-pressed="${state.arabicSize === z}" aria-label="${t(['sizeS', 'sizeM', 'sizeL', 'sizeXL'][i]!)}"><span class="size-glyph size-${z}" lang="ar">ع</span></button>`).join('')}</div><p class="arabic size-preview" lang="ar" dir="rtl">${escapeHtml(verse(112, 1))} ${marker(1)}</p><h2 class="mt28">${t('layout')}</h2><div class="segment" role="group" aria-label="${t('layout')}">${(['cards', 'flow'] as const).map(l => `<button data-action="layout" data-layout="${l}" class="${state.readingLayout === l ? 'active' : ''}" aria-pressed="${state.readingLayout === l}">${t(l === 'cards' ? 'layoutCards' : 'layoutFlow')}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('dailyGoal')}</h2><div class="segment">${[3, 7, 10].map(g => `<button data-action="goal" data-goal="${g}" class="${state.goal === g ? 'active' : ''}">${num(g)} ${t('minutes')}</button>`).join('')}</div><p class="tiny muted">${t('goalNote')}</p><label class="setting-row"><span><strong>${t('motion')}</strong></span><input type="checkbox" id="motion-toggle" ${state.reducedMotion ? 'checked' : ''} aria-label="${t('motion')}"></label><label class="setting-row"><span><strong>${t('onlineAudio')}</strong><p>${t('onlineAudioNote')}</p></span><input type="checkbox" id="audio-toggle" ${state.audioConsent ? 'checked' : ''} aria-label="${t('onlineAudio')}"></label></section><section class="settings-section"><h2>${t('reminder')}</h2><p class="tiny muted mb16">${t('reminderNote')}</p><div class="row"><input id="reminder-time" type="time" value="${state.reminder ?? '20:00'}" aria-label="${t('reminder')}">${actionButton('reminder', t('setReminder'), 'button secondary grow')}</div>${state.reminder ? actionButton('remove-reminder', t('removeReminder'), 'text-button') : ''}</section><section class="settings-section"><h2>${t('dataPrivacy')}</h2>${isTemporary() ? miniNotice('temporaryNote') : ''}<p class="small muted mb16">${t('privacyNote')}</p><div class="stack">${actionButton('export', ic('download', 18) + t('export'), 'button secondary full')}${actionButton('import', ic('upload', 18) + t('import'), 'button subtle full')}</div><p class="tiny muted mt12">${t('exportNote')}</p><div class="mt20">${actionButton('reset', ic('trash', 18) + t('reset'), 'button danger full')}</div></section><section class="settings-section"><h2>${t('about')}</h2><p class="small muted">${t('aboutText')}</p><p class="small muted mt12">${t('editorial')}</p><a class="text-link" href="https://quran.com" target="_blank" rel="noopener noreferrer">Quran.com · ${t('source')}</a><br><a class="text-link" href="https://alquran.cloud/terms-and-conditions" target="_blank" rel="noopener noreferrer">Islamic Network · ${t('onlineAudio')}</a></section>`; }
+function settingsView(): string { return `<h1 class="page-title">${t('settings')}</h1><section class="settings-section"><h2>${t('language')}</h2><div class="segment">${(['en', 'fr', 'ar'] as const).map((l, i) => `<button class="${state.locale === l ? 'active' : ''}" data-action="language" data-locale="${l}" lang="${l}">${['English', 'Français', 'العربية'][i]}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('appearance')}</h2><div class="segment" role="group" aria-label="${t('appearance')}">${(['system', 'light', 'dark'] as const).map(theme => `<button data-action="theme" data-theme="${theme}" class="${state.theme === theme ? 'active' : ''}" aria-pressed="${state.theme === theme}">${t(theme)}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('arabicSize')}</h2><div class="segment" role="group" aria-label="${t('arabicSize')}">${(['s', 'm', 'l', 'xl'] as const).map((z, i) => `<button data-action="arabic-size" data-size="${z}" class="${state.arabicSize === z ? 'active' : ''}" aria-pressed="${state.arabicSize === z}" aria-label="${t(['sizeS', 'sizeM', 'sizeL', 'sizeXL'][i]!)}"><span class="size-glyph size-${z}" lang="ar">ع</span></button>`).join('')}</div><p class="arabic size-preview" lang="ar" dir="rtl">${escapeHtml(verse(112, 1))} ${marker(1)}</p><h2 class="mt28">${t('layout')}</h2><div class="segment" role="group" aria-label="${t('layout')}">${(['cards', 'flow'] as const).map(l => `<button data-action="layout" data-layout="${l}" class="${state.readingLayout === l ? 'active' : ''}" aria-pressed="${state.readingLayout === l}">${t(l === 'cards' ? 'layoutCards' : 'layoutFlow')}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('dailyGoal')}</h2><div class="segment">${[3, 7, 10].map(g => `<button data-action="goal" data-goal="${g}" class="${state.goal === g ? 'active' : ''}">${num(g)} ${t('minutes')}</button>`).join('')}</div><p class="tiny muted">${t('goalNote')}</p><label class="setting-row"><span><strong>${t('motion')}</strong></span><input type="checkbox" id="motion-toggle" ${state.reducedMotion ? 'checked' : ''} aria-label="${t('motion')}"></label><label class="setting-row"><span><strong>${t('onlineAudio')}</strong><p>${t('onlineAudioNote')}</p></span><input type="checkbox" id="audio-toggle" ${state.audioConsent ? 'checked' : ''} aria-label="${t('onlineAudio')}"></label>${voiceAvailable ? `<label class="setting-row"><span><strong>${t('voiceSetting')}</strong><p>${t('voiceSettingNote')}</p></span><input type="checkbox" id="voice-toggle" ${state.voiceFollowConsent ? 'checked' : ''} aria-label="${t('voiceSetting')}"></label>` : ''}</section><section class="settings-section"><h2>${t('reminder')}</h2><p class="tiny muted mb16">${t('reminderNote')}</p><div class="row"><input id="reminder-time" type="time" value="${state.reminder ?? '20:00'}" aria-label="${t('reminder')}">${actionButton('reminder', t('setReminder'), 'button secondary grow')}</div>${state.reminder ? actionButton('remove-reminder', t('removeReminder'), 'text-button') : ''}</section><section class="settings-section"><h2>${t('dataPrivacy')}</h2>${isTemporary() ? miniNotice('temporaryNote') : ''}<p class="small muted mb16">${t('privacyNote')}</p><div class="stack">${actionButton('export', ic('download', 18) + t('export'), 'button secondary full')}${actionButton('import', ic('upload', 18) + t('import'), 'button subtle full')}</div><p class="tiny muted mt12">${t('exportNote')}</p><div class="mt20">${actionButton('reset', ic('trash', 18) + t('reset'), 'button danger full')}</div></section><section class="settings-section"><h2>${t('about')}</h2><p class="small muted">${t('aboutText')}</p><p class="small muted mt12">${t('editorial')}</p><a class="text-link" href="https://quran.com" target="_blank" rel="noopener noreferrer">Quran.com · ${t('source')}</a><br><a class="text-link" href="https://alquran.cloud/terms-and-conditions" target="_blank" rel="noopener noreferrer">Islamic Network · ${t('onlineAudio')}</a></section>`; }
 const views: Record<View, () => string> = { today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView };
-function render(): void { applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); root.innerHTML = `<div class="app-shell">${header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''}" id="main" tabindex="-1">${views[view]()}</main>${nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${t(audioState === 'loading' ? 'loadingAudio' : ownAudio ? 'yourRecording' : 'reference')}</strong><p>${t(ownAudio ? 'privateRecording' : 'audioProvider')}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div></div>`; }
+function render(): void { applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); root.innerHTML = `<div class="app-shell">${header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''}" id="main" tabindex="-1">${views[view]()}</main>${nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${t(audioState === 'loading' ? 'loadingAudio' : ownAudio ? 'yourRecording' : 'reference')}</strong><p>${t(ownAudio ? 'privateRecording' : 'audioProvider')}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') applyFollow(); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
-    await finishRecording(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
+    await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
     history.pushState(null, '', `#${target}`); render(); window.scrollTo(0, 0); document.querySelector<HTMLElement>('#main')?.focus({ preventScroll: true }); }
 async function launch(mode: Mode | 'mixed', kind: 'daily' | 'practice' = 'practice', only?: QueueItem[]): Promise<void> { if (state.session) {
     await navigate('session');
@@ -258,7 +315,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
                 toast(t('audioDisabled'));
                 return;
             }
-            if (recordingActive())
+            if (recordingActive() || followingActive())
                 return;
             void playAudio(audioUrl(Number(d.surah), Number(d.ayah)), Number(d.speed ?? 1), d.loop === 'true').catch(() => { });
             break;
@@ -422,6 +479,26 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await commit({ ...state, locale: d.locale as Locale });
             render();
             break;
+        case 'follow': {
+            if (followingActive())
+                return;
+            const consented = state.voiceFollowConsent || await confirmAction(t('followConsent'));
+            if (!consented)
+                return;
+            stopAudio();
+            follow.status = 'loading';
+            // Not awaited: loading takes seconds and the Stop button must stay usable meanwhile.
+            void startFollowing(onFollow).catch(() => { followOff(); render(); toast(t('followError')); });
+            if (!state.voiceFollowConsent)
+                await commit({ ...state, voiceFollowConsent: true });
+            render();
+            break;
+        }
+        case 'follow-stop':
+            await stopFollowing();
+            followOff();
+            render();
+            break;
         case 'arabic-size':
             await commit({ ...state, arabicSize: d.size as ArabicSize });
             render();
@@ -500,7 +577,7 @@ root.addEventListener('input', e => { const el = e.target as HTMLInputElement; i
     libraryQuery = el.value;
     document.querySelector('#surah-list')!.innerHTML = surahRows();
 } });
-root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'recite-surah', 'recite-ayah'].includes(el.id))
+root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah'].includes(el.id))
     return; try {
     if (el.id === 'audio-toggle') {
         if (!el.checked)
@@ -509,6 +586,8 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
     }
     if (el.id === 'motion-toggle')
         await commit({ ...state, reducedMotion: el.checked });
+    if (el.id === 'voice-toggle')
+        await commit({ ...state, voiceFollowConsent: el.checked });
     if (el.id === 'recite-surah') {
         reciteSurah = Number(el.value);
         reciteAyah = 1;
@@ -558,7 +637,11 @@ window.addEventListener('ayahflow:audio', e => { const detail = (e as CustomEven
 window.addEventListener('ayahflow:record-limit', () => void finishRecording());
 window.addEventListener('ayahflow:record-error', () => { void finishRecording(); toast(t('micError')); });
 function background(): void { stopAudio(); if (recordingActive())
-    void finishRecording(); }
+    void finishRecording(); if (followingActive()) {
+    void stopFollowing();
+    followOff();
+    render();
+} }
 document.addEventListener('visibilitychange', () => { if (document.hidden)
     background(); });
 window.addEventListener('pagehide', background);
@@ -580,6 +663,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
+    void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });
     if ('serviceWorker' in navigator && ['https:', 'http:'].includes(location.protocol) && !isNative())
         void navigator.serviceWorker.register('./sw.js').catch(() => { });
 }

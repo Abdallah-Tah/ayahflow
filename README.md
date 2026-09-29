@@ -44,6 +44,19 @@ Open `http://localhost:4173`. The precompiled `www/` folder is included. This ro
 
 Arabic content has source references and structural tests. That is not a substitute for a qualified editorial review. See `docs/CONTENT-PROVENANCE.md`.
 
+### Voice following (experimental)
+
+In the reader, **Follow my recitation** listens (after an explicit tap and a one-time consent) and highlights the ayah and word you are reciting, scrolling with you. Recognition runs fully on the device with [Tilawa](https://github.com/yazinsai/tilawa) (`@tilawa/core`, MIT) and ONNX Runtime Web. Audio is not stored or uploaded, and nothing is added to your progress. It follows your place only: it is not a pronunciation or Tajweed check and can be wrong.
+
+The model is licensed **NPL-1.2** (no charge for the app or any feature it powers; see `docs/THIRD-PARTY-NOTICES.md`). It is not committed; fetch it before building:
+
+```bash
+npm run voice:fetch   # downloads ~75 MB into vendor/tilawa/ and verifies SHA-256
+npm run build         # includes www/voice/ when the model is present
+```
+
+Builds without the model hide the feature. The single-file preview never includes it.
+
 ### Intentionally not claimed
 
 There is **no automatic Tajweed or makhraj scoring**, speech-to-text, phoneme assessment, AI teacher, or certification. “Hidden-text recall” is the learner's own assessment. Multiple-choice success does not establish correct pronunciation or complete memorization.

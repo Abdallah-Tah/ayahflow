@@ -10,7 +10,7 @@ const plist = 'ios/App/App/Info.plist';
 if (await exists(plist)) {
     let s = await readFile(plist, 'utf8');
     if (!s.includes('NSMicrophoneUsageDescription')) {
-        s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>NSMicrophoneUsageDescription</key><string>Record Quran practice on this device. AyahFlow does not upload your recordings.</string>\n</dict>\n</plist>');
+        s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>NSMicrophoneUsageDescription</key><string>AyahFlow uses the microphone to record your practice and, only when you turn on Follow my recitation, to follow your place in the text. Everything stays on this device; nothing is uploaded.</string>\n</dict>\n</plist>');
         await writeFile(plist, s);
     }
     const privacy = 'ios/App/App/PrivacyInfo.xcprivacy';

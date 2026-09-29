@@ -5,8 +5,8 @@ export type Locale = 'en' | 'fr' | 'ar';
 export type Theme = 'system' | 'light' | 'dark';
 export type ArabicSize = 's' | 'm' | 'l' | 'xl';
 export type ReadingLayout = 'cards' | 'flow';
-/** Current save schema. v1 → v2 added theme; v2 → v3 added arabicSize and readingLayout. */
-export const STATE_VERSION = 3;
+/** Current save schema. v1 → v2 added theme; v2 → v3 added arabicSize and readingLayout; v3 → v4 added voiceFollowConsent. */
+export const STATE_VERSION = 4;
 export interface ReviewCard {
     key: string;
     mode: Mode;
@@ -50,11 +50,13 @@ export interface Session {
     kind: 'daily' | 'practice';
 }
 export interface AppState {
-    version: 3;
+    version: 4;
     locale: Locale;
     theme: Theme;
     arabicSize: ArabicSize;
     readingLayout: ReadingLayout;
+    /** Explicit opt-in to on-device voice following. Consent only: no recognition output is ever stored. */
+    voiceFollowConsent: boolean;
     goal: 3 | 7 | 10;
     selectedSurahs: number[];
     cards: Record<string, ReviewCard>;
@@ -79,7 +81,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 3, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 4, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -170,13 +172,15 @@ export function completedAccuracy(state: AppState): number | null { const a = st
 export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
-    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout'> & { version: number; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout };
-    if (![1, 2, 3].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent'> & { version: number; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean };
+    if (![1, 2, 3, 4].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
     if (s.version >= 3 && (!['s', 'm', 'l', 'xl'].includes(s.arabicSize!) || !['cards', 'flow'].includes(s.readingLayout!)))
         throw new Error('Invalid reading settings');
+    if (s.version >= 4 && typeof s.voiceFollowConsent !== 'boolean')
+        throw new Error('Invalid voice setting');
     if (!Array.isArray(s.selectedSurahs) || s.selectedSurahs.length === 0 || s.selectedSurahs.some(x => !SURAH_DATA.some(y => y.id === x)))
         throw new Error('Invalid practice range');
     if (!Number.isSafeInteger(s.xp) || s.xp < 0 || !Number.isSafeInteger(s.completedSessions) || s.completedSessions < 0 || !Number.isSafeInteger(s.recallSelfChecks) || s.recallSelfChecks < 0)
@@ -212,7 +216,7 @@ export function validateState(raw: unknown): AppState {
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone({ ...s, version: 3, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    return structuredClone({ ...s, version: 4, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */
@@ -238,3 +242,6 @@ export function surahRecallQueue(state: AppState, surah: number, now = Date.now(
 export function sessionRecap(state: AppState, sessionId: string): { key: string; mode: Mode; surah: number; ayah: number; correct: boolean }[] {
     return state.attempts.filter(a => a.id.startsWith(`${sessionId}:`)).map(a => { const [mode, surah, ayah] = a.cardKey.split(':'); return { key: a.cardKey, mode: mode as Mode, surah: Number(surah), ayah: Number(ayah), correct: a.correct }; });
 }
+/** Indices into ayahWords(text) of recited words, skipping stand-alone pause marks (e.g. "ۚ" in 110:3).
+ * Voice following reports word positions over recited words; this maps them onto the displayed tokens. */
+export function recitedWordIndices(text: string): number[] { return ayahWords(text).flatMap((w, i) => /[ء-يٮ-ۓۺ-ۿ]/.test(w) ? [i] : []); }
