@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AyahFlow</string>
+    <string name="title_activity_main">AyahFlow</string>
+    <string name="package_name">com.buildwithabdallah.ayahflow</string>
+    <string name="custom_url_scheme">com.buildwithabdallah.ayahflow</string>
+</resources>

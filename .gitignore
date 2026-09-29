@@ -1,0 +1,10 @@
+node_modules/
+www/
+.DS_Store
+.env*
+!.env.example
+*.keystore
+*.mobileprovision
+android/.gradle/
+android/local.properties
+ios/App/Pods/

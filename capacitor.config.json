@@ -1,0 +1,1 @@
+{"appId":"com.buildwithabdallah.ayahflow","appName":"AyahFlow","webDir":"www","backgroundColor":"#101411","server":{"androidScheme":"https"},"ios":{"contentInset":"never","backgroundColor":"#101411"},"android":{"backgroundColor":"#101411","allowMixedContent":false},"plugins":{"LocalNotifications":{"smallIcon":"ic_stat_ayahflow","iconColor":"#D9BB79"}}}

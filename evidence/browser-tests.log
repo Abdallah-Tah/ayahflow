@@ -1,0 +1,12 @@
+PASS Real build loads offline with honest zero progress and temporary-storage notice
+PASS Quran reader, search, bookmarks and recitation consent gate work
+PASS Adaptive session starts at the selected length and resumes without replacement
+PASS Five-question session updates real evidence, schedules misses and completes
+PASS Progress shows actual session results, one missed-card drill and no Tajweed score
+PASS Tajweed lesson highlight and rule quiz remain separate from recitation evidence
+PASS Recitation screen explicitly distinguishes comparison from pronunciation assessment
+PASS Generated audio records to a real MediaRecorder Blob, saves temporarily, and deletes only after confirmation
+PASS French translation, Arabic RTL and reduced-motion settings apply immediately
+PASS Four main screens have no horizontal overflow across 320, 390, 412, 430 and 1024 pixel viewports
+PASS No uncaught JavaScript errors or external requests during consent-disabled test flow
+{"passed": 11, "failed": 0}

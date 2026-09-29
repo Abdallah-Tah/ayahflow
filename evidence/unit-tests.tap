@@ -1,0 +1,184 @@
+TAP version 13
+# Subtest: Starter library has 8 complete chapters and 37 nonempty ayahs
+ok 1 - Starter library has 8 complete chapters and 37 nonempty ayahs
+  ---
+  duration_ms: 1.140743
+  type: 'test'
+  ...
+# Subtest: Chapter and verse access reject nonexistent content
+ok 2 - Chapter and verse access reject nonexistent content
+  ---
+  duration_ms: 0.582846
+  type: 'test'
+  ...
+# Subtest: Audio URLs preserve correct global ayah numbering
+ok 3 - Audio URLs preserve correct global ayah numbering
+  ---
+  duration_ms: 0.991135
+  type: 'test'
+  ...
+# Subtest: Every Tajweed example refers to the displayed Quran text, and remains a draft
+ok 4 - Every Tajweed example refers to the displayed Quran text, and remains a draft
+  ---
+  duration_ms: 1.35427
+  type: 'test'
+  ...
+# Subtest: Fresh progress is genuinely zero, and online recitation requires consent
+ok 5 - Fresh progress is genuinely zero, and online recitation requires consent
+  ---
+  duration_ms: 1.040568
+  type: 'test'
+  ...
+# Subtest: No next question crosses the end of a surah; no previous crosses the start
+ok 6 - No next question crosses the end of a surah; no previous crosses the start
+  ---
+  duration_ms: 0.471588
+  type: 'test'
+  ...
+# Subtest: All generated quiz options are canonical, unique, and have exactly one correct ID
+ok 7 - All generated quiz options are canonical, unique, and have exactly one correct ID
+  ---
+  duration_ms: 167.122907
+  type: 'test'
+  ...
+# Subtest: Repeated Al-Kafirun text is not presented as two different answer options
+ok 8 - Repeated Al-Kafirun text is not presented as two different answer options
+  ---
+  duration_ms: 30.442079
+  type: 'test'
+  ...
+# Subtest: Comparison normalization never changes displayed source content
+ok 9 - Comparison normalization never changes displayed source content
+  ---
+  duration_ms: 1.339615
+  type: 'test'
+  ...
+# Subtest: Same seed yields the same option ordering and daily plan
+ok 10 - Same seed yields the same option ordering and daily plan
+  ---
+  duration_ms: 2.936822
+  type: 'test'
+  ...
+# Subtest: Daily plans contain unique questions only from the chosen range
+ok 11 - Daily plans contain unique questions only from the chosen range
+  ---
+  duration_ms: 2.030876
+  type: 'test'
+  ...
+# Subtest: Time guides produce 5, 10 or 15 cards when the pool allows it
+ok 12 - Time guides produce 5, 10 or 15 cards when the pool allows it
+  ---
+  duration_ms: 0.286861
+  type: 'test'
+  ...
+# Subtest: Due and repeatedly missed cards are reviewed before new material
+ok 13 - Due and repeatedly missed cards are reviewed before new material
+  ---
+  duration_ms: 0.60229
+  type: 'test'
+  ...
+# Subtest: Early optional practice is labelled practice rather than falsely due
+ok 14 - Early optional practice is labelled practice rather than falsely due
+  ---
+  duration_ms: 0.204768
+  type: 'test'
+  ...
+# Subtest: Answer processing is immutable and idempotent for a repeated event
+ok 15 - Answer processing is immutable and idempotent for a repeated event
+  ---
+  duration_ms: 0.337339
+  type: 'test'
+  ...
+# Subtest: A correct review schedules one day; a failure schedules ten minutes
+ok 16 - A correct review schedules one day; a failure schedules ten minutes
+  ---
+  duration_ms: 0.309371
+  type: 'test'
+  ...
+# Subtest: Same-day repeats cannot inflate the spaced-review interval or retention dates
+ok 17 - Same-day repeats cannot inflate the spaced-review interval or retention dates
+  ---
+  duration_ms: 0.188761
+  type: 'test'
+  ...
+# Subtest: Distinct successful dates increase the interval with a ninety-day ceiling
+ok 18 - Distinct successful dates increase the interval with a ninety-day ceiling
+  ---
+  duration_ms: 0.264568
+  type: 'test'
+  ...
+# Subtest: Retained requires at least three successful days spanning seven days
+ok 19 - Retained requires at least three successful days spanning seven days
+  ---
+  duration_ms: 0.178657
+  type: 'test'
+  ...
+# Subtest: Self-assessed recall is stored separately and excluded from quiz accuracy
+ok 20 - Self-assessed recall is stored separately and excluded from quiz accuracy
+  ---
+  duration_ms: 0.191126
+  type: 'test'
+  ...
+# Subtest: Due counts ignore chapters outside the current practice range
+ok 21 - Due counts ignore chapters outside the current practice range
+  ---
+  duration_ms: 0.124348
+  type: 'test'
+  ...
+# Subtest: A backwards clock and a mismatched card key cannot corrupt review history
+ok 22 - A backwards clock and a mismatched card key cannot corrupt review history
+  ---
+  duration_ms: 0.399085
+  type: 'test'
+  ...
+# Subtest: Calendar distance follows dates across DST rather than elapsed hours
+ok 23 - Calendar distance follows dates across DST rather than elapsed hours
+  ---
+  duration_ms: 0.075078
+  type: 'test'
+  ...
+# Subtest: Streak counts today or yesterday, and stops at a missing date
+ok 24 - Streak counts today or yesterday, and stops at a missing date
+  ---
+  duration_ms: 0.142711
+  type: 'test'
+  ...
+# Subtest: A valid save can round-trip without sharing mutable references
+ok 25 - A valid save can round-trip without sharing mutable references
+  ---
+  duration_ms: 0.705959
+  type: 'test'
+  ...
+# Subtest: Backup validation rejects corrupted content and unknown schema versions
+ok 26 - Backup validation rejects corrupted content and unknown schema versions
+  ---
+  duration_ms: 0.537471
+  type: 'test'
+  ...
+# Subtest: An interrupted valid session survives serialization with feedback intact
+ok 27 - An interrupted valid session survives serialization with feedback intact
+  ---
+  duration_ms: 0.491442
+  type: 'test'
+  ...
+# Subtest: All user-facing dictionary entries have English, French and Arabic translations
+ok 28 - All user-facing dictionary entries have English, French and Arabic translations
+  ---
+  duration_ms: 0.421385
+  type: 'test'
+  ...
+# Subtest: Shuffling is deterministic and does not mutate its input
+ok 29 - Shuffling is deterministic and does not mutate its input
+  ---
+  duration_ms: 0.158434
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 303.994325

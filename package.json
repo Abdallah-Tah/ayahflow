@@ -1,0 +1,16 @@
+{
+  "name": "ayahflow", "version": "0.1.0", "private": true, "type": "module",
+  "description": "Offline-first Quran recall and guided Tajweed practice for iOS, Android and web.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node scripts/build.mjs", "dev": "npm run build && node scripts/serve.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs", "typecheck": "tsc --noEmit",
+    "native:prepare": "npm run build && node scripts/native-build.mjs",
+    "ios:add": "npm run native:prepare && cap add ios && node scripts/native-configure.mjs && cap sync ios",
+    "android:add": "npm run native:prepare && cap add android && node scripts/native-configure.mjs && cap sync android",
+    "native:sync": "npm run native:prepare && node scripts/native-configure.mjs && cap sync",
+    "ios": "npm run native:sync && cap open ios", "android": "npm run native:sync && cap open android"
+  },
+  "dependencies": { "@capacitor/core": "^8.0.0", "@capacitor/ios": "^8.0.0", "@capacitor/android": "^8.0.0", "@capacitor/app": "^8.0.0", "@capacitor/preferences": "^8.0.0", "@capacitor/filesystem": "^8.0.0", "@capacitor/share": "^8.0.0", "@capacitor/local-notifications": "^8.0.0", "@capacitor/haptics": "^8.0.0" },
+  "devDependencies": { "@capacitor/cli": "^8.0.0", "typescript": "^5.9.3", "esbuild": "^0.25.10" }
+}

@@ -1,0 +1,60 @@
+{
+  "build": "0.1.0",
+  "checks": [
+    {
+      "name": "Real build loads offline with honest zero progress and temporary-storage notice",
+      "passed": true
+    },
+    {
+      "name": "Quran reader, search, bookmarks and recitation consent gate work",
+      "passed": true
+    },
+    {
+      "name": "Adaptive session starts at the selected length and resumes without replacement",
+      "passed": true
+    },
+    {
+      "name": "Five-question session updates real evidence, schedules misses and completes",
+      "passed": true
+    },
+    {
+      "name": "Progress shows actual session results, one missed-card drill and no Tajweed score",
+      "passed": true
+    },
+    {
+      "name": "Tajweed lesson highlight and rule quiz remain separate from recitation evidence",
+      "passed": true
+    },
+    {
+      "name": "Recitation screen explicitly distinguishes comparison from pronunciation assessment",
+      "passed": true
+    },
+    {
+      "name": "Generated audio records to a real MediaRecorder Blob, saves temporarily, and deletes only after confirmation",
+      "passed": true
+    },
+    {
+      "name": "French translation, Arabic RTL and reduced-motion settings apply immediately",
+      "passed": true
+    },
+    {
+      "name": "Four main screens have no horizontal overflow across 320, 390, 412, 430 and 1024 pixel viewports",
+      "passed": true
+    },
+    {
+      "name": "No uncaught JavaScript errors or external requests during consent-disabled test flow",
+      "passed": true
+    }
+  ],
+  "passed": 11,
+  "failed": 0,
+  "method": "Actual single-file build, Chromium set_content, temporary-storage mode. Microphone replaced by a generated Web Audio stream; not a real microphone test.",
+  "not_tested": [
+    "Native iOS/Android compile and hardware",
+    "Preferences / Filesystem / OS notifications / native sharing",
+    "Durable browser localStorage and IndexedDB in an ordinary origin",
+    "Real microphone permissions and interruption behavior on devices",
+    "Live external recitation provider",
+    "Signed IPA/APK or store submission"
+  ]
+}
