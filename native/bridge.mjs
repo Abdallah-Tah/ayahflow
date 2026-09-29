@@ -16,6 +16,7 @@ function blob64(text, type) { const raw = atob(text), bytes = new Uint8Array(raw
 async function shareFile(name, data, encoding) { if (!/^[\w.-]+$/.test(name))
     throw Error('Invalid file name'); const p = `ayahflow-exports/${name}`; await Filesystem.writeFile({ path: p, data, directory: Directory.Cache, recursive: true, ...(encoding ? { encoding } : {}) }); const { uri } = await Filesystem.getUri({ path: p, directory: Directory.Cache }); await Share.share({ title: 'AyahFlow', url: uri, dialogTitle: 'Save or share your practice' }); }
 export const bridge = {
+    async shareText(title, text) { await Share.share({ title, text, dialogTitle: title }); },
     async load() { return (await Preferences.get({ key: STATE })).value; },
     async save(value) { await Preferences.set({ key: STATE, value }); },
     async recordings() { const rows = await index(); return Promise.all(rows.map(async (r) => { const { data } = await Filesystem.readFile({ path: audioPath(r.id), directory: Directory.Data }); return { ...r, blob: data instanceof Blob ? data : blob64(data, r.mime) }; })); },

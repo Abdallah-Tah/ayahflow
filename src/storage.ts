@@ -17,6 +17,7 @@ interface NativeBridge {
     clear: () => Promise<void>;
     exportFile: (text: string, name: string) => Promise<void>;
     shareRecording: (r: Recording) => Promise<void>;
+    shareText: (title: string, text: string) => Promise<void>;
     remind: (time: string | null) => Promise<void>;
     haptic: () => void;
 }
@@ -92,6 +93,14 @@ export async function shareAudio(r: Recording): Promise<void> { requireNativeSto
 }
 else
     downloadBlob(r.blob, name); }
+/** User-initiated text share (e.g. a content report). Falls back to the clipboard; never sends anything itself. */
+export async function shareText(title: string, text: string): Promise<'shared' | 'copied'> { requireNativeStorage(); if (nativeBridge) {
+    await nativeBridge.shareText(title, text);
+    return 'shared';
+} if (navigator.share) {
+    await navigator.share({ title, text });
+    return 'shared';
+} await navigator.clipboard.writeText(text); return 'copied'; }
 export async function setReminder(time: string | null): Promise<void> { if (!nativeBridge)
     throw new Error('nativeOnly'); await nativeBridge.remind(time); }
 export function haptic(): void { nativeBridge?.haptic(); }

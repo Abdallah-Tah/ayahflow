@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl } from '../www/js/data.js';
-import { initialState, dayKey, calendarDistance, streak, rng, shuffle, comparable, keyFor, eligible, allItems, planSession, questionFor, applyAnswer, retention, dueItems, weakItems, completedAccuracy, validateState } from '../www/js/engine.js';
+import { STATE_VERSION, locateGuess, identicalAyahs, ayahWords, surahRecallQueue, sessionRecap, initialState, dayKey, calendarDistance, streak, rng, shuffle, comparable, keyFor, eligible, allItems, planSession, questionFor, applyAnswer, retention, dueItems, weakItems, completedAccuracy, validateState } from '../www/js/engine.js';
 import { allTranslationKeys, tr } from '../www/js/i18n.js';
 const START = new Date(2026, 8, 28, 12).getTime();
 const item = (mode = 'next', surah = 112, ayah = 1) => ({ key: keyFor(mode, surah, ayah), mode, surah, ayah, reason: 'new' });
@@ -80,7 +80,7 @@ test('A backwards clock and a mismatched card key cannot corrupt review history'
 test('Calendar distance follows dates across DST rather than elapsed hours', () => { assert.equal(calendarDistance('2026-03-09', '2026-03-08'), 1); assert.equal(calendarDistance('2026-11-02', '2026-11-01'), 1); });
 test('Streak counts today or yesterday, and stops at a missing date', () => { const days = { [dayKey(START)]: 1, [dayKey(START - 86400000)]: 1, [dayKey(START - 2 * 86400000)]: 1 }; assert.equal(streak(days, START), 3); delete days[dayKey(START)]; assert.equal(streak(days, START), 2); delete days[dayKey(START - 86400000)]; assert.equal(streak(days, START), 0); assert.equal(streak({}, START), 0); });
 test('A valid save can round-trip without sharing mutable references', () => { const s = advance(initialState(), item(), true, 0, 'a'); const restored = validateState(JSON.parse(JSON.stringify(s))); assert.deepEqual(restored, s); restored.selectedSurahs.push(1); assert.notDeepEqual(restored.selectedSurahs, s.selectedSurahs); });
-test('Backup validation rejects corrupted content and unknown schema versions', () => { assert.throws(() => validateState(null)); assert.throws(() => validateState({ ...initialState(), version: 2 })); assert.throws(() => validateState({ ...initialState(), selectedSurahs: [] })); assert.throws(() => validateState({ ...initialState(), selectedSurahs: [2] })); assert.throws(() => validateState({ ...initialState(), xp: -1 })); assert.throws(() => validateState({ ...initialState(), bookmarks: ['112:999'] })); assert.throws(() => validateState({ ...initialState(), reminder: '25:00' })); });
+test('Backup validation rejects corrupted content and unknown schema versions', () => { assert.throws(() => validateState(null)); assert.throws(() => validateState({ ...initialState(), version: STATE_VERSION + 1 })); assert.throws(() => validateState({ ...initialState(), version: 0 })); assert.throws(() => validateState({ ...initialState(), selectedSurahs: [] })); assert.throws(() => validateState({ ...initialState(), selectedSurahs: [2] })); assert.throws(() => validateState({ ...initialState(), xp: -1 })); assert.throws(() => validateState({ ...initialState(), bookmarks: ['112:999'] })); assert.throws(() => validateState({ ...initialState(), reminder: '25:00' })); });
 test('An interrupted valid session survives serialization with feedback intact', () => { const s = initialState(); s.session = { id: 'test', seed: 4, queue: planSession(s, 'mixed', START, 4), index: 0, answered: true, lastCorrect: false, lastChoice: '112:2', correct: 0, startedAt: START, kind: 'daily' }; assert.deepEqual(validateState(s).session, s.session); assert.throws(() => validateState({ ...s, session: { ...s.session, index: 99 } })); });
 test('All user-facing dictionary entries have English, French and Arabic translations', () => { for (const key of allTranslationKeys())
     for (const locale of ['en', 'fr', 'ar']) {
@@ -88,3 +88,65 @@ test('All user-facing dictionary entries have English, French and Arabic transla
         assert(tr(key, locale).length > 0);
     } });
 test('Shuffling is deterministic and does not mutate its input', () => { const a = [1, 2, 3, 4, 5]; assert.deepEqual(shuffle(a, rng(7)), shuffle(a, rng(7))); assert.deepEqual(a, [1, 2, 3, 4, 5]); });
+
+const legacy = (version) => { const s = advance(initialState(), item(), true, 0, 'legacy'); s.version = version; if (version < 3) { delete s.arabicSize; delete s.readingLayout; } if (version < 2) delete s.theme; return JSON.parse(JSON.stringify(s)); };
+test('Version 1 and 2 saves migrate to the current schema without losing progress', () => {
+    assert.equal(STATE_VERSION, 3);
+    const v1 = validateState(legacy(1));
+    assert.equal(v1.version, 3); assert.equal(v1.theme, 'system'); assert.equal(v1.arabicSize, 'm'); assert.equal(v1.readingLayout, 'cards');
+    assert.equal(v1.xp, 10); assert.equal(v1.attempts.length, 1); assert(v1.cards[item().key]);
+    const v2 = legacy(2); v2.theme = 'light';
+    const m2 = validateState(v2);
+    assert.equal(m2.theme, 'light'); assert.equal(m2.arabicSize, 'm'); assert.deepEqual(m2.cards, v1.cards);
+    assert.deepEqual(validateState(JSON.parse(JSON.stringify(m2))), m2);
+});
+test('Migration rejects missing or unknown settings rather than guessing', () => {
+    const v2 = legacy(2); delete v2.theme; assert.throws(() => validateState(v2), /theme/);
+    assert.throws(() => validateState({ ...initialState(), arabicSize: 'huge' }), /reading settings/);
+    assert.throws(() => validateState({ ...initialState(), readingLayout: 'scroll' }), /reading settings/);
+    const v3 = { ...initialState() }; delete v3.arabicSize; assert.throws(() => validateState(v3));
+});
+test('Locate accepts the exact place and reports distance only within the chosen surah', () => {
+    const q = item('locate', 114, 4);
+    assert.deepEqual(locateGuess(q, 114, 4), { correct: true, distance: 0 });
+    assert.deepEqual(locateGuess(q, 114, 6), { correct: false, distance: 2 });
+    assert.deepEqual(locateGuess(q, 113, 4), { correct: false, distance: null });
+    assert.throws(() => locateGuess(q, 114, 7));
+    assert.throws(() => locateGuess(item('next', 114, 4), 114, 4));
+});
+test('Locate treats identical wording (Al-Kafirun 3 and 5) as the same answer', () => {
+    assert.deepEqual(identicalAyahs(109, 3), ['109:3', '109:5']);
+    assert.equal(locateGuess(item('locate', 109, 3), 109, 5).correct, true);
+    assert.equal(locateGuess(item('locate', 109, 5), 109, 3).correct, true);
+    assert.deepEqual(locateGuess(item('locate', 109, 3), 109, 4), { correct: false, distance: 1 });
+    for (const s of SURAH_DATA) for (let a = 1; a <= s.count; a++) assert(identicalAyahs(s.id, a).includes(`${s.id}:${a}`));
+});
+test('Locate questions cover every ayah, including first and last, with no invented options', () => {
+    for (const s of SURAH_DATA) {
+        assert.equal(allItems('locate', [s.id]).length, s.count);
+        const q = questionFor(item('locate', s.id, s.count), 3);
+        assert.deepEqual(q.options, []); assert.equal(q.text, verse(s.id, s.count)); assert.equal(q.correctId, `${s.id}:${s.count}`);
+    }
+});
+test('Word reveal segments rebuild every source ayah exactly', () => { for (const s of SURAH_DATA) s.verses.forEach(v => { const w = ayahWords(v); assert(w.length > 0); assert.equal(w.join(' '), v); }); });
+test('Whole-surah recall stays inside one surah, in order, as self-assessment', () => {
+    let s = advance(initialState(), item('recall', 1, 2), true, 0, 'r');
+    const q = surahRecallQueue(s, 1, START + 60000);
+    assert.deepEqual(q.map(x => x.ayah), [1, 2, 3, 4, 5, 6, 7]);
+    assert(q.every(x => x.surah === 1 && x.mode === 'recall'));
+    assert.equal(q[1].reason, 'practice'); assert.equal(q[0].reason, 'new');
+    assert.equal(surahRecallQueue(s, 1, START + 2 * 86400000)[1].reason, 'due');
+    s.session = { id: 'whole', seed: 1, queue: q, index: 0, answered: false, lastCorrect: false, lastChoice: null, correct: 0, startedAt: START, kind: 'practice' };
+    assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).session.queue, q);
+});
+test('Session recap reads only that session\'s saved evidence, in order', () => {
+    let s = initialState();
+    s = advance(s, item('next', 112, 1), true, 0, 'A:0');
+    s = advance(s, item('locate', 113, 2), false, 0, 'A:1');
+    s = advance(s, item('recall', 114, 1), true, 0, 'B:0');
+    s = advance(s, item('previous', 112, 2), false, 0, 'AB:0');
+    assert.deepEqual(sessionRecap(s, 'A'), [{ key: 'next:112:1', mode: 'next', surah: 112, ayah: 1, correct: true }, { key: 'locate:113:2', mode: 'locate', surah: 113, ayah: 2, correct: false }]);
+    assert.equal(sessionRecap(s, 'missing').length, 0);
+    assert.equal(s.cards['locate:113:2'].evidence, 'quiz');
+    assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).cards, s.cards);
+});

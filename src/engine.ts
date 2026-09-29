@@ -1,6 +1,12 @@
 import { SURAH_DATA, chapter, verse } from './data.js';
-export type Mode = 'next' | 'previous' | 'listen' | 'recall';
+export type Mode = 'next' | 'previous' | 'listen' | 'recall' | 'locate';
+export const MODES: readonly Mode[] = ['next', 'previous', 'listen', 'recall', 'locate'];
 export type Locale = 'en' | 'fr' | 'ar';
+export type Theme = 'system' | 'light' | 'dark';
+export type ArabicSize = 's' | 'm' | 'l' | 'xl';
+export type ReadingLayout = 'cards' | 'flow';
+/** Current save schema. v1 → v2 added theme; v2 → v3 added arabicSize and readingLayout. */
+export const STATE_VERSION = 3;
 export interface ReviewCard {
     key: string;
     mode: Mode;
@@ -44,8 +50,11 @@ export interface Session {
     kind: 'daily' | 'practice';
 }
 export interface AppState {
-    version: 1;
+    version: 3;
     locale: Locale;
+    theme: Theme;
+    arabicSize: ArabicSize;
+    readingLayout: ReadingLayout;
     goal: 3 | 7 | 10;
     selectedSurahs: number[];
     cards: Record<string, ReviewCard>;
@@ -70,7 +79,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 1, locale: 'en', goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 3, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -127,6 +136,9 @@ export function questionFor(item: QueueItem, seed: number): Question {
     if (item.mode === 'listen') {
         options = [{ id: correctId, text: s.name }, ...shuffle(SURAH_DATA.filter(v => v.id !== s.id), random).slice(0, 3).map(v => ({ id: String(v.id), text: v.name }))];
     }
+    else if (item.mode === 'locate') {
+        options = [];
+    }
     else {
         const seen = new Set([comparable(answer)]);
         const candidates = shuffle([...s.verses.map((text, i) => ({ id: `${s.id}:${i + 1}`, text })), ...SURAH_DATA.filter(v => v.id !== s.id).flatMap(v => v.verses.map((text, i) => ({ id: `${v.id}:${i + 1}`, text })))], random);
@@ -158,9 +170,13 @@ export function completedAccuracy(state: AppState): number | null { const a = st
 export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
-    const s = raw as AppState;
-    if (s.version !== 1 || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout'> & { version: number; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout };
+    if (![1, 2, 3].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
+    if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
+        throw new Error('Invalid theme');
+    if (s.version >= 3 && (!['s', 'm', 'l', 'xl'].includes(s.arabicSize!) || !['cards', 'flow'].includes(s.readingLayout!)))
+        throw new Error('Invalid reading settings');
     if (!Array.isArray(s.selectedSurahs) || s.selectedSurahs.length === 0 || s.selectedSurahs.some(x => !SURAH_DATA.some(y => y.id === x)))
         throw new Error('Invalid practice range');
     if (!Number.isSafeInteger(s.xp) || s.xp < 0 || !Number.isSafeInteger(s.completedSessions) || s.completedSessions < 0 || !Number.isSafeInteger(s.recallSelfChecks) || s.recallSelfChecks < 0)
@@ -168,12 +184,12 @@ export function validateState(raw: unknown): AppState {
     if (!s.cards || typeof s.cards !== 'object' || Array.isArray(s.cards) || !s.days || typeof s.days !== 'object')
         throw new Error('Invalid review state');
     for (const [k, c] of Object.entries(s.cards)) {
-        if (!c || !['next', 'previous', 'listen', 'recall'].includes(c.mode) || !eligible(c.mode, c.surah, c.ayah) || k !== keyFor(c.mode, c.surah, c.ayah) || c.key !== k)
+        if (!c || !MODES.includes(c.mode) || !eligible(c.mode, c.surah, c.ayah) || k !== keyFor(c.mode, c.surah, c.ayah) || c.key !== k)
             throw new Error('Invalid review card');
         if (![c.attempts, c.successes, c.lapses, c.intervalDays, c.dueAt, c.lastAt, c.firstSuccessAt].every(x => Number.isFinite(x) && x >= 0) || !Array.isArray(c.successDays) || c.successDays.some(d => !/^\d{4}-\d{2}-\d{2}$/.test(d)))
             throw new Error('Invalid review metadata');
     }
-    if (!Array.isArray(s.attempts) || s.attempts.length > 5000 || s.attempts.some(a => !a || typeof a.id !== 'string' || !Number.isFinite(a.at) || typeof a.correct !== 'boolean' || !['next', 'previous', 'listen', 'recall'].includes(a.mode)))
+    if (!Array.isArray(s.attempts) || s.attempts.length > 5000 || s.attempts.some(a => !a || typeof a.id !== 'string' || !Number.isFinite(a.at) || typeof a.correct !== 'boolean' || !MODES.includes(a.mode)))
         throw new Error('Invalid evidence');
     if (Object.entries(s.days).some(([d, n]) => !/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isSafeInteger(n) || n < 0))
         throw new Error('Invalid activity');
@@ -192,9 +208,33 @@ export function validateState(raw: unknown): AppState {
         if (!q || typeof q.id !== 'string' || !Number.isFinite(q.seed) || !Number.isFinite(q.startedAt) || !['daily', 'practice'].includes(q.kind) || !Number.isSafeInteger(q.correct) || q.correct < 0 || typeof q.answered !== 'boolean' || typeof q.lastCorrect !== 'boolean' || !(q.lastChoice === null || typeof q.lastChoice === 'string') || !Array.isArray(q.queue) || q.queue.length < 1 || q.queue.length > 15 || !Number.isInteger(q.index) || q.index < 0 || q.index >= q.queue.length)
             throw new Error('Invalid session');
         for (const i of q.queue) {
-            if (!i || !['next', 'previous', 'listen', 'recall'].includes(i.mode) || !eligible(i.mode, i.surah, i.ayah) || i.key !== keyFor(i.mode, i.surah, i.ayah) || !['due', 'new', 'practice'].includes(i.reason))
+            if (!i || !MODES.includes(i.mode) || !eligible(i.mode, i.surah, i.ayah) || i.key !== keyFor(i.mode, i.surah, i.ayah) || !['due', 'new', 'practice'].includes(i.reason))
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone(s);
+    return structuredClone({ ...s, version: 3, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+}
+
+/** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */
+export function identicalAyahs(surah: number, ayah: number): string[] { const key = comparable(verse(surah, ayah)); return SURAH_DATA.flatMap(s => s.verses.flatMap((text, i) => comparable(text) === key ? [`${s.id}:${i + 1}`] : [])); }
+/** Grade a "where is this ayah?" guess. Any textually identical ayah is accepted. Distance is feedback only, within one surah. */
+export function locateGuess(item: QueueItem, surah: number, ayah: number): { correct: boolean; distance: number | null } {
+    if (item.mode !== 'locate' || !eligible('locate', item.surah, item.ayah))
+        throw new Error('Invalid locate question');
+    verse(surah, ayah);
+    const accepted = identicalAyahs(item.surah, item.ayah);
+    if (accepted.includes(`${surah}:${ayah}`))
+        return { correct: true, distance: 0 };
+    const sameSurah = accepted.filter(k => k.startsWith(`${surah}:`)).map(k => Number(k.split(':')[1]));
+    return { correct: false, distance: sameSurah.length ? Math.min(...sameSurah.map(a => Math.abs(a - ayah))) : null };
+}
+/** Display segments for progressive word reveal. Joining them with single spaces reproduces the source string exactly. */
+export function ayahWords(text: string): string[] { return text.split(' ').filter(w => w.length > 0); }
+/** Hidden-text recall of one whole surah, in order. Never crosses into another surah. */
+export function surahRecallQueue(state: AppState, surah: number, now = Date.now()): QueueItem[] {
+    return allItems('recall', [surah]).map(x => { const c = state.cards[x.key]; return { ...x, reason: !c ? 'new' as const : c.dueAt <= now ? 'due' as const : 'practice' as const }; });
+}
+/** The evidence recorded for one session, in answer order. Reads saved attempts; derives nothing new. */
+export function sessionRecap(state: AppState, sessionId: string): { key: string; mode: Mode; surah: number; ayah: number; correct: boolean }[] {
+    return state.attempts.filter(a => a.id.startsWith(`${sessionId}:`)).map(a => { const [mode, surah, ayah] = a.cardKey.split(':'); return { key: a.cardKey, mode: mode as Mode, surah: Number(surah), ayah: Number(ayah), correct: a.correct }; });
 }
