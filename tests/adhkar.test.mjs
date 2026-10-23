@@ -395,3 +395,21 @@ test('Removing an own counter also removes it from the rotation', async () => {
     assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(s))));
     assert(!removeCounter(s, 'my-z1').rotation.phrases.includes('my-z1'));
 });
+
+test('Method suggestion follows the saved place, offline, and is only a hint', async () => {
+    const { suggestedMethod, timesFor } = await import('../www/js/smart.js');
+    const at = (lat, lng) => suggestedMethod({ lat, lng })?.method ?? null;
+    assert.equal(at(43.91, -69.96), 'NorthAmerica'); // Brunswick, Maine
+    assert.equal(at(45.42, -75.69), 'NorthAmerica'); // Ottawa
+    assert.equal(at(21.42, 39.83), 'UmmAlQura'); // Makkah
+    assert.equal(at(25.2, 55.27), 'Dubai'); assert.equal(at(25.29, 51.53), 'Qatar'); assert.equal(at(29.37, 47.98), 'Kuwait');
+    assert.equal(at(30.04, 31.24), 'Egyptian'); assert.equal(at(41.01, 28.98), 'Turkey'); assert.equal(at(35.69, 51.39), 'Tehran');
+    assert.equal(at(24.86, 67.0), 'Karachi'); assert.equal(at(1.29, 103.85), 'Singapore'); assert.equal(at(51.51, -0.13), 'MuslimWorldLeague');
+    assert.equal(at(-33.87, 151.21), null); assert.equal(suggestedMethod(null), null); // no guess where there is no common choice
+    // The reported screen: Umm al-Qura + Hanafi in Maine gives Fajr 5:25, Asr 3:58, Isha = Maghrib + 90 min.
+    const s = { ...initialState(), places: { home: { lat: 43.9145, lng: -69.9653, radius: 150 }, work: null, mosque: null } };
+    const day = new Date(2026, 9, 23, 12);
+    const uq = timesFor({ ...s, smart: { ...s.smart, method: 'UmmAlQura', hanafi: true } }, day), na = timesFor({ ...s, smart: { ...s.smart, method: 'NorthAmerica', hanafi: false } }, day);
+    assert.equal(Math.round((uq.isha - uq.maghrib) / 60000), 90);
+    assert(na.fajr - uq.fajr > 15 * 60000); assert(uq.asr - na.asr > 35 * 60000);
+});

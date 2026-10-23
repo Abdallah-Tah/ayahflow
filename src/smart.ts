@@ -2,7 +2,7 @@
  * Decisions are local; places never leave the device; a reminder is never counted as a recitation. */
 import { RULES, ONCE_PER_DAY, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassages, type Moment, type DayWindows, type SmartEvent } from './adhkar.js';
 import { prayerTimes, dayWindows, type Times } from './prayer.js';
-import { dayKey, completedToday, PRAYERS, type AppState, type Detection, type PrayerName } from './engine.js';
+import { dayKey, completedToday, PRAYERS, type AppState, type Detection, type PrayerName, type PrayerMethod } from './engine.js';
 export interface SmartStatus { location: 'always' | 'whenInUse' | 'denied' | 'restricted' | 'prompt'; motion: 'granted' | 'denied' | 'restricted' | 'prompt' | 'unavailable'; monitoring: string[]; precise: boolean; backgroundRefresh?: 'on' | 'off' | 'restricted'; lowPower?: boolean; vehicleWatch?: boolean; configSaved?: boolean; tripWatch?: boolean; backgroundLocation?: boolean }
 export interface SmartBridge {
     status(): Promise<SmartStatus>;
@@ -92,6 +92,26 @@ export function istighfarReminders(state: AppState, today: number, target: numbe
     return out;
 }
 export function timedId(moment: Moment, day: string): number { return CODE[moment]! * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
+/** The calculation method most mosques use in a region, from rough country boxes (no network, no place names). A hint
+ * only: local mosques may follow another method. Smaller regions are checked before larger ones that overlap them. */
+const METHOD_REGIONS: { region: string; method: PrayerMethod; lat: [number, number]; lng: [number, number] }[] = [
+    { region: 'qatar', method: 'Qatar', lat: [24.4, 26.2], lng: [50.7, 51.7] },
+    { region: 'uae', method: 'Dubai', lat: [22.5, 26.1], lng: [51.5, 56.4] },
+    { region: 'kuwait', method: 'Kuwait', lat: [28.5, 30.1], lng: [46.5, 48.5] },
+    { region: 'saudi', method: 'UmmAlQura', lat: [16, 32.2], lng: [34.5, 55.7] },
+    { region: 'egypt', method: 'Egyptian', lat: [22, 31.7], lng: [24.7, 34.9] },
+    { region: 'turkey', method: 'Turkey', lat: [35.8, 42.1], lng: [26, 44.8] },
+    { region: 'iran', method: 'Tehran', lat: [25, 39.8], lng: [44, 63.3] },
+    { region: 'southAsia', method: 'Karachi', lat: [5, 37], lng: [60.9, 92.7] },
+    { region: 'southeastAsia', method: 'Singapore', lat: [-11, 7.5], lng: [95, 141] },
+    { region: 'northAmerica', method: 'NorthAmerica', lat: [14, 72], lng: [-170, -50] },
+    { region: 'europe', method: 'MuslimWorldLeague', lat: [35, 71], lng: [-11, 40] },
+];
+export function suggestedMethod(p: { lat: number; lng: number } | null): { region: string; method: PrayerMethod } | null {
+    if (!p) return null;
+    const r = METHOD_REGIONS.find(x => p.lat >= x.lat[0] && p.lat <= x.lat[1] && p.lng >= x.lng[0] && p.lng <= x.lng[1]);
+    return r ? { region: r.region, method: r.method } : null;
+}
 /** Where prayer times are calculated: Home, else Work, else Mosque. */
 export function prayerPlace(state: AppState): { lat: number; lng: number } | null { return state.places.home ?? state.places.work ?? state.places.mosque; }
 export function timesFor(state: AppState, date: Date): Times | null {
