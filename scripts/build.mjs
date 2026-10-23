@@ -20,6 +20,14 @@ if (result.status !== 0) {
     process.exit(result.status ?? 1);
 }
 await cp('public', 'www', { recursive: true });
+// Full Quran text: verbatim Tanzil import, checksum-pinned (scripts/import-quran.mjs).
+const { writeQuranModule } = await import('./import-quran.mjs');
+const quran = await writeQuranModule('www/js/quran-data.js');
+await cp('content/tanzil', 'www/content/tanzil', { recursive: true }); // Licence requires the notice to travel with the text.
+// Adhkar library: verified verbatim hadith slices + Quran references (scripts/build-adhkar.mjs), shipped as a module.
+await writeFile('www/js/adhkar-data.js', `/* Generated from content/adhkar/adhkar.json — do not edit. Source: ${JSON.parse(await readFile('content/adhkar/adhkar.json', 'utf8')).dataset}. */\nexport default ${await readFile('content/adhkar/adhkar.json', 'utf8')};\n`);
+// Offline prayer times: adhan-js (MIT), bundled because the web build has no bundler.
+await (await import('esbuild')).build({ entryPoints: ['node_modules/adhan/lib/esm/Adhan.js'], outfile: 'www/js/adhan.js', bundle: true, format: 'esm', target: 'es2020', minify: true, legalComments: 'inline', logLevel: 'warning' });
 // Optional voice following. Shipped only when `npm run voice:fetch` has verified the NPL-1.2 model into vendor/.
 // Without it the app hides the feature (no manifest). The single-file preview never includes it.
 const { VOICE_DIR, VOICE_ASSETS } = await import('./fetch-voice-model.mjs');
@@ -37,7 +45,7 @@ if (voiceReady) {
 else
     console.log('Voice following not included: run `npm run voice:fetch` to download the model.');
 const data = await readFile('src/data.ts', 'utf8');
-await writeFile('www/content-manifest.json', JSON.stringify({ version: 'starter-1', source: 'Quran.com Arabic chapter text', captured: '2026-09-28', chapters: [1, 103, 108, 109, 110, 112, 113, 114], ayahCount: 37, teacherReview: 'pending', sha256: createHash('sha256').update(data).digest('hex'), note: 'Checksum detects source-file changes; it is not religious or editorial certification.' }, null, 2));
+await writeFile('www/content-manifest.json', JSON.stringify({ version: 'tanzil-uthmani-1.1', source: quran.source, licence: quran.licence, url: quran.url, textSha256: quran.sha256, chapters: quran.surahs.length, ayahCount: quran.surahs.reduce((n, s) => n + s.verses.length, 0), teacherReview: 'pending', lessonsSha256: createHash('sha256').update(data).digest('hex'), note: 'Checksums detect source changes; they are not religious or editorial certification.' }, null, 2));
 const jsFiles = (await readdir('www/js')).filter(f => f.endsWith('.js'));
 const assets = ['./', './index.html', './style.css', './assets/icon.svg', './assets/icon-180.png', './assets/icon-192.png', './assets/icon-512.png', './manifest.webmanifest', './content-manifest.json', ...jsFiles.map(f => './js/' + f)];
 const tag = createHash('sha256').update(await readFile('www/js/app.js')).update(await readFile('www/style.css')).update(data).digest('hex').slice(0, 12);

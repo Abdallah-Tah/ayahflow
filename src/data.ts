@@ -1,58 +1,38 @@
-/** Arabic starter corpus. Source snapshots: Quran.com, 2026-09-28.
- * Preserve the Arabic strings; ayah numbers are metadata, not part of the text.
+/** Full Quran corpus: Tanzil Quran Text (Uthmani, Version 1.1), CC BY 3.0, https://tanzil.net.
+ * Generated verbatim by scripts/import-quran.mjs from the pinned files in content/tanzil/ (never edited by hand).
+ * Preserve the Arabic strings; ayah numbers and the basmala heading are metadata, not part of the ayah text.
  * Editorial cross-check != certification. See docs/CONTENT-PROVENANCE.md.
  * No generated distractor text or synthetic recitation is permitted.
  */
+import QURAN from './quran-data.js';
 export interface Surah {
     id: number;
+    /** Tanzil transliteration, as published. */
     name: string;
     ar: string;
+    /** Tanzil English meaning of the name. */
+    en: string;
+    type: 'meccan' | 'medinan';
     count: number;
+    /** Juz in which the surah begins. */
     juz: number;
     firstGlobal: number;
+    /** Tanzil's separate basmala heading, or null (Al-Fatihah, where it is ayah 1, and At-Tawbah). */
+    bismillah: string | null;
     verses: readonly string[];
     source: string;
 }
-export const SURAH_DATA: readonly Surah[] = [
-    { id: 1, name: 'Al-Fatihah', ar: 'الفاتحة', count: 7, juz: 1, firstGlobal: 1, source: 'https://quran.com/al-fatihah', verses: [
-            'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
-            'ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَـٰلَمِينَ',
-            'ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
-            'مَـٰلِكِ يَوْمِ ٱلدِّينِ',
-            'إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ',
-            'ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمَ',
-            'صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَلَا ٱلضَّآلِّينَ'
-        ] },
-    { id: 103, name: "Al-'Asr", ar: 'العصر', count: 3, juz: 30, firstGlobal: 6177, source: 'https://quran.com/al-asr', verses: [
-            'وَٱلْعَصْرِ', 'إِنَّ ٱلْإِنسَـٰنَ لَفِى خُسْرٍ',
-            'إِلَّا ٱلَّذِينَ ءَامَنُوا۟ وَعَمِلُوا۟ ٱلصَّـٰلِحَـٰتِ وَتَوَاصَوْا۟ بِٱلْحَقِّ وَتَوَاصَوْا۟ بِٱلصَّبْرِ'
-        ] },
-    { id: 108, name: 'Al-Kawthar', ar: 'الكوثر', count: 3, juz: 30, firstGlobal: 6205, source: 'https://quran.com/al-kawthar', verses: [
-            'إِنَّآ أَعْطَيْنَـٰكَ ٱلْكَوْثَرَ', 'فَصَلِّ لِرَبِّكَ وَٱنْحَرْ', 'إِنَّ شَانِئَكَ هُوَ ٱلْأَبْتَرُ'
-        ] },
-    { id: 109, name: 'Al-Kafirun', ar: 'الكافرون', count: 6, juz: 30, firstGlobal: 6208, source: 'https://quran.com/al-kafirun', verses: [
-            'قُلْ يَـٰٓأَيُّهَا ٱلْكَـٰفِرُونَ', 'لَآ أَعْبُدُ مَا تَعْبُدُونَ', 'وَلَآ أَنتُمْ عَـٰبِدُونَ مَآ أَعْبُدُ',
-            'وَلَآ أَنَا۠ عَابِدٌۭ مَّا عَبَدتُّمْ', 'وَلَآ أَنتُمْ عَـٰبِدُونَ مَآ أَعْبُدُ', 'لَكُمْ دِينُكُمْ وَلِىَ دِينِ'
-        ] },
-    { id: 110, name: 'An-Nasr', ar: 'النصر', count: 3, juz: 30, firstGlobal: 6214, source: 'https://quran.com/an-nasr', verses: [
-            'إِذَا جَآءَ نَصْرُ ٱللَّهِ وَٱلْفَتْحُ', 'وَرَأَيْتَ ٱلنَّاسَ يَدْخُلُونَ فِى دِينِ ٱللَّهِ أَفْوَاجًۭا',
-            'فَسَبِّحْ بِحَمْدِ رَبِّكَ وَٱسْتَغْفِرْهُ ۚ إِنَّهُۥ كَانَ تَوَّابًۢا'
-        ] },
-    { id: 112, name: 'Al-Ikhlas', ar: 'الإخلاص', count: 4, juz: 30, firstGlobal: 6222, source: 'https://quran.com/al-ikhlas', verses: [
-            'قُلْ هُوَ ٱللَّهُ أَحَدٌ', 'ٱللَّهُ ٱلصَّمَدُ', 'لَمْ يَلِدْ وَلَمْ يُولَدْ', 'وَلَمْ يَكُن لَّهُۥ كُفُوًا أَحَدٌۢ'
-        ] },
-    { id: 113, name: 'Al-Falaq', ar: 'الفلق', count: 5, juz: 30, firstGlobal: 6226, source: 'https://quran.com/al-falaq', verses: [
-            'قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ', 'مِن شَرِّ مَا خَلَقَ', 'وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ',
-            'وَمِن شَرِّ ٱلنَّفَّـٰثَـٰتِ فِى ٱلْعُقَدِ', 'وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ'
-        ] },
-    { id: 114, name: 'An-Nas', ar: 'الناس', count: 6, juz: 30, firstGlobal: 6231, source: 'https://quran.com/an-nas', verses: [
-            'قُلْ أَعُوذُ بِرَبِّ ٱلنَّاسِ', 'مَلِكِ ٱلنَّاسِ', 'إِلَـٰهِ ٱلنَّاسِ',
-            'مِن شَرِّ ٱلْوَسْوَاسِ ٱلْخَنَّاسِ', 'ٱلَّذِى يُوَسْوِسُ فِى صُدُورِ ٱلنَّاسِ', 'مِنَ ٱلْجِنَّةِ وَٱلنَّاسِ'
-        ] },
-];
-export function chapter(id: number): Surah { const result = SURAH_DATA.find(s => s.id === id); if (!result)
+export const QURAN_SOURCE = { name: QURAN.source, licence: QURAN.licence, url: QURAN.url, sha256: QURAN.sha256 } as const;
+/** First ayah of each juz, [surah, ayah]. */
+export const JUZ_STARTS: readonly (readonly [number, number])[] = QURAN.juz;
+export function juzOf(surah: number, ayah: number): number { let j = 1; JUZ_STARTS.forEach(([s, a], i) => { if (s < surah || (s === surah && a <= ayah)) j = i + 1; }); return j; }
+let global = 1;
+export const SURAH_DATA: readonly Surah[] = QURAN.surahs.map(s => { const surah: Surah = { id: s.id, name: s.name, ar: s.ar, en: s.en, type: s.type, count: s.verses.length, juz: 0, firstGlobal: global, bismillah: s.bismillah, verses: s.verses, source: `https://tanzil.net/#${s.id}:1` }; global += s.verses.length; return surah; });
+for (const s of SURAH_DATA as Surah[]) s.juz = juzOf(s.id, 1);
+export const AYAH_TOTAL = global - 1;
+export function chapter(id: number): Surah { const result = Number.isInteger(id) ? SURAH_DATA[id - 1] : undefined; if (!result)
     throw new Error('Unknown surah'); return result; }
-export function verse(surah: number, ayah: number): string { const text = chapter(surah).verses[ayah - 1]; if (!text)
+export function verse(surah: number, ayah: number): string { const text = Number.isInteger(ayah) && ayah >= 1 ? chapter(surah).verses[ayah - 1] : undefined; if (!text)
     throw new Error('Ayah outside chapter'); return text; }
 export function audioUrl(surah: number, ayah: number): string { verse(surah, ayah); return `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${chapter(surah).firstGlobal + ayah - 1}.mp3`; }
 export type RuleId = 'ikhfa' | 'ghunnah' | 'qalqalah' | 'madd';

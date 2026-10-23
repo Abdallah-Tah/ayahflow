@@ -1,5 +1,5 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, type RuleId } from './data.js';
-import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
+import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
@@ -519,7 +519,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             render();
             break;
         case 'export':
-            await exportProgress(state);
+            await exportProgress(exportable(state));
             break;
         case 'import':
             document.querySelector<HTMLInputElement>('#import-file')!.click();

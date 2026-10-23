@@ -1,0 +1,126 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { verse, chapter } from '../www/js/data.js';
+import { ADHKAR_ENTRIES, PRAYER_SETS, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassages, sourceUrl, decide, emptyHistory, parseMomentUrl, momentUrl, currentMoment, RULES } from '../www/js/adhkar.js';
+import { initialState, validateState, completeDhikr, completedToday, exportable, STATE_VERSION, dayKey } from '../www/js/engine.js';
+import { prayerTimes, dayWindows } from '../www/js/prayer.js';
+const sources = JSON.parse(readFileSync(new URL('../content/adhkar/sources.json', import.meta.url), 'utf8')).hadiths;
+const key = s => s.normalize('NFC').replace(/[ً-ٰٟۖ-ۭـ‎‏]/g, '').replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^ء-ي ]/g, ' ').replace(/\s+/g, ' ').trim();
+const H = 3600000, DAY = '2026-10-22', at = h => new Date(2026, 9, 22, Math.floor(h), Math.round((h % 1) * 60)).getTime();
+const W = { day: DAY, morning: [at(5.5), at(12.5)], evening: [at(16), at(19.5)] };
+const ALL = new Set(MOMENTS);
+
+test('Every dua is a verbatim slice of its committed source hadith', () => {
+    assert(ADHKAR_ENTRIES.length >= 15);
+    for (const e of ADHKAR_ENTRIES) {
+        const src = sources[e.source.ref];
+        assert(src, `${e.id}: source ${e.source.ref} snapshot missing`);
+        if (e.kind === 'quran') { assert(e.quran.length && !e.text, e.id); continue; }
+        assert(src.text.includes(e.text), `${e.id}: text is not a verbatim substring of ${e.source.ref}`);
+        assert(key(e.text).split(' ').length >= 2 || e.id === 'subhan-bihamdih', e.id);
+        for (const a of e.also) assert(sources[a.ref], `${e.id}: supporting ${a.ref} missing`);
+    }
+});
+test('Quran-based adhkar read real ayahs from the corpus', () => {
+    const kursi = ADHKAR_ENTRIES.find(e => e.id === 'ayat-al-kursi');
+    assert.equal(quranPassages(kursi)[0].ayahs[0].text, verse(2, 255));
+    const quls = quranPassages(ADHKAR_ENTRIES.find(e => e.id === 'three-quls'));
+    assert.deepEqual(quls.map(q => [q.surah, q.ayahs.length]), [[112, 4], [113, 5], [114, 6]]);
+    assert.deepEqual(quranPassages(ADHKAR_ENTRIES.find(e => e.id === 'riding'))[0].ayahs.map(a => a.n), [13, 14]);
+});
+test('No dhikr relies on a hadith graded weak by every grader recorded', () => {
+    for (const e of ADHKAR_ENTRIES) {
+        const g = e.source.grades.map(x => x.grade.toLowerCase());
+        assert(!(g.length && g.every(x => x.includes('daif'))), `${e.id} is graded weak`);
+    }
+});
+test('Sources keep collection, number and a sunnah.com in-book link; mu‘allaq narrations are labelled', () => {
+    for (const e of ADHKAR_ENTRIES) { assert(e.source.collection && e.source.number, e.id); assert.match(sourceUrl(e.source), /^https:\/\/sunnah\.com\/[a-z]+\/\d+\/\d+$/); }
+    assert.equal(sourceUrl(ADHKAR_ENTRIES.find(e => e.id === 'leave-home').source), 'https://sunnah.com/abudawud/43/323');
+    assert.equal(ADHKAR_ENTRIES.find(e => e.id === 'ayat-al-kursi').note, 'muallaq');
+});
+test('Every moment with a narrated text has entries; general moments have none', () => {
+    for (const m of MOMENTS) assert.equal(entriesFor(m).length > 0, !GENERAL_MOMENTS.includes(m), m);
+});
+test('Prayer-surah suggestions cite hadiths that mention them', () => {
+    for (const p of PRAYER_SETS) { const t = key(sources[p.source.ref].text); for (const ev of p.evidence) assert(t.includes(key(ev)), `${p.id}: ${ev}`); p.surahs.forEach(s => chapter(s)); }
+});
+test('Leaving home in the morning window gives one grouped reminder', () => {
+    const { decision } = decide('EXIT_HOME', at(7), W, emptyHistory(), ALL);
+    assert.deepEqual(decision.moments, ['leave_home', 'morning']);
+    assert.equal(decision.url, 'ayahflow://moment/leave_home+morning');
+});
+test('Crossing the home boundary repeatedly is deduplicated by the cooldown', () => {
+    let h = decide('EXIT_HOME', at(7), W, emptyHistory(), ALL).history;
+    assert.equal(decide('EXIT_HOME', at(7.25), W, h, ALL).decision, null);
+    assert.deepEqual(decide('EXIT_HOME', at(8), W, h, ALL).decision.moments, ['leave_home']); // 60 min later; morning already sent today
+    h = decide('ENTER_HOME', at(7.1), W, h, ALL).history;
+    assert.equal(decide('ENTER_HOME', at(7.3), W, h, ALL).decision, null);
+});
+test('Morning is offered once per day, even if the user never leaves home, and not after completion', () => {
+    const r = decide('MORNING', at(6), W, emptyHistory(), ALL);
+    assert.deepEqual(r.decision.moments, ['morning']);
+    assert.equal(decide('MORNING', at(9), W, r.history, ALL).decision, null);
+    const done = { ...emptyHistory(), completedDay: { morning: DAY } };
+    assert.deepEqual(decide('EXIT_HOME', at(7), W, done, ALL).decision.moments, ['leave_home']);
+    assert.equal(decide('MORNING', at(6), W, done, ALL).decision, null);
+});
+test('Returning home in the evening window groups the evening collection', () => {
+    assert.deepEqual(decide('ENTER_HOME', at(17), W, emptyHistory(), ALL).decision.moments, ['enter_home', 'evening']);
+    assert.deepEqual(decide('ENTER_HOME', at(21), W, emptyHistory(), ALL).decision.moments, ['enter_home']);
+});
+test('Disabled moments are never reminded; a disabled trigger does not leak a grouped collection', () => {
+    const only = new Set(['morning']);
+    assert.equal(decide('EXIT_HOME', at(7), W, emptyHistory(), only).decision, null);
+    assert.equal(decide('ENTER_VEHICLE', at(7), W, emptyHistory(), new Set()).decision, null);
+});
+test('A vehicle event reminds of the riding dua only: it never claims the user is driving', () => {
+    const d = decide('ENTER_VEHICLE', at(22), W, emptyHistory(), ALL).decision;
+    assert.deepEqual(d.moments, ['vehicle']);
+    assert(RULES.every(r => !r.moments.includes('driving')));
+});
+test('Moment links round-trip and reject unknown or malformed input', () => {
+    assert.deepEqual(parseMomentUrl(momentUrl(['leave_home', 'morning'])), ['leave_home', 'morning']);
+    assert.deepEqual(parseMomentUrl('ayahflow://moment/vehicle+bogus+vehicle'), ['vehicle']);
+    assert.deepEqual(parseMomentUrl('https://evil.example/moment/vehicle'), []);
+    assert.deepEqual(parseMomentUrl('ayahflow://moment/<script>'), []);
+});
+test('Current moment follows the windows', () => {
+    assert.equal(currentMoment(W, at(6), null), 'morning');
+    assert.equal(currentMoment(W, at(17), null), 'evening');
+    assert.equal(currentMoment(W, at(23), [at(22), at(24)]), 'sleep');
+    assert.equal(currentMoment(W, at(14), null), null);
+});
+test('Prayer times are computed offline and ordered; windows follow the chosen span', () => {
+    const t = prayerTimes(21.4225, 39.8262, new Date(2026, 9, 22, 12), 'UmmAlQura');
+    assert(t.fajr < t.sunrise && t.sunrise < t.dhuhr && t.dhuhr < t.asr && t.asr < t.maghrib && t.maghrib < t.isha);
+    const narrow = dayWindows(DAY, t, 'narrow'), broad = dayWindows(DAY, t, 'broad');
+    assert.deepEqual(narrow.morning, [t.fajr, t.sunrise]); assert.deepEqual(broad.morning, [t.fajr, t.dhuhr]);
+    assert.deepEqual(narrow.evening, [t.asr, t.maghrib]); assert.deepEqual(broad.evening, [t.asr, t.isha]);
+    assert.deepEqual(dayWindows(DAY, null, 'broad'), { day: DAY, morning: null, evening: null });
+});
+test('Completions are explicit, idempotent and kept apart from reminders', () => {
+    let s = initialState();
+    s = completeDhikr(s, 'leave-home', 'leave_home', at(7), 'tap-1');
+    assert.strictEqual(completeDhikr(s, 'leave-home', 'leave_home', at(7), 'tap-1'), s);
+    assert.deepEqual([...completedToday(s, 'leave_home', at(8))], ['leave-home']);
+    assert.equal(completedToday(s, 'leave_home', at(8) + 86400000).size, 0);
+    assert.throws(() => completeDhikr(s, 'leave-home', 'morning', at(7), 'tap-2'));
+    assert.throws(() => completeDhikr(s, 'not-real', 'morning', at(7), 'tap-3'));
+    assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
+});
+test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
+    assert.equal(STATE_VERSION, 5);
+    const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
+    assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
+    assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
+    assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 1, lng: 1, radius: 20 } } }), /places/);
+    assert.throws(() => validateState({ ...s, smart: { ...s.smart, method: 'Made-up' } }), /smart/);
+    assert.throws(() => validateState({ ...s, adhkarLog: [{ id: 'x', entry: 'nope', moment: 'morning', at: 1, day: '2026-10-22' }] }), /adhkar/);
+    const out = exportable(s);
+    assert.deepEqual(out.places, { home: null, work: null, mosque: null }); assert.deepEqual(out.detections, []);
+    assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(out))));
+    const fresh = initialState();
+    assert.equal(fresh.smart.location || fresh.smart.vehicle || fresh.smart.timed, false); // nothing is on until the user turns it on
+});
