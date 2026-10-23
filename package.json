@@ -10,7 +10,8 @@
     "ios:add": "npm run native:prepare && cap add ios && node scripts/native-configure.mjs && cap sync ios",
     "android:add": "npm run native:prepare && cap add android && node scripts/native-configure.mjs && cap sync android",
     "native:sync": "npm run native:prepare && node scripts/native-configure.mjs && cap sync",
-    "ios": "npm run native:sync && cap open ios", "android": "npm run native:sync && cap open android"
+    "ios": "npm run native:sync && cap open ios", "android": "npm run native:sync && cap open android",
+    "capacitor:copy:before": "node scripts/check-native-bridge.mjs"
   },
   "dependencies": { "@capacitor/core": "^8.0.0", "@capacitor/ios": "^8.0.0", "@capacitor/android": "^8.0.0", "@capacitor/app": "^8.0.0", "@capacitor/preferences": "^8.0.0", "@capacitor/filesystem": "^8.0.0", "@capacitor/share": "^8.0.0", "@capacitor/local-notifications": "^8.0.0", "@capacitor/haptics": "^8.0.0", "@tilawa/core": "0.2.1", "onnxruntime-web": "1.24.2", "adhan": "4.4.6", "@ayahflow/smart-reminders": "file:plugins/smart-reminders" },
   "devDependencies": { "@capacitor/cli": "^8.0.0", "typescript": "^5.9.3", "esbuild": "^0.25.10" }
