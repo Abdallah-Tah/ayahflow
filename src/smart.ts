@@ -16,6 +16,8 @@ export interface SmartBridge {
     openSettings(): Promise<void>;
     notificationPermission(request: boolean): Promise<'granted' | 'denied' | 'prompt' | 'prompt-with-rationale'>;
     scheduleTimed(list: TimedReminder[]): Promise<void>;
+    /** Replaces the pending istighfar reminders. */
+    scheduleIstighfar(list: IstighfarReminder[]): Promise<void>;
     /** Steps per local day from the device pedometer, read live and never saved by the app. */
     steps(days: number): Promise<StepReading>;
 }
@@ -37,6 +39,33 @@ export interface NativeConfig {
 export interface TimedReminder { id: number; at: number; title: string; body: string; url: string; moment: Moment }
 const CODE: Partial<Record<Moment, number>> = { morning: 1, evening: 2, sleep: 3 };
 /** Stable id per moment and day, shared with the native engines so a grouped reminder can cancel the timed one. */
+/** Istighfar reminders: three slots a day (ids 9–11 × 10⁶ + yymmdd), kept apart from adhkar (1–3) and athan (4–8). */
+export const ISTIGHFAR_SLOTS = ['lateMorning', 'afternoon', 'evening'] as const;
+export type IstighfarSlot = typeof ISTIGHFAR_SLOTS[number];
+export function istighfarId(slot: IstighfarSlot, day: string): number { return (9 + ISTIGHFAR_SLOTS.indexOf(slot)) * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
+export interface IstighfarReminder { id: number; at: number; title: string; body: string; url: string }
+/** Late morning (75 min before Dhuhr), afternoon (between Dhuhr and Asr) and evening (45 min after Maghrib), or 11:00,
+ * 14:30 and 19:30 without a saved place. Only today and tomorrow are scheduled (iOS keeps at most 64 pending
+ * notifications); none after the sleep time, and none left today once today's count reaches the target. */
+export function istighfarReminders(state: AppState, today: number, target: number, copy: (count: number | null) => { title: string; body: string }, now = Date.now()): IstighfarReminder[] {
+    if (!state.istighfarReminder) return [];
+    const out: IstighfarReminder[] = [];
+    for (let i = 0; i < 2; i++) {
+        const d = new Date(now); d.setDate(d.getDate() + i);
+        if (i === 0 && today >= target) continue;
+        const day = dayKey(d.getTime()), t = timesFor(state, d), sleep = sleepWindow(state, d)?.[0] ?? null;
+        const at = (h: number, min: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, min).getTime();
+        const when: Record<IstighfarSlot, number> = t
+            ? { lateMorning: t.dhuhr - 75 * 60000, afternoon: Math.round((t.dhuhr + t.asr) / 2), evening: t.maghrib + 45 * 60000 }
+            : { lateMorning: at(11, 0), afternoon: at(14, 30), evening: at(19, 30) };
+        for (const slot of ISTIGHFAR_SLOTS) {
+            const time = when[slot];
+            if (time <= now || (sleep !== null && time >= sleep)) continue;
+            out.push({ id: istighfarId(slot, day), at: time, ...copy(i === 0 ? today : null), url: 'ayahflow://counter/istighfar' });
+        }
+    }
+    return out;
+}
 export function timedId(moment: Moment, day: string): number { return CODE[moment]! * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
 /** Where prayer times are calculated: Home, else Work, else Mosque. */
 export function prayerPlace(state: AppState): { lat: number; lng: number } | null { return state.places.home ?? state.places.work ?? state.places.mosque; }

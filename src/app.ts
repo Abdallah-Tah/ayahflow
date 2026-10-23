@@ -1,6 +1,6 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, type RuleId } from './data.js';
 import { COUNTERS, counter, counterPosition, type DhikrCounter, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
-import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
+import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, istighfarReminders, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, MAX_CUSTOM_COUNTERS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
@@ -339,6 +339,7 @@ async function syncSmart(): Promise<void> {
         if (notificationState === 'granted') {
             await bridge.scheduleTimed(timedReminders(state, copyFor));
             await scheduleAthan(athanSchedule(state, (p, at) => ({ title: `${t('p_' + p)} · ${clock(at)}`, body: t('athanBody') })));
+            await syncIstighfar();
         }
         await pushWidget();
     }
@@ -357,6 +358,13 @@ function widgetDaily(): WidgetDaily {
 async function pushWidget(): Promise<void> {
     if (!isNative()) return;
     await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }, widgetDaily())).catch(() => { });
+}
+/** Re-plans istighfar reminders, e.g. after the count changes, so the count they show stays right and they stop at the target. */
+async function syncIstighfar(): Promise<void> {
+    const bridge = smartBridge(), c = counter('istighfar');
+    if (!bridge) return;
+    const phrase = c.steps[0]!.text;
+    await bridge.scheduleIstighfar(istighfarReminders(state, count(c.id), c.total, n => ({ title: c.title[state.locale], body: n === null ? `${t('istighfarGoal')} ${num(c.total)}\n${phrase}` : `${num(n)} ${t('of')} ${num(c.total)} ${t('istighfarToday')}\n${phrase}` })));
 }
 const platform = (): string => (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() ?? 'web';
 /** Each reminder asks for its permission only when the user turns it on, and stays off if it is refused. */
@@ -473,6 +481,7 @@ async function flushCounts(): Promise<void> {
     try { if (next !== state) await commit(next); } catch { return; }
     for (const [id, p] of saved) if (pendingCounts[id] === p) delete pendingCounts[id];
     void pushWidget();
+    if (state.istighfarReminder && saved.some(([id]) => id === 'istighfar')) void syncIstighfar().catch(() => { });
 }
 function ring(p: number, inner: string, cls = ''): string { return `<span class="ring ${cls}" style="--p:${Math.max(0, Math.min(100, p))}%">${inner}</span>`; }
 function counterTile(c: CounterDef): string {
@@ -539,6 +548,7 @@ function counterView(): string {
 <p class="tiny muted">${t('tapAnywhere')}</p>
 <div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
 ${counterWeek(c)}
+${c.id === 'istighfar' && isNative() ? `<label class="setting-row"><span><strong>${t('istighfarRemind')}</strong><p>${t('istighfarRemindSub')}</p></span><input type="checkbox" id="istighfar-remind" ${state.istighfarReminder ? 'checked' : ''} aria-label="${t('istighfarRemind')}"></label>` : ''}
 ${list}${about}<p class="gentle">${t('ownCount')}</p>`;
 }
 /** Steps per day for the last 7 local days, oldest first (null where the device has no figure). */
@@ -1214,7 +1224,7 @@ root.addEventListener('input', e => { const el = e.target as HTMLInputElement; i
     libraryQuery = el.value;
     document.querySelector('#surah-list')!.innerHTML = surahRows();
 } });
-root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-fajr', 'athan-file'].includes(el.id))
+root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind'].includes(el.id))
     return; try {
     if (el.id === 'audio-toggle') {
         if (!el.checked)
@@ -1253,6 +1263,12 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
             if (native) toast(t('imported'));
         }
         catch { toast(t('importFailed')); }
+    }
+    if (el.id === 'istighfar-remind') {
+        const bridge = smartBridge();
+        if (el.checked && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
+        await commit({ ...state, istighfarReminder: el.checked });
+        try { await syncIstighfar(); if (el.checked) toast(t('istighfarRemindOn')); } catch { toast(t('reminderSyncFailed')); }
     }
     if (el.id === 'athan-enabled') {
         const bridge = smartBridge();

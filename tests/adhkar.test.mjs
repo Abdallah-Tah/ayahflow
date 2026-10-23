@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 10);
+    assert.equal(STATE_VERSION, 11);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -202,7 +202,7 @@ test('Widget data carries a week of prayers and windows, without coordinates', (
 });
 
 test('v7 reciters: bundled ids or a custom file; exports drop the custom file and fall back to a bundled reciter', () => {
-    assert.equal(STATE_VERSION, 10);
+    assert.equal(STATE_VERSION, 11);
     const base = initialState();
     assert.equal(base.athan.reciter, 'beautiful'); assert.equal(base.athan.custom, null);
     assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'unknown' } }), /reciter/);
@@ -293,7 +293,7 @@ test('v9 counts are set (not added) per counter and day, validated, migrated and
     const v8 = JSON.parse(JSON.stringify(initialState())); v8.version = 8; delete v8.counts; delete v8.health;
     v8.xp = 30;
     const m = validateState(v8);
-    assert.equal(m.version, 10); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
+    assert.equal(m.version, 11); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
     assert.deepEqual(exportable(s).counts, s.counts);
 });
 
@@ -331,4 +331,25 @@ test('v10 own counters: added once, counted like built-ins, removed with their c
     assert.deepEqual(exportable(s).myCounters, s.myCounters);
     const v9 = JSON.parse(JSON.stringify(initialState())); v9.version = 9; delete v9.myCounters;
     assert.deepEqual(validateState(v9).myCounters, []);
+});
+
+test('Istighfar reminders: off by default; 3 a day for today and tomorrow; none after sleep or once today’s target is met', async () => {
+    const { istighfarReminders, istighfarId } = await import('../www/js/smart.js');
+    const copy = n => ({ title: 'Istighfar', body: n === null ? 'goal' : `${n} of 100` });
+    const morning = new Date(2026, 9, 22, 8, 0).getTime();
+    assert.deepEqual(istighfarReminders(initialState(), 0, 100, copy, morning), []); // nothing until switched on
+    const on = { ...initialState(), istighfarReminder: true };
+    const r = istighfarReminders(on, 40, 100, copy, morning);
+    assert.equal(r.length, 6); // no saved place: 11:00, 14:30, 19:30 today and tomorrow
+    assert.deepEqual(r.slice(0, 3).map(x => new Date(x.at).getHours()), [11, 14, 19]);
+    assert.equal(r[0].body, '40 of 100'); assert.equal(r[3].body, 'goal');
+    assert.equal(r[0].url, 'ayahflow://counter/istighfar');
+    assert.equal(r[0].id, istighfarId('lateMorning', '2026-10-22')); assert(r.every(x => x.id >= 9000000 && x.id < 12000000));
+    assert.equal(new Set(r.map(x => x.id)).size, 6);
+    assert.equal(istighfarReminders(on, 100, 100, copy, morning).length, 3); // target met: only tomorrow's
+    assert.equal(istighfarReminders(on, 0, 100, copy, new Date(2026, 9, 22, 15, 0).getTime()).length, 4); // past slots skipped
+    assert.equal(istighfarReminders({ ...on, smart: { ...on.smart, sleepTime: '19:00' } }, 0, 100, copy, morning).length, 4); // none after sleep
+    const v10 = JSON.parse(JSON.stringify(initialState())); v10.version = 10; delete v10.istighfarReminder;
+    assert.equal(validateState(v10).istighfarReminder, false);
+    assert.throws(() => validateState({ ...on, istighfarReminder: 'yes' }), /istighfar/);
 });
