@@ -9,8 +9,9 @@ export type ReadingLayout = 'cards' | 'flow';
 /** Current save schema. v1 → v2 added theme; v2 → v3 added arabicSize and readingLayout; v3 → v4 added voiceFollowConsent;
  * v4 → v5 added places, smart reminder settings, adhkar completions and the detection log; v5 → v6 added athan settings;
  * v6 → v7 added the athan reciter (and a separate Fajr reciter) and an imported recording;
- * v7 → v8 added athan recordings downloaded on request (AlAdhan); v8 → v9 added dhikr counts and the step-tracker setting. */
-export const STATE_VERSION = 9;
+ * v7 → v8 added athan recordings downloaded on request (AlAdhan); v8 → v9 added dhikr counts and the step-tracker setting;
+ * v9 → v10 added the user's own counters. */
+export const STATE_VERSION = 10;
 import ATHAN_DATA from './athan-data.js';
 /** Bundled athan recordings (content/athan/sources.json) plus the user's own imported file. */
 export const ATHAN_RECITERS: readonly string[] = ATHAN_DATA.recordings.map(r => r.id);
@@ -54,6 +55,15 @@ export interface CounterCount { id: string; day: string; n: number }
 export interface HealthSettings { steps: boolean; stepGoal: number }
 export const defaultHealth = (): HealthSettings => ({ steps: false, stepGoal: 8000 });
 export const MAX_COUNT = 100000;
+/** A counter the user added: their own words and target. Shown as "added by you"; the app never checks or edits the text. */
+export interface CustomCounter { id: string; title: string; text: string; target: number }
+export const MAX_CUSTOM_COUNTERS = 30;
+export function validCustomCounter(c: unknown): c is CustomCounter {
+    const x = c as CustomCounter;
+    return !!x && typeof x === 'object' && typeof x.id === 'string' && /^my-[a-z0-9]{1,24}$/.test(x.id) && typeof x.title === 'string' && x.title.length <= 60
+        && typeof x.text === 'string' && x.text.trim().length > 0 && x.text.length <= 300 && Number.isSafeInteger(x.target) && x.target >= 1 && x.target <= 10000;
+}
+const counterIds = (state: { myCounters?: CustomCounter[] }) => new Set([...COUNTERS.map(c => c.id), ...(state.myCounters ?? []).map(c => c.id)]);
 export interface ReviewCard {
     key: string;
     mode: Mode;
@@ -97,7 +107,7 @@ export interface Session {
     kind: 'daily' | 'practice';
 }
 export interface AppState {
-    version: 9;
+    version: 10;
     locale: Locale;
     theme: Theme;
     arabicSize: ArabicSize;
@@ -111,6 +121,7 @@ export interface AppState {
     athan: AthanSettings;
     counts: CounterCount[];
     health: HealthSettings;
+    myCounters: CustomCounter[];
     goal: 3 | 7 | 10;
     selectedSurahs: number[];
     cards: Record<string, ReviewCard>;
@@ -135,7 +146,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 9, athan: defaultAthan(), counts: [], health: defaultHealth(), locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 10, athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -243,8 +254,8 @@ export function completedAccuracy(state: AppState): number | null { const a = st
 export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
-    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health'> & { version: number; counts?: CounterCount[]; health?: HealthSettings; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters'> & { version: number; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
@@ -280,9 +291,14 @@ export function validateState(raw: unknown): AppState {
         if (!Array.isArray(d) || d.some(x => !ONLINE_ATHAN.includes(x)) || new Set(d).size !== d.length || !usable(a.reciter) || !usable(a.fajrReciter) || FAJR_ONLY.includes(a.reciter))
             throw new Error('Invalid athan downloads');
     }
+    if (s.version >= 10) {
+        const m = s.myCounters;
+        if (!Array.isArray(m) || m.length > MAX_CUSTOM_COUNTERS || !m.every(validCustomCounter) || new Set(m.map(x => x.id)).size !== m.length)
+            throw new Error('Invalid custom counters');
+    }
     if (s.version >= 9) {
-        const c = s.counts, h = s.health;
-        if (!Array.isArray(c) || c.length > 1000 || c.some(x => !x || !COUNTERS.some(k => k.id === x.id) || !/^\d{4}-\d{2}-\d{2}$/.test(x.day) || !Number.isSafeInteger(x.n) || x.n < 0 || x.n > MAX_COUNT) || new Set(c.map(x => `${x.id}@${x.day}`)).size !== c.length)
+        const c = s.counts, h = s.health, ids = counterIds(s);
+        if (!Array.isArray(c) || c.length > 1000 || c.some(x => !x || !ids.has(x.id) || !/^\d{4}-\d{2}-\d{2}$/.test(x.day) || !Number.isSafeInteger(x.n) || x.n < 0 || x.n > MAX_COUNT) || new Set(c.map(x => `${x.id}@${x.day}`)).size !== c.length)
             throw new Error('Invalid dhikr counts');
         if (!h || typeof h.steps !== 'boolean' || !Number.isSafeInteger(h.stepGoal) || h.stepGoal < 1000 || h.stepGoal > 50000)
             throw new Error('Invalid step settings');
@@ -322,7 +338,7 @@ export function validateState(raw: unknown): AppState {
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone({ ...s, version: 9, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [] } : s.version < 8 ? { ...s.athan!, downloads: [] } : s.athan!, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    return structuredClone({ ...s, version: 10, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [] } : s.version < 8 ? { ...s.athan!, downloads: [] } : s.athan!, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */
@@ -379,7 +395,7 @@ export function completedToday(state: AppState, moment: Moment, at = Date.now())
 export function exportable(state: AppState): AppState { const a = state.athan, local = (id: string) => id === 'custom' || id.startsWith('online-'); return { ...state, places: { home: null, work: null, mosque: null }, detections: [], athan: { ...a, custom: null, downloads: [], reciter: local(a.reciter) ? ATHAN_RECITERS[0]! : a.reciter, fajrReciter: local(a.fajrReciter) ? ATHAN_RECITERS[0]! : a.fajrReciter } }; }
 /** Set (not add) today's count for a counter. Setting the same value twice is a no-op, so a repeated save cannot inflate it. */
 export function setCount(state: AppState, id: string, n: number, at: number): AppState {
-    if (!COUNTERS.some(c => c.id === id) || !Number.isSafeInteger(n) || n < 0 || n > MAX_COUNT || !Number.isFinite(at))
+    if (!counterIds(state).has(id) || !Number.isSafeInteger(n) || n < 0 || n > MAX_COUNT || !Number.isFinite(at))
         throw new Error('Invalid count');
     const day = dayKey(at), old = state.counts.find(c => c.id === id && c.day === day);
     if (old?.n === n || (!old && n === 0))
@@ -389,3 +405,18 @@ export function setCount(state: AppState, id: string, n: number, at: number): Ap
 }
 /** The count the user tapped for a counter on a day (0 if none). */
 export function countOn(state: AppState, id: string, day = dayKey()): number { return state.counts.find(c => c.id === id && c.day === day)?.n ?? 0; }
+/** Add the user's own counter. Idempotent per id, so saving the same form twice adds it once. */
+export function addCounter(state: AppState, c: CustomCounter): AppState {
+    if (state.myCounters.some(x => x.id === c.id))
+        return state;
+    const counter = { id: c.id, title: c.title.trim(), text: c.text.trim(), target: c.target };
+    if (!validCustomCounter(counter) || state.myCounters.length >= MAX_CUSTOM_COUNTERS)
+        throw new Error('Invalid counter');
+    return { ...state, myCounters: [...state.myCounters, counter] };
+}
+/** Remove one of the user's counters together with its saved counts. Built-in counters cannot be removed. */
+export function removeCounter(state: AppState, id: string): AppState {
+    if (!state.myCounters.some(x => x.id === id))
+        return state;
+    return { ...state, myCounters: state.myCounters.filter(x => x.id !== id), counts: state.counts.filter(x => x.id !== id) };
+}

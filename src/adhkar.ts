@@ -17,7 +17,7 @@ export const COUNTERS: readonly DhikrCounter[] = ADHKAR.counters;
 export function counter(id: string): DhikrCounter { const c = COUNTERS.find(x => x.id === id); if (!c) throw new Error('Unknown counter'); return c; }
 /** Where a running count stands: the phrase being said now, how many of it are done, and completed rounds.
  * A round is one pass through all steps (e.g. 33 + 33 + 33 + 1); counting past the target simply starts a new round. */
-export function counterPosition(c: DhikrCounter, n: number): { step: number; inStep: number; rounds: number; inRound: number } {
+export function counterPosition(c: { steps: readonly { count: number }[]; total: number }, n: number): { step: number; inStep: number; rounds: number; inRound: number } {
     const rounds = Math.floor(n / c.total), inRound = n % c.total;
     let left = inRound, step = 0;
     while (step < c.steps.length - 1 && left >= c.steps[step]!.count) { left -= c.steps[step]!.count; step++; }

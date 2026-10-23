@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 9);
+    assert.equal(STATE_VERSION, 10);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -202,7 +202,7 @@ test('Widget data carries a week of prayers and windows, without coordinates', (
 });
 
 test('v7 reciters: bundled ids or a custom file; exports drop the custom file and fall back to a bundled reciter', () => {
-    assert.equal(STATE_VERSION, 9);
+    assert.equal(STATE_VERSION, 10);
     const base = initialState();
     assert.equal(base.athan.reciter, 'beautiful'); assert.equal(base.athan.custom, null);
     assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'unknown' } }), /reciter/);
@@ -293,7 +293,7 @@ test('v9 counts are set (not added) per counter and day, validated, migrated and
     const v8 = JSON.parse(JSON.stringify(initialState())); v8.version = 8; delete v8.counts; delete v8.health;
     v8.xp = 30;
     const m = validateState(v8);
-    assert.equal(m.version, 9); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
+    assert.equal(m.version, 10); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
     assert.deepEqual(exportable(s).counts, s.counts);
 });
 
@@ -309,4 +309,26 @@ test('Reminder notifications carry the dhikr text itself, verbatim, with its cou
         if (e.repeat > 1) assert(meta.startsWith(`×${e.repeat} · `), m);
     }
     assert.equal(momentPreview('leave_home').split('\n')[1], 'Sunan Abi Dawud 5095');
+});
+
+test('v10 own counters: added once, counted like built-ins, removed with their counts, validated and migrated', async () => {
+    const { addCounter, removeCounter, setCount, countOn } = await import('../www/js/engine.js');
+    const mine = { id: 'my-abc1', title: 'Evening istighfar', text: '  أستغفر الله العظيم  ', target: 300 };
+    let s = addCounter(initialState(), mine);
+    assert.deepEqual(s.myCounters, [{ ...mine, text: 'أستغفر الله العظيم' }]); // stored as typed, only trimmed
+    assert.strictEqual(addCounter(s, mine), s); // saving the form twice adds it once
+    s = setCount(s, 'my-abc1', 12, at(9));
+    assert.equal(countOn(s, 'my-abc1', DAY), 12);
+    assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).myCounters, s.myCounters);
+    assert.throws(() => addCounter(s, { ...mine, id: 'my-x2', text: '   ' }), /counter/);
+    assert.throws(() => addCounter(s, { ...mine, id: 'my-x3', target: 0 }), /counter/);
+    assert.throws(() => addCounter(s, { ...mine, id: 'Bad Id' }), /counter/);
+    assert.throws(() => validateState({ ...s, myCounters: [...s.myCounters, s.myCounters[0]] }), /custom/);
+    assert.throws(() => validateState({ ...s, counts: [{ id: 'my-gone', day: DAY, n: 1 }] }), /counts/); // counts need a known counter
+    const removed = removeCounter(s, 'my-abc1');
+    assert.deepEqual(removed.myCounters, []); assert.deepEqual(removed.counts, []);
+    assert.strictEqual(removeCounter(removed, 'istighfar'), removed); // built-ins cannot be removed
+    assert.deepEqual(exportable(s).myCounters, s.myCounters);
+    const v9 = JSON.parse(JSON.stringify(initialState())); v9.version = 9; delete v9.myCounters;
+    assert.deepEqual(validateState(v9).myCounters, []);
 });

@@ -1,7 +1,7 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, type RuleId } from './data.js';
-import { COUNTERS, counter, counterPosition, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
+import { COUNTERS, counter, counterPosition, type DhikrCounter, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
 import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
-import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, MAX_COUNT, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
+import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, MAX_CUSTOM_COUNTERS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
@@ -21,6 +21,8 @@ let libraryFilter = 'all';
 let libraryJuz = 0;
 let momentIds: Moment[] = ['morning'];
 let counterId = COUNTERS[0]!.id;
+/** The add-your-own form is open on the counter screen. */
+let addingCounter = false;
 /** Taps not yet saved (saved together shortly after the last tap); `at` fixes the day they belong to. */
 const pendingCounts: Record<string, { n: number; at: number }> = {};
 let countTimer: ReturnType<typeof setTimeout> | null = null;
@@ -272,7 +274,7 @@ function momentTile(m: Moment): string {
 }
 function adhkarView(): string {
     const on = state.smart.location || state.smart.vehicle || state.smart.timed;
-    return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('adhkarTitle')}</h1><p class="page-sub">${t('adhkarSub')}</p>${nowCard()}<section class="section"><h2 class="section-title mb16">${t('counters')}</h2><div class="moment-grid">${COUNTERS.map(counterTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('dailyMoments')}</h2><div class="moment-grid">${DAILY.map(momentTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('outMoments')}</h2><div class="moment-grid">${OUT.map(momentTile).join('')}</div></section><button class="feature-wide row section" data-action="nav" data-view="reminders"><span class="gold">${ic('radar', 24)}</span><span class="grow"><h3>${t('autoReminders')}</h3><p>${on ? `${[state.smart.location && t('locationReminders'), state.smart.vehicle && t('vehicleReminders'), state.smart.timed && t('timedReminders')].filter(Boolean).join(' · ')}` : t('autoSub')}</p></span>${chevronEnd()}</button><p class="gentle">${t('adhkarReview')}</p>`;
+    return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('adhkarTitle')}</h1><p class="page-sub">${t('adhkarSub')}</p>${nowCard()}<section class="section"><h2 class="section-title mb16">${t('counters')}</h2><div class="moment-grid">${counterDefs().map(counterTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('dailyMoments')}</h2><div class="moment-grid">${DAILY.map(momentTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('outMoments')}</h2><div class="moment-grid">${OUT.map(momentTile).join('')}</div></section><button class="feature-wide row section" data-action="nav" data-view="reminders"><span class="gold">${ic('radar', 24)}</span><span class="grow"><h3>${t('autoReminders')}</h3><p>${on ? `${[state.smart.location && t('locationReminders'), state.smart.vehicle && t('vehicleReminders'), state.smart.timed && t('timedReminders')].filter(Boolean).join(' · ')}` : t('autoSub')}</p></span>${chevronEnd()}</button><p class="gentle">${t('adhkarReview')}</p>`;
 }
 function momentView(): string {
     const ms = momentIds.length ? momentIds : ['morning' as Moment];
@@ -345,7 +347,7 @@ function widgetDaily(): WidgetDaily {
     const today = stepReading?.days.find(x => x.day === dayKey())?.steps;
     return {
         day: dayKey(),
-        counters: COUNTERS.map(c => ({ id: c.id, label: c.title[state.locale], n: count(c.id), total: c.total, atLeast: !!c.atLeast, perPrayer: !!c.perPrayer })),
+        counters: counterDefs().map(c => ({ id: c.id, label: c.name, n: count(c.id), total: c.total, atLeast: !!c.atLeast, perPrayer: !!c.perPrayer })),
         adhkar: (['morning', 'evening', 'sleep'] as const).map(m => { const [done, total] = momentProgress(m); return { key: m, label: t('m_' + m), done, total }; }),
         steps: state.health.steps && today !== undefined ? { today, goal: state.health.stepGoal, at: stepsAt } : null,
     };
@@ -450,7 +452,14 @@ setInterval(() => { document.querySelectorAll<HTMLElement>('[data-countdown]').f
 // ---- Counters and steps ------------------------------------------------------------------------
 /** Today's count for a counter, including taps not saved yet. */
 function count(id: string): number { const p = pendingCounts[id]; return p && dayKey(p.at) === dayKey() ? p.n : countOn(state, id); }
-const target = (c: typeof COUNTERS[number]) => c.atLeast ? `${num(c.total)}+` : num(c.total);
+/** Built-in counters (sourced) and the user's own (shown as theirs, unchecked), in one shape for the screens. */
+interface CounterDef { id: string; name: string; steps: readonly { text: string; count: number }[]; total: number; atLeast?: boolean; perPrayer?: boolean; builtIn: DhikrCounter | null; custom: CustomCounter | null }
+function counterDefs(): CounterDef[] {
+    return [...COUNTERS.map(c => ({ id: c.id, name: c.title[state.locale], steps: c.steps, total: c.total, atLeast: c.atLeast, perPrayer: c.perPrayer, builtIn: c, custom: null })),
+        ...state.myCounters.map(m => ({ id: m.id, name: m.title || m.text, steps: [{ text: m.text, count: m.target }], total: m.target, builtIn: null, custom: m }))];
+}
+const counterDef = (id: string): CounterDef => counterDefs().find(c => c.id === id) ?? counterDefs()[0]!;
+const target = (c: { atLeast?: boolean; total: number }) => c.atLeast ? `${num(c.total)}+` : num(c.total);
 /** Saves pending taps. A failed save keeps them pending (and says so) rather than showing them as saved. */
 async function flushCounts(): Promise<void> {
     if (countTimer) { clearTimeout(countTimer); countTimer = null; }
@@ -464,9 +473,9 @@ async function flushCounts(): Promise<void> {
     void pushWidget();
 }
 function ring(p: number, inner: string, cls = ''): string { return `<span class="ring ${cls}" style="--p:${Math.max(0, Math.min(100, p))}%">${inner}</span>`; }
-function counterTile(c: typeof COUNTERS[number]): string {
+function counterTile(c: CounterDef): string {
     const n = count(c.id), done = !c.perPrayer && n >= c.total;
-    return `<button class="moment-tile ${done ? 'finished' : ''}" data-action="counter" data-counter="${c.id}"><span class="gold">${ic('tasbih', 22)}</span><span class="moment-name">${escapeHtml(c.title[state.locale])}</span><span class="tiny muted">${c.perPrayer ? `${num(Math.floor(n / c.total))} ${t('rounds')}` : `${num(n)} / ${target(c)}`}</span></button>`;
+    return `<button class="moment-tile ${done ? 'finished' : ''}" data-action="counter" data-counter="${c.id}"><span class="gold">${ic('tasbih', 22)}</span><span class="moment-name" dir="auto">${escapeHtml(c.name)}</span>${c.custom ? `<span class="tiny gold">${t('addedByYou')}</span>` : ''}<span class="tiny muted">${c.perPrayer ? `${num(Math.floor(n / c.total))} ${t('rounds')}` : `${num(n)} / ${target(c)}`}</span></button>`;
 }
 /** A ring of tasbih beads: one per count up to 33; longer targets fill the same beads proportionally. */
 function beads(done: number, total: number): string {
@@ -496,24 +505,39 @@ function heartArt(c: HeartPalette): string {
 <path d="M60 52c4-1 7 1 9-2 2-2 4-3 6-1M61 52c0 6 4 10 3 16-1 5-5 8-6 13M62 61c-3 1-5 4-5 7M64 68c3 1 5 4 6 7M60 79c3 1 6 0 8 3" stroke="${c.vessel}" stroke-width="2.2" stroke-linecap="round" fill="none"/>`;
 }
 /** This counter's last 7 days, from the counts the user saved (no estimates). */
-function counterWeek(c: typeof COUNTERS[number]): string {
+function counterWeek(c: CounterDef): string {
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); const k = dayKey(d.getTime()); return { k, label: d.toLocaleDateString(state.locale, { weekday: 'narrow' }), n: k === dayKey() ? count(c.id) : countOn(state, c.id, k) }; });
     const top = Math.max(c.total, ...days.map(d => d.n));
     return `<section class="section"><h2 class="section-title mb16">${t('stepsWeek')}</h2><div class="step-bars short">${days.map(d => `<div class="step-bar ${d.k === dayKey() ? 'current' : ''} ${!c.perPrayer && d.n >= c.total ? 'met' : ''}"><span class="tiny muted">${d.n ? num(d.n) : '—'}</span><i style="height:${d.n / top * 72}%"></i><span class="tiny">${escapeHtml(d.label)}</span></div>`).join('')}</div></section>`;
 }
+function counterForm(): string {
+    return `<section class="section counter-form"><h2 class="section-title mb16">${t('addCounter')}</h2>
+<label class="field"><span>${t('myText')}</span><textarea id="my-text" dir="auto" maxlength="300" rows="3" placeholder="${t('myTextPlaceholder')}"></textarea></label>
+<label class="field"><span>${t('myTitle')}</span><input id="my-title" dir="auto" maxlength="60"></label>
+<label class="field"><span>${t('myTarget')}</span><input id="my-target" type="number" inputmode="numeric" min="1" max="10000" value="100"></label>
+<div class="chip-wrap">${[33, 100, 300, 1000].map(n => `<button class="range-chip" data-action="my-target-preset" data-n="${n}">${num(n)}</button>`).join('')}</div>
+<div class="notice mt20">${ic('info', 18)}<p>${t('addedByYouNote')}</p></div>
+<div class="row gap8 mt20">${actionButton('counter-save', `${ic('check', 16)} ${t('saveCounter')}`, 'button primary')}${actionButton('counter-cancel', t('cancel'))}</div></section>`;
+}
 function counterView(): string {
-    const c = counter(counterId), n = count(c.id), pos = counterPosition(c, n), step = c.steps[pos.step]!;
-    const roundDone = n > 0 && pos.inRound === 0, long = step.text.length > 40;
-    const chips = `<div class="chip-wrap">${COUNTERS.map(x => `<button class="range-chip ${x.id === c.id ? 'selected' : ''}" data-action="counter" data-counter="${x.id}" aria-pressed="${x.id === c.id}">${escapeHtml(x.title[state.locale])}</button>`).join('')}</div>`;
+    const all = counterDefs();
+    const chips = `<div class="chip-wrap">${all.map(x => `<button class="range-chip ${x.id === counterId && !addingCounter ? 'selected' : ''}" data-action="counter" data-counter="${x.id}" aria-pressed="${x.id === counterId && !addingCounter}" dir="auto">${escapeHtml(x.name.length > 28 ? x.name.slice(0, 27) + '…' : x.name)}</button>`).join('')}${state.myCounters.length < MAX_CUSTOM_COUNTERS ? `<button class="range-chip add-chip ${addingCounter ? 'selected' : ''}" data-action="counter-add">+ ${t('addCounter')}</button>` : ''}</div>`;
+    if (addingCounter) return `<p class="eyebrow mt12">${t('counters')}</p><h1 class="page-title">${t('addCounter')}</h1>${chips}${counterForm()}`;
+    const c = counterDef(counterId), n = count(c.id), pos = counterPosition(c, n), step = c.steps[pos.step]!;
+    const roundDone = n > 0 && pos.inRound === 0, long = step.text.length > 40, src = c.builtIn;
     const list = c.steps.length > 1 ? `<ol class="count-steps">${c.steps.map((x, i) => `<li class="${i < pos.step || roundDone ? 'done' : i === pos.step ? 'current' : ''}"><span class="arabic" lang="ar" dir="rtl">${escapeHtml(x.text)}</span><span class="pill">×${num(x.count)}</span></li>`).join('')}</ol>` : '';
-    const wording = c.steps.filter(x => x.source.ref !== c.source.ref).map(x => x.source).filter((x, i, a) => a.findIndex(y => y.ref === x.ref) === i);
-    return `<p class="eyebrow mt12">${t('counters')}</p><h1 class="page-title">${escapeHtml(c.title[state.locale])}</h1>${chips}
+    const wording = src ? src.steps.filter(x => x.source.ref !== src.source.ref).map(x => x.source).filter((x, i, a) => a.findIndex(y => y.ref === x.ref) === i) : [];
+    const phrase = c.custom ? `<span class="tap-phrase custom ${long ? 'long' : ''}" dir="auto">${escapeHtml(step.text)}</span>` : `<span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span>`;
+    const about = src
+        ? `<div class="notice mt20">${ic('info', 18)}<p>${c.perPrayer ? t('perPrayerNote') : `${t('dailyTargetNote')} ${c.atLeast ? t('moreThan') + ' ' : ''}${num(c.total)}`}</p></div>${sourceLine(src.source, src.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}`
+        : `<div class="notice mt20">${ic('info', 18)}<p>${t('addedByYouNote')} ${t('yourTarget')}: ${num(c.total)}.</p></div>${actionButton('counter-remove', `${ic('trash', 15)} ${t('removeCounter')}`, 'text-button danger-text')}`;
+    return `<p class="eyebrow mt12">${t('counters')}${c.custom ? ` · ${t('addedByYou')}` : ''}</p><h1 class="page-title" dir="auto">${escapeHtml(c.custom?.title || (c.custom ? t('myCounter') : c.name))}</h1>${chips}
 <section class="tap-zone"><div class="count-meta"><span class="pill ${roundDone ? 'success' : 'gold'}">${roundDone ? `${ic('check', 12)} ${t('roundDone')}` : c.steps.length > 1 ? `${num(pos.step + 1)} / ${num(c.steps.length)}` : `${t('round')} ${num(pos.rounds + 1)}`}</span><span class="tiny muted" aria-live="polite">${t('todayCount')} <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</span></div>
-<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') ? heart(c.id, roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner"><span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') || c.custom ? heart(c.id, roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner">${phrase}<span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
 <p class="tiny muted">${t('tapAnywhere')}</p>
 <div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
 ${counterWeek(c)}
-${list}<div class="notice mt20">${ic('info', 18)}<p>${c.perPrayer ? t('perPrayerNote') : `${t('dailyTargetNote')} ${c.atLeast ? t('moreThan') + ' ' : ''}${num(c.total)}`}</p></div>${sourceLine(c.source, c.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}<p class="gentle">${t('ownCount')}</p>`;
+${list}${about}<p class="gentle">${t('ownCount')}</p>`;
 }
 /** Steps per day for the last 7 local days, oldest first (null where the device has no figure). */
 function stepDays(): { day: string; label: string; steps: number | null }[] {
@@ -851,12 +875,51 @@ async function handleAction(el: HTMLElement): Promise<void> {
             break;
         }
         case 'counter':
-            if (!COUNTERS.some(c => c.id === d.counter)) return;
+            if (!counterDefs().some(c => c.id === d.counter)) return;
             await flushCounts();
             counterId = d.counter!;
+            addingCounter = false;
             if (view === 'counter') { render(); break; }
             await navigate('counter');
             break;
+        case 'counter-add':
+            await flushCounts();
+            addingCounter = true;
+            render();
+            document.querySelector<HTMLTextAreaElement>('#my-text')?.focus();
+            break;
+        case 'counter-cancel':
+            addingCounter = false;
+            render();
+            break;
+        case 'my-target-preset': {
+            const input = document.querySelector<HTMLInputElement>('#my-target');
+            if (input) input.value = String(Number(d.n));
+            break;
+        }
+        case 'counter-save': {
+            const text = document.querySelector<HTMLTextAreaElement>('#my-text')?.value.trim() ?? '', title = document.querySelector<HTMLInputElement>('#my-title')?.value.trim() ?? '';
+            const goal = Number(document.querySelector<HTMLInputElement>('#my-target')?.value);
+            if (!text) { toast(t('myTextNeeded')); return; }
+            if (!Number.isSafeInteger(goal) || goal < 1 || goal > 10000) { toast(t('myTargetRange')); return; }
+            const id = `my-${Date.now().toString(36)}`;
+            await commit(addCounter(state, { id, title, text, target: goal }));
+            counterId = id;
+            addingCounter = false;
+            void pushWidget();
+            render();
+            break;
+        }
+        case 'counter-remove': {
+            const mine = state.myCounters.find(x => x.id === counterId);
+            if (!mine || !(await confirmAction(t('removeCounterConfirm')))) return;
+            delete pendingCounts[mine.id];
+            await commit(removeCounter(state, mine.id));
+            counterId = COUNTERS[0]!.id;
+            void pushWidget();
+            render();
+            break;
+        }
         case 'count-tap':
         case 'count-undo': {
             const n = Math.max(0, Math.min(MAX_COUNT, count(counterId) + (d.action === 'count-tap' ? 1 : -1)));
@@ -1272,7 +1335,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && COUNTERS.some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });
