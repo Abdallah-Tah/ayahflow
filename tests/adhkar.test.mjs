@@ -134,7 +134,7 @@ test('Native config carries regions, rules, a week of windows and verbatim previ
     assert.equal(c.windows.length, 8); assert(c.windows.every(w => w.morning && w.morning[0] < w.morning[1]));
     assert.equal(c.location, false); assert.equal(c.vehicle, false);
     assert(!c.enabled.includes('leave_home') && !c.enabled.includes('vehicle') && !c.enabled.includes('morning'));
-    assert.equal(c.copy.leave_home.body, ADHKAR_ENTRIES.find(e => e.id === 'leave-home').text);
+    assert.equal(c.copy.leave_home.body, `${ADHKAR_ENTRIES.find(e => e.id === 'leave-home').text}\nSunan Abi Dawud 5095`);
     assert.equal(c.timedIds.morning['2026-10-22'], timedId('morning', '2026-10-22'));
 });
 test('Enabling location turns on place moments only; vehicle needs its own switch', () => {
@@ -295,4 +295,18 @@ test('v9 counts are set (not added) per counter and day, validated, migrated and
     const m = validateState(v8);
     assert.equal(m.version, 9); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
     assert.deepEqual(exportable(s).counts, s.counts);
+});
+
+test('Reminder notifications carry the dhikr text itself, verbatim, with its count and source', () => {
+    for (const m of MOMENTS) {
+        const body = momentPreview(m);
+        if (GENERAL_MOMENTS.includes(m)) { assert.equal(body, null); continue; }
+        const e = entriesFor(m)[0], [text, meta] = body.split('\n');
+        if (e.text) assert(e.text.startsWith(text.replace(/ …$/, '')), m);
+        else assert(text.startsWith(verse(e.quran[0].surah, e.quran[0].from)), m);
+        assert(text.length <= 602, m);
+        assert.match(meta, e.text ? new RegExp(`${e.source.number}$`) : /^(×\d+ · )?Quran \d+:\d+/);
+        if (e.repeat > 1) assert(meta.startsWith(`×${e.repeat} · `), m);
+    }
+    assert.equal(momentPreview('leave_home').split('\n')[1], 'Sunan Abi Dawud 5095');
 });

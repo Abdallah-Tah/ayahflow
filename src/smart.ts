@@ -93,11 +93,16 @@ export function timedReminders(state: AppState, copy: (m: Moment) => { title: st
     return out;
 }
 /** First text of a moment, used as the notification body (Arabic, verbatim). */
+/** Notification text for a moment: the first dhikr's own words (verbatim, shortened only past 600 characters at a word),
+ * then its repeat count and source, so the reminder can be read and said straight from the notification. */
 export function momentPreview(m: Moment): string | null {
     if (GENERAL_MOMENTS.includes(m)) return null;
     const e = entriesFor(m)[0]!;
-    const text = e.text ?? quranPassages(e)[0]!.ayahs[0]!.text;
-    return text.length > 140 ? text.slice(0, text.lastIndexOf(' ', 140)) + ' …' : text;
+    const passage = e.kind === 'quran' ? quranPassages(e)[0]! : null;
+    const text = e.text ?? passage!.ayahs.map(a => a.text).join(' ');
+    const body = text.length > 600 ? text.slice(0, text.lastIndexOf(' ', 600)) + ' …' : text;
+    const ref = passage ? `Quran ${passage.surah}:${passage.ayahs[0]!.n}${passage.ayahs.length > 1 ? `–${passage.ayahs.at(-1)!.n}` : ''}` : `${e.source.collection} ${e.source.number}`;
+    return `${body}\n${e.repeat > 1 ? `×${e.repeat} · ` : ''}${ref}`;
 }
 export function mergeDetections(existing: Detection[], events: { event: Detection['event']; at: number; detail?: string }[]): Detection[] {
     const seen = new Set(existing.map(d => `${d.event}@${d.at}`));

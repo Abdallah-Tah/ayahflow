@@ -44,7 +44,7 @@ export const bridge = {
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
             if (!list.length) return;
             if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
-            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, smallIcon: 'ic_stat_ayahflow' })) });
+            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, smallIcon: 'ic_stat_ayahflow' })) });
         },
     },
     /** Replaces pending athan alerts. iOS plays a ≤30 s sound from Library/Sounds (copied there by the plugin);
