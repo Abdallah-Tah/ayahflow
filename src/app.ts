@@ -26,6 +26,9 @@ const pendingCounts: Record<string, { n: number; at: number }> = {};
 let countTimer: ReturnType<typeof setTimeout> | null = null;
 let stepReading: StepReading | null = null;
 let stepsAt = 0;
+/** Last drawn heart level, so a tap can animate the red rising from there. */
+let heartShown: { id: string; p: number } | null = null;
+let heartBeat = false;
 /** Remaining taps per dhikr on screen; a count is not evidence until the user completes it. */
 const counters: Record<string, number> = {};
 let smartStatus: SmartStatus | null = null;
@@ -470,12 +473,28 @@ function beads(done: number, total: number): string {
     const n = Math.min(total, 33), on = total <= 33 ? done : Math.floor(done / total * n), step = 360 / Math.max(n, 1);
     return `<svg class="beads" viewBox="0 0 200 200" aria-hidden="true">${Array.from({ length: n }, (_, i) => { const a = (i * step - 90) * Math.PI / 180; return `<circle class="bead ${i < on ? 'on' : i === on ? 'current' : ''}" cx="${(100 + 88 * Math.cos(a)).toFixed(2)}" cy="${(100 + 88 * Math.sin(a)).toFixed(2)}" r="${n > 20 ? 5 : 6.5}"/>`; }).join('')}</svg>`;
 }
-/** Istighfar heart: dark, filling with red from the bottom as the count nears the target. A visual only. */
-function heart(p: number): string {
-    const h = 92 * Math.max(0, Math.min(1, p));
-    return `<svg class="heart ${p >= 1 ? 'full' : ''}" viewBox="0 0 100 92" aria-hidden="true"><defs><clipPath id="heart-fill"><rect x="0" y="${(92 - h).toFixed(2)}" width="100" height="${h.toFixed(2)}"/></clipPath><linearGradient id="heart-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2475b"/><stop offset="1" stop-color="#8e1a2b"/></linearGradient></defs><path class="heart-base" d="${HEART}"/><path d="${HEART}" fill="url(#heart-red)" clip-path="url(#heart-fill)"/></svg>`;
+/** Istighfar heart (an anatomical heart drawn for AyahFlow): charcoal, filling with red from the bottom as the count
+ * nears the target. A visual only, not a measure of anything. */
+function heart(id: string, p: number): string {
+    const level = (q: number) => 100 * Math.max(0, Math.min(1, q)), h = level(p);
+    const from = heartShown?.id === id && !state.reducedMotion ? level(heartShown.p) : h, beat = heartBeat && !state.reducedMotion;
+    heartShown = { id, p }; heartBeat = false;
+    const rise = from !== h ? `<animate attributeName="y" from="${(100 - from).toFixed(2)}" to="${(100 - h).toFixed(2)}" dur=".45s" calcMode="spline" keySplines=".2 .8 .2 1" fill="freeze"/><animate attributeName="height" from="${from.toFixed(2)}" to="${h.toFixed(2)}" dur=".45s" calcMode="spline" keySplines=".2 .8 .2 1" fill="freeze"/>` : '';
+    return `<svg class="heart ${p >= 1 ? 'full' : ''} ${beat ? 'beat' : ''}" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="heart-fill"><rect x="0" y="${(100 - h).toFixed(2)}" width="100" height="${h.toFixed(2)}">${rise}</rect></clipPath></defs><g>${heartArt(HEART_DARK)}</g><g clip-path="url(#heart-fill)">${heartArt(HEART_RED)}</g></svg>`;
 }
-const HEART = 'M50 88C22 68 4 52 4 30 4 15 15 4 29 4c9 0 16 5 21 12C55 9 62 4 71 4c14 0 25 11 25 26 0 22-18 38-46 58Z';
+type HeartPalette = { body: string; shade: string; vessel: string; aorta: string; pulmonary: string; vein: string; shine: string };
+const HEART_DARK: HeartPalette = { body: '#2d2725', shade: '#221d1b', vessel: '#3b3330', aorta: '#3a3230', pulmonary: '#453c38', vein: '#463d39', shine: '#564b46' };
+const HEART_RED: HeartPalette = { body: '#be1b33', shade: '#9c0820', vessel: '#d8465f', aorta: '#e95b70', pulmonary: '#f2a8b6', vein: '#f3afbd', shine: '#fad6de' };
+function heartArt(c: HeartPalette): string {
+    return `<path d="M25 37V14a5 5 0 0 1 10 0v26Z" fill="${c.vein}"/><path d="M28 15v17" stroke="${c.shine}" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+<path d="M46 14 41 6M54 12l1-8M62 15l5-7" stroke="${c.aorta}" stroke-width="6" stroke-linecap="round"/><path d="M46 14 41 6M54 12l1-8M62 15l5-7" stroke="${c.pulmonary}" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+<path d="M17 52c-4 14 0 28 12 37 13 9 31 10 42 4 6-4 9-13 9-25 0-12-3-22-9-27-12-9-38-8-54 11Z" fill="${c.shade}"/>
+<path d="M27 49c-1 12 3 25 13 32 11 7 25 9 34 6 5-5 6-12 6-19 0-12-3-22-9-27-12-8-30-6-44 8Z" fill="${c.body}"/>
+<path d="M34 41c-3-11 2-24 14-28 11-4 22 1 25 10 2 6 0 12-5 16-6 6-17 8-34 2Z" fill="${c.aorta}"/><path d="M38 33c1-8 7-14 15-15" stroke="${c.shine}" stroke-width="2.4" stroke-linecap="round" fill="none" opacity=".75"/>
+<path d="M50 33c0-8 7-13 15-12 7 1 11 7 10 14l9-2c3-1 4 3 1 4l-10 3 9 1c3 0 3 4 0 4l-10-1c-1 5-4 9-9 10-8 2-14-2-15-8-1-4 2-7 0-13Z" fill="${c.pulmonary}"/><path d="M63 25c4 0 7 3 7 7" stroke="${c.shine}" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+<path d="M35 45c1 4-1 7-4 10-5 5-8 10-8 18M31 55c3 1 5 0 7-2M27 64c3 0 6 2 7 5M23 72c3 2 5 6 4 10" stroke="${c.vessel}" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+<path d="M60 52c4-1 7 1 9-2 2-2 4-3 6-1M61 52c0 6 4 10 3 16-1 5-5 8-6 13M62 61c-3 1-5 4-5 7M64 68c3 1 5 4 6 7M60 79c3 1 6 0 8 3" stroke="${c.vessel}" stroke-width="2.2" stroke-linecap="round" fill="none"/>`;
+}
 /** This counter's last 7 days, from the counts the user saved (no estimates). */
 function counterWeek(c: typeof COUNTERS[number]): string {
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); const k = dayKey(d.getTime()); return { k, label: d.toLocaleDateString(state.locale, { weekday: 'narrow' }), n: k === dayKey() ? count(c.id) : countOn(state, c.id, k) }; });
@@ -490,7 +509,7 @@ function counterView(): string {
     const wording = c.steps.filter(x => x.source.ref !== c.source.ref).map(x => x.source).filter((x, i, a) => a.findIndex(y => y.ref === x.ref) === i);
     return `<p class="eyebrow mt12">${t('counters')}</p><h1 class="page-title">${escapeHtml(c.title[state.locale])}</h1>${chips}
 <section class="tap-zone"><div class="count-meta"><span class="pill ${roundDone ? 'success' : 'gold'}">${roundDone ? `${ic('check', 12)} ${t('roundDone')}` : c.steps.length > 1 ? `${num(pos.step + 1)} / ${num(c.steps.length)}` : `${t('round')} ${num(pos.rounds + 1)}`}</span><span class="tiny muted" aria-live="polite">${t('todayCount')} <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</span></div>
-<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') ? heart(roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner"><span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') ? heart(c.id, roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner"><span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
 <p class="tiny muted">${t('tapAnywhere')}</p>
 <div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
 ${counterWeek(c)}
@@ -842,6 +861,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
         case 'count-undo': {
             const n = Math.max(0, Math.min(MAX_COUNT, count(counterId) + (d.action === 'count-tap' ? 1 : -1)));
             pendingCounts[counterId] = { n, at: Date.now() };
+            heartBeat = d.action === 'count-tap';
             if (!state.reducedMotion) haptic();
             render();
             document.querySelector<HTMLElement>(`[data-action="${d.action}"]`)?.focus();
