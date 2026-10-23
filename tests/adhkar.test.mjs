@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 6);
+    assert.equal(STATE_VERSION, 7);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -174,10 +174,12 @@ test('Athan is off by default and needs a saved place', () => {
     assert.equal(nextPrayer(noPlace, NOW), null);
 });
 test('Athan schedule: five prayers a day for a week, in the future, chosen prayers only, stable ids', () => {
-    const s = { ...withHome(), athan: { enabled: true, prayers: { fajr: true, dhuhr: true, asr: false, maghrib: true, isha: true }, sound: 'athan' } };
+    const s = { ...withHome(), athan: { ...initialState().athan, enabled: true, prayers: { fajr: true, dhuhr: true, asr: false, maghrib: true, isha: true }, fajrReciter: 'madinah' } };
     const a = athanSchedule(s, label, NOW);
     assert(a.length >= 27 && a.length <= 28, a.length);
-    assert(a.every(x => x.at > NOW && x.prayer !== 'asr' && x.sound === 'athan'));
+    assert(a.every(x => x.at > NOW && x.prayer !== 'asr'));
+    assert(a.every(x => x.reciter === (x.prayer === 'fajr' ? 'madinah' : 'beautiful')));
+    assert(athanSchedule({ ...s, athan: { ...s.athan, sound: 'chime' } }, label, NOW).every(x => x.reciter === null));
     assert.equal(new Set(a.map(x => x.id)).size, a.length);
     assert.equal(athanId('fajr', '2026-10-22'), 4261022); assert.equal(athanId('isha', '2026-10-22'), 8261022);
     assert(a.every(x => x.id >= 4000000 && x.id < 9000000)); // never collides with adhkar reminder ids (1-3 million)
@@ -197,4 +199,17 @@ test('Widget data carries a week of prayers and windows, without coordinates', (
     assert.equal(w.prayers.length, 35); assert.equal(w.windows.length, 7);
     assert(!JSON.stringify(w).includes('39.8262') && !JSON.stringify(w).includes('21.4225'));
     assert.equal(widgetData(initialState(), k => k, NOW).prayers.length, 0);
+});
+
+test('v7 reciters: bundled ids or a custom file; exports drop the custom file and fall back to a bundled reciter', () => {
+    assert.equal(STATE_VERSION, 7);
+    const base = initialState();
+    assert.equal(base.athan.reciter, 'beautiful'); assert.equal(base.athan.custom, null);
+    assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'unknown' } }), /reciter/);
+    assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'custom' } }), /reciter/); // custom needs a file
+    const withCustom = { ...base, athan: { ...base.athan, reciter: 'custom', custom: { name: 'My athan.mp3', ext: 'mp3', version: 3 } } };
+    assert.equal(validateState(JSON.parse(JSON.stringify(withCustom))).athan.custom.version, 3);
+    const out = exportable(withCustom);
+    assert.equal(out.athan.custom, null); assert.equal(out.athan.reciter, 'beautiful');
+    assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(out))));
 });

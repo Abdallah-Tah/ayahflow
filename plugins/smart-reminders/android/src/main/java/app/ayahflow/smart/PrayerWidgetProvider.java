@@ -52,6 +52,21 @@ public class PrayerWidgetProvider extends AppWidgetProvider {
             List<JSONObject> upcoming = new ArrayList<>();
             for (int i = 0; prayers != null && i < prayers.length(); i++) if (prayers.getJSONObject(i).optDouble("at") > now) upcoming.add(prayers.getJSONObject(i));
             v.setTextViewText(R.id.widget_label, (labels == null ? "Next prayer" : labels.optString("next", "Next prayer")).toUpperCase());
+            String lang = data == null ? "en" : data.optString("locale", "en");
+            v.setTextViewText(R.id.widget_date, dateLine(lang, now));
+            int[] cells = { R.id.widget_p0, R.id.widget_p1, R.id.widget_p2, R.id.widget_p3, R.id.widget_p4 };
+            Calendar dayStart = Calendar.getInstance();
+            dayStart.set(Calendar.HOUR_OF_DAY, 0); dayStart.set(Calendar.MINUTE, 0); dayStart.set(Calendar.SECOND, 0);
+            List<JSONObject> today = new ArrayList<>();
+            for (int i = 0; prayers != null && i < prayers.length(); i++) { double at = prayers.getJSONObject(i).optDouble("at"); if (at >= dayStart.getTimeInMillis() && at < dayStart.getTimeInMillis() + 86400000L) today.add(prayers.getJSONObject(i)); }
+            double nextAtForRow = upcoming.isEmpty() ? -1 : upcoming.get(0).optDouble("at");
+            for (int i = 0; i < cells.length; i++) {
+                if (i >= today.size()) { v.setTextViewText(cells[i], ""); continue; }
+                JSONObject p = today.get(i);
+                v.setTextViewText(cells[i], p.optString("label") + "\n" + DateFormat.getTimeFormat(c).format(new Date((long) p.optDouble("at"))));
+                v.setTextColor(cells[i], p.optDouble("at") == nextAtForRow ? 0xFFD9BB79 : p.optDouble("at") <= now ? 0x80A7AD9F : 0xFFA7AD9F);
+            }
+            v.setViewVisibility(R.id.widget_row, today.isEmpty() ? View.GONE : View.VISIBLE);
             if (upcoming.isEmpty()) {
                 String msg = prayers == null || prayers.length() == 0 ? (labels == null ? "" : labels.optString("noPlace")) : (labels == null ? "" : labels.optString("stale"));
                 v.setTextViewText(R.id.widget_prayer, "AyahFlow");
@@ -76,7 +91,8 @@ public class PrayerWidgetProvider extends AppWidgetProvider {
                     if (later.length() > 0) later.append("  ·  ");
                     later.append(p.optString("label")).append(' ').append(DateFormat.getTimeFormat(c).format(new Date((long) p.optDouble("at"))));
                 }
-                v.setTextViewText(R.id.widget_later, later.toString());
+                v.setTextViewText(R.id.widget_later, "");
+                v.setViewVisibility(R.id.widget_later, View.GONE);
                 String moment = null, momentKey = null;
                 JSONArray windows = data.optJSONArray("windows");
                 for (int i = 0; windows != null && i < windows.length() && moment == null; i++) {
@@ -97,6 +113,19 @@ public class PrayerWidgetProvider extends AppWidgetProvider {
         Intent tick = new Intent(c, PrayerWidgetProvider.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
         PendingIntent pi = PendingIntent.getBroadcast(c, 9102, tick, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         if (nextAt > 0) alarms.set(AlarmManager.RTC, nextAt + 1000, pi); else alarms.cancel(pi);
+    }
+
+    /** "Thursday 23 October · 1 Jumada al-Awwal 1448" with the Umm al-Qura calendar (local sighting may differ). */
+    private static String dateLine(String lang, long now) {
+        java.util.Locale locale = java.util.Locale.forLanguageTag(lang);
+        String day = new java.text.SimpleDateFormat("EEEE d MMMM", locale).format(new Date(now));
+        try {
+            android.icu.util.IslamicCalendar cal = new android.icu.util.IslamicCalendar(android.icu.util.ULocale.forLocale(locale));
+            cal.setCalculationType(android.icu.util.IslamicCalendar.CalculationType.ISLAMIC_UMALQURA);
+            cal.setTimeInMillis(now);
+            android.icu.text.DateFormat f = android.icu.text.DateFormat.getDateInstance(cal, android.icu.text.DateFormat.LONG, android.icu.util.ULocale.forLocale(locale));
+            return day + "  ·  " + f.format(cal);
+        } catch (Exception e) { return day; }
     }
 
     private static boolean inside(JSONArray w, long now) { return w != null && w.length() == 2 && now >= w.optDouble(0) && now < w.optDouble(1); }

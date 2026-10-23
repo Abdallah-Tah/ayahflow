@@ -1,4 +1,4 @@
-import { readFile, writeFile, copyFile, mkdir, access } from 'node:fs/promises';
+import { readFile, writeFile, copyFile, mkdir, access, readdir } from 'node:fs/promises';
 const exists = async (p) => { try {
     await access(p);
     return true;
@@ -37,9 +37,12 @@ if (await exists(manifest)) {
         s = s.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <application');
     await writeFile(manifest, s);
     await mkdir('android/app/src/main/res/drawable', { recursive: true });
-    // Athan for the Android notification channel (full recording; see content/athan/source.json).
+    // Athan recordings for the Android notification channels (see content/athan/sources.json); one channel per reciter.
     await mkdir('android/app/src/main/res/raw', { recursive: true });
-    await copyFile('public/sounds/athan.mp3', 'android/app/src/main/res/raw/ayahflow_athan.mp3');
+    for (const f of await readdir('public/sounds')) { const m = /^athan-([a-z0-9]+)\.mp3$/.exec(f); if (m) await copyFile(`public/sounds/${f}`, `android/app/src/main/res/raw/ayahflow_athan_${m[1]}.mp3`); }
+    // An imported athan lives in files/ayahflow/athan/ and is shared with the notification system through the FileProvider.
+    const paths = 'android/app/src/main/res/xml/file_paths.xml';
+    if (await exists(paths)) { let x = await readFile(paths, 'utf8'); if (!x.includes('ayahflow_athan')) { x = x.replace('</paths>', '    <files-path name="ayahflow_athan" path="ayahflow/athan/" />\n</paths>'); await writeFile(paths, x); } }
     await writeFile('android/app/src/main/res/drawable/ic_stat_ayahflow.xml', '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFFFF" android:pathData="M3,3 L11,5 L11,22 L3,20 Z M13,5 L21,3 L21,20 L13,22 Z"/></vector>');
     console.log('Android: microphone declaration added. Test WebView permission prompts on a real device.');
 }

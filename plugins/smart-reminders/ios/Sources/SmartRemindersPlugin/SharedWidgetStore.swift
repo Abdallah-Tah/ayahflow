@@ -30,17 +30,22 @@ enum SharedWidgetStore {
     }
 }
 
-/// Copies the ≤30 s athan alert from the web assets into Library/Sounds, where iOS looks for notification sounds.
+/// Copies every bundled ≤30 s athan alert (public/sounds/athan-<id>-alert.caf) into Library/Sounds as
+/// ayahflow-athan-<id>.caf, where iOS looks for notification sounds. An imported recording is written there by the app.
 enum AthanSound {
-    static let fileName = "ayahflow-athan.caf"
     static func install() {
-        guard let source = Bundle.main.url(forResource: "athan-alert", withExtension: "caf", subdirectory: "public/sounds"),
-              let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else { return }
-        let dir = library.appendingPathComponent("Sounds", isDirectory: true), target = dir.appendingPathComponent(fileName)
-        let size = { (url: URL) in (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? -1 }
-        if size(source) == size(target) { return }
+        guard let sounds = Bundle.main.url(forResource: "sounds", withExtension: nil, subdirectory: "public"),
+              let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first,
+              let files = try? FileManager.default.contentsOfDirectory(at: sounds, includingPropertiesForKeys: nil) else { return }
+        let dir = library.appendingPathComponent("Sounds", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: target)
-        try? FileManager.default.copyItem(at: source, to: target)
+        let size = { (url: URL) in (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? -1 }
+        for source in files where source.lastPathComponent.hasPrefix("athan-") && source.lastPathComponent.hasSuffix("-alert.caf") {
+            let id = source.lastPathComponent.dropFirst("athan-".count).dropLast("-alert.caf".count)
+            let target = dir.appendingPathComponent("ayahflow-athan-\(id).caf")
+            if size(source) == size(target) { continue }
+            try? FileManager.default.removeItem(at: target)
+            try? FileManager.default.copyItem(at: source, to: target)
+        }
     }
 }

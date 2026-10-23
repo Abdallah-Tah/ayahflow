@@ -115,20 +115,21 @@ export function prayersFrom(state: AppState, now = Date.now(), days = 7): Prayer
     return out;
 }
 export function nextPrayer(state: AppState, now = Date.now()): PrayerAt | null { return prayersFrom(state, now, 2).find(p => p.at > now) ?? null; }
-export interface AthanAlert { id: number; at: number; prayer: PrayerName; title: string; body: string; sound: 'athan' | 'chime' }
+/** `reciter` is a bundled recording id or 'custom'; null means the gentle system alert. */
+export interface AthanAlert { id: number; at: number; prayer: PrayerName; title: string; body: string; reciter: string | null; customVersion: number | null }
 /** Athan alerts for the next week (35 at most, within iOS's 64 pending notifications together with adhkar reminders). */
 export function athanSchedule(state: AppState, label: (p: PrayerName, at: number) => { title: string; body: string }, now = Date.now()): AthanAlert[] {
     if (!state.athan.enabled) return [];
-    return prayersFrom(state, now).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, dayKey(p.at)), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), sound: state.athan.sound }));
+    return prayersFrom(state, now).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, dayKey(p.at)), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
 }
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
-export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; prayers: { key: PrayerName; label: string; at: number }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string> }
-export function widgetData(state: AppState, label: (key: string) => string, now = Date.now()): WidgetData {
+export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string> }
+export function widgetData(state: AppState, label: (key: string) => string, now = Date.now(), extra: Record<string, string> = {}): WidgetData {
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() + i); return d; });
     return {
-        v: 1, updatedAt: now, rtl: state.locale === 'ar',
+        v: 1, updatedAt: now, rtl: state.locale === 'ar', locale: state.locale,
         prayers: prayersFrom(state, now).map(p => ({ key: p.prayer, label: label('p_' + p.prayer), at: p.at })),
         windows: days.map(d => { const w = windowsFor(state, d); return { morning: w.morning, evening: w.evening }; }),
-        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), app: 'AyahFlow' },
+        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', ...extra },
     };
 }

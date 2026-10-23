@@ -4,8 +4,9 @@ import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, mome
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
-import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
+import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
+import { ATHAN_RECORDINGS, MAX_IMPORT_BYTES, recording, bundledUrl, makeAlert, toBase64 } from './athan.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
 type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer';
 let state: AppState = initialState();
@@ -23,6 +24,10 @@ let momentIds: Moment[] = ['morning'];
 const counters: Record<string, number> = {};
 let smartStatus: SmartStatus | null = null;
 let notificationState: string | null = null;
+/** Which athan is previewing in the app (reciter id), if any. */
+let previewing: string | null = null;
+/** Browser preview only: an imported recording lasts until the page closes. */
+let webCustomUrl: string | null = null;
 let libraryQuery = '';
 let savedClips: Recording[] = [];
 let unsavedClip: Recording | null = null;
@@ -89,8 +94,8 @@ function homeView(): string {
     const due = dueItems(state).length;
     const estimated = planSession(state, 'mixed', Date.now(), 2026);
     const newCount = estimated.filter(v => v.reason === 'new').length;
-    return `<section class="hero"><p class="eyebrow">${t('personalPlan')}</p><h1>${t('greeting')}<br><em>${t('heroLine')}</em></h1><p>${t('heroSub')}</p>${archArt()}</section>
-<section class="today-card"><div class="row between"><div class="row"><span class="round-icon">${ic('sun', 24)}</span><h2>${t('daily')}</h2></div><span class="gold">${ic('spark', 18)}</span></div><p class="description">${t('adaptive')}</p><div class="plan-tags"><span class="pill">${ic('clock', 13)} ${num(state.goal)} ${t('minutes')} · ${t('estimated')}</span><span class="pill">${num(due)} ${t('due')}</span><span class="pill">${num(newCount)} ${t('newCards')}</span></div>${primary(state.session ? 'resume' : 'daily', state.session ? t('resume') : t('start'))}</section>${prayerStrip()}${nowCard()}
+    return `${dateLine()}<section class="hero"><p class="eyebrow">${t('personalPlan')}</p><h1>${t('greeting')}<br><em>${t('heroLine')}</em></h1><p>${t('heroSub')}</p>${archArt()}</section>
+<section class="today-card"><div class="row between"><div class="row"><span class="round-icon">${ic('sun', 24)}</span><h2>${t('daily')}</h2></div><span class="gold">${ic('spark', 18)}</span></div><p class="description">${t('adaptive')}</p><div class="plan-tags"><span class="pill">${ic('clock', 13)} ${num(state.goal)} ${t('minutes')} · ${t('estimated')}</span><span class="pill">${num(due)} ${t('due')}</span><span class="pill">${num(newCount)} ${t('newCards')}</span></div>${primary(state.session ? 'resume' : 'daily', state.session ? t('resume') : t('start'))}</section>${prayerDay()}${nowCard()}
 <section class="section"><div class="row between"><h2 class="section-title">${t('yourPath')}</h2>${actionButton('nav', t('all') + ' ' + ic('chevron', 13), 'text-button', 'data-view="practice"')}</div><div class="feature-grid"><button class="feature-card" data-action="start-mode" data-mode="next">${ic('book', 25)}<h3>${t('memorize')}</h3><p>${t('memorizeSub')}</p></button><button class="feature-card" data-action="nav" data-view="tajweed">${ic('wave', 25)}<h3>${t('tajweed')}</h3><p>${t('tajweedSub')}</p></button></div><button class="feature-wide row" data-action="nav" data-view="recite"><span class="gold">${ic('mic', 25)}</span><span class="grow"><h3>${t('recite')}</h3><p>${t('reciteSub')}</p></span><span class="gold arrow-icon">${ic('chevron', 17)}</span></button><button class="feature-wide row" data-action="start-mode" data-mode="locate"><span class="gold">${ic('pin', 25)}</span><span class="grow"><h3>${t('locate')}</h3><p>${t('locateDesc')}</p></span>${chevronEnd()}</button></section>
 <section class="section week-card"><div class="row between" style="margin-bottom:0"><div><span class="small">${num(streak(state.days))} ${t('dayStreak')}</span><p class="tiny muted">${t('week')}</p></div><div class="small gold">${num(state.xp)} <span class="tiny">${t('practicePoints')}</span></div></div>${weekMarkup()}</section><p class="gentle">${t('gentle')}</p>`;
 }
@@ -297,7 +302,7 @@ async function syncSmart(): Promise<void> {
             await bridge.scheduleTimed(timedReminders(state, copyFor));
             await scheduleAthan(athanSchedule(state, (p, at) => ({ title: `${t('p_' + p)} · ${clock(at)}`, body: t('athanBody') })));
         }
-        await setWidgetData(widgetData(state, t));
+        await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }));
     }
     catch (e) { console.error('AyahFlow reminders sync failed', e instanceof Error ? e.message : e); }
 }
@@ -336,7 +341,33 @@ async function changeSmart(el: HTMLInputElement): Promise<void> {
 const clock = (at: number) => new Date(at).toLocaleTimeString(state.locale === 'ar' ? 'ar' : state.locale, { hour: '2-digit', minute: '2-digit' });
 function countdown(at: number, now = Date.now()): string {
     const m = Math.max(0, Math.round((at - now) / 60000)), h = Math.floor(m / 60);
-    return `${t('inTime')} ${h ? `${num(h)} h ` : ''}${num(m % 60)} min`;
+    return `${t('inTime')} ${h ? `${num(h)} ${t('hourShort')} ` : ''}${num(m % 60)} ${t('minuteShort')}`;
+}
+function hijri(date = new Date()): string {
+    try { return new Intl.DateTimeFormat(`${state.locale === 'ar' ? 'ar' : state.locale}-u-ca-islamic-umalqura`, { day: 'numeric', month: 'long', year: 'numeric' }).format(date); }
+    catch { return ''; }
+}
+function dateLine(): string {
+    const now = new Date();
+    return `<p class="date-line"><span>${escapeHtml(now.toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span class="date-dot" aria-hidden="true"></span><span class="gold" title="${t('hijriNote')}">${escapeHtml(hijri(now))}</span></p>`;
+}
+function bannerTitle(): string { return audioState === 'loading' ? t('loadingAudio') : previewing ? t('athan') : t(ownAudio ? 'yourRecording' : 'reference'); }
+function bannerSub(): string { return previewing ? reciterName(previewing) : t(ownAudio ? 'privateRecording' : 'audioProvider'); }
+const reciterName = (id: string) => id === 'custom' ? state.athan.custom?.name ?? t('kindOwn') : recording(id)?.name[state.locale] ?? id;
+/** Today's prayers on one line at their real times, with "now" and the next prayer called out. */
+function prayerDay(): string {
+    const now = Date.now(), times = timesFor(state, new Date(now)), next = nextPrayer(state, now);
+    if (!times || !next) return `<button class="prayer-day empty" data-action="nav" data-view="reminders"><span class="now-orb">${ic('mosque', 22)}</span><span class="grow small">${t('setupPrayer')}</span>${chevronEnd()}</button>`;
+    // Evenly spaced stops (one per label column, centres at 10/30/50/70/90 %); "now" sits proportionally inside its gap.
+    const stops = PRAYERS.map(p => times[p]);
+    const pos = (at: number) => { if (at <= stops[0]!) return 10; if (at >= stops[4]!) return 90; const i = stops.findIndex((x, k) => at >= x && at < stops[k + 1]!); return 10 + 20 * (i + (at - stops[i]!) / (stops[i + 1]! - stops[i]!)); };
+    const status = state.athan.enabled ? `${ic('bell', 13)} ${escapeHtml(state.athan.sound === 'chime' ? t('soundChime') : reciterName(next.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter))}` : `${ic('bell', 13)} ${t('athanOffShort')}`;
+    return `<button class="prayer-day" data-action="nav" data-view="prayer"><div class="row between"><span class="eyebrow">${t('nextPrayer')}</span><span class="athan-chip ${state.athan.enabled ? 'on' : ''}">${status}</span></div><div class="prayer-day-main"><span class="grow"><strong class="prayer-day-name">${t('p_' + next.prayer)}</strong><span class="small gold" data-countdown="${next.at}">${countdown(next.at, now)}</span></span><span class="prayer-day-time">${clock(next.at)}</span></div><div class="day-line" aria-hidden="true"><span class="day-fill" style="width:${pos(now) - 10}%"></span>${PRAYERS.map(p => `<span class="day-mark ${times[p] <= now ? 'past' : ''} ${next.at === times[p] ? 'next' : ''}" style="inset-inline-start:${pos(times[p])}%"></span>`).join('')}<span class="day-now" style="inset-inline-start:${pos(now)}%"></span></div><div class="day-labels">${PRAYERS.map(p => `<span class="${next.at === times[p] ? 'next' : ''} ${times[p] <= now ? 'past' : ''}"><b>${t('p_' + p)}</b>${clock(times[p])}</span>`).join('')}</div></button>`;
+}
+function reciterCard(id: string): string {
+    const r = recording(id), active = state.athan.reciter === id, playing = previewing === id && audioState === 'playing';
+    const credit = r ? `<a href="${r.page}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.author.split(' (')[0]!)} · ${escapeHtml(r.licence)}${ic('link', 11)}</a>` : `<span>${escapeHtml(state.athan.custom?.name ?? '')}</span>`;
+    return `<div class="reciter ${active ? 'selected' : ''}"><button class="reciter-play" data-action="athan-preview" data-reciter="${id}" aria-label="${t(playing ? 'stopAthan' : 'listenAthan')}: ${escapeHtml(reciterName(id))}">${ic(playing ? 'stop' : 'play', 16)}</button><div class="grow"><strong>${escapeHtml(reciterName(id))}</strong><p class="tiny muted">${t(id === 'custom' ? 'kindOwn' : r!.kind === 'field' ? 'kindField' : 'kindStudio')}</p><p class="tiny reciter-credit">${credit}</p></div>${active ? `<span class="pill success">${ic('check', 12)} ${t('selected')}</span>` : actionButton('athan-reciter', t('choose'), 'button subtle', `data-reciter="${id}"`)}</div>`;
 }
 function prayerStrip(): string {
     const next = nextPrayer(state);
@@ -350,13 +381,15 @@ function prayerView(): string {
     const rows: [string, number][] = [['fajr', times.fajr], ['sunrise', times.sunrise], ['dhuhr', times.dhuhr], ['asr', times.asr], ['maghrib', times.maghrib], ['isha', times.isha]];
     const list = rows.map(([k, at]) => { const isNext = !!next && next.prayer === k && next.at === at, prayer = (PRAYERS as readonly string[]).includes(k); return `<div class="prayer-row ${isNext ? 'next' : ''} ${at < now ? 'past' : ''}"><span class="grow"><strong>${t('p_' + k)}</strong>${isNext ? `<span class="tiny gold" data-countdown="${at}">${countdown(at, now)}</span>` : ''}</span><span class="prayer-time">${clock(at)}</span>${prayer ? `<button class="icon-button ${state.athan.enabled && state.athan.prayers[k as PrayerName] ? 'active' : ''}" data-action="athan-prayer" data-prayer="${k}" aria-pressed="${state.athan.prayers[k as PrayerName]}" aria-label="${t('athan')} · ${t('p_' + k)}" ${state.athan.enabled ? '' : 'disabled'}>${ic('bell', 17)}</button>` : '<span class="bell-spacer"></span>'}</div>`; }).join('');
     const tomorrow = next && dayKey(next.at) !== dayKey(now) ? `<p class="tiny muted mt12">${t('nextPrayer')}: ${t('p_' + next.prayer)} · ${clock(next.at)}</p>` : '';
-    const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div>${actionButton('athan-preview', `${ic(audioState === 'playing' && !ownAudio ? 'stop' : 'play', 16)} ${t(audioState === 'playing' && !ownAudio ? 'stopAthan' : 'playAthan')}`, 'button secondary full')}<p class="tiny muted mt12">${t('athanRecording')}</p></section>`;
+    const reciters = [...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])];
+    const own = `<div class="own-athan"><label class="button secondary full" for="athan-file">${ic('upload', 16)} ${t(state.athan.custom ? 'replaceOwn' : 'useOwn')}</label><input type="file" id="athan-file" accept="audio/*" hidden>${state.athan.custom ? actionButton('athan-remove-own', t('removeOwn'), 'text-button danger-text') : ''}<p class="tiny muted mt12">${t('ownNote')}</p></div>`;
+    const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('reciter')}</h2><div class="stack">${reciters.map(reciterCard).join('')}</div>${own}<label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${reciters.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
     return `${head}<div class="prayer-list">${list}</div>${tomorrow}${athan}<section class="settings-section">${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
 }
 /** Keeps countdowns current while a page shows them, without re-rendering. */
 setInterval(() => { document.querySelectorAll<HTMLElement>('[data-countdown]').forEach(el => { el.textContent = countdown(Number(el.dataset.countdown)); }); }, 30000);
 const views: Record<View, () => string> = { today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayerView };
-function render(): void { applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); root.innerHTML = `<div class="app-shell">${header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''}" id="main" tabindex="-1">${views[view]()}</main>${nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${t(audioState === 'loading' ? 'loadingAudio' : ownAudio ? 'yourRecording' : 'reference')}</strong><p>${t(ownAudio ? 'privateRecording' : 'audioProvider')}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') applyFollow(); }
+function render(): void { applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); root.innerHTML = `<div class="app-shell">${header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''}" id="main" tabindex="-1">${views[view]()}</main>${nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') applyFollow(); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
@@ -772,11 +805,33 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await syncSmart();
             render();
             break;
-        case 'athan-preview':
-            if (audioState === 'playing' && !ownAudio) { stopAudio(); render(); return; }
+        case 'athan-preview': {
+            const id = d.reciter ?? state.athan.reciter;
+            if (previewing === id && audioState === 'playing') { stopAudio(); previewing = null; render(); return; }
             if (recordingActive() || followingActive()) return;
-            void playAudio(new URL('./sounds/athan.m4a', document.baseURI).href).catch(() => { });
+            const url = id === 'custom' ? (nativeAthan() && state.athan.custom ? await nativeAthan()!.url(state.athan.custom.ext, state.athan.custom.version) : webCustomUrl) : bundledUrl(id);
+            if (!url) return;
+            previewing = id;
+            void playAudio(url).catch(() => { previewing = null; });
+            setTimeout(render, 60);
             break;
+        }
+        case 'athan-reciter':
+            await commit({ ...state, athan: { ...state.athan, reciter: d.reciter!, sound: 'athan' } });
+            await syncSmart();
+            render();
+            break;
+        case 'athan-remove-own': {
+            if (!await confirmAction(`${t('removeOwn')} · ${state.athan.custom?.name ?? ''}?`)) return;
+            stopAudio();
+            await nativeAthan()?.remove();
+            if (webCustomUrl) { URL.revokeObjectURL(webCustomUrl); webCustomUrl = null; }
+            const fallback = ATHAN_RECORDINGS[0]!.id;
+            await commit({ ...state, athan: { ...state.athan, custom: null, reciter: state.athan.reciter === 'custom' ? fallback : state.athan.reciter, fajrReciter: state.athan.fajrReciter === 'custom' ? fallback : state.athan.fajrReciter } });
+            await syncSmart();
+            render();
+            break;
+        }
         case 'arabic-size':
             await commit({ ...state, arabicSize: d.size as ArabicSize });
             render();
@@ -855,7 +910,7 @@ root.addEventListener('input', e => { const el = e.target as HTMLInputElement; i
     libraryQuery = el.value;
     document.querySelector('#surah-list')!.innerHTML = surahRows();
 } });
-root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled'].includes(el.id))
+root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-fajr', 'athan-file'].includes(el.id))
     return; try {
     if (el.id === 'audio-toggle') {
         if (!el.checked)
@@ -872,6 +927,29 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
         await commit({ ...state, selectedSurahs: [...state.selectedSurahs, Number(el.value)].sort((a, b) => a - b) });
     if (el.id.startsWith('smart-'))
         await changeSmart(el);
+    if (el.id === 'athan-fajr') {
+        await commit({ ...state, athan: { ...state.athan, fajrReciter: el.value } });
+        await syncSmart();
+    }
+    if (el.id === 'athan-file') {
+        const file = el.files?.[0];
+        el.value = '';
+        if (!file) return;
+        if (file.size > MAX_IMPORT_BYTES) { toast(t('importTooLarge')); return; }
+        toast(t('importing'));
+        try {
+            const bytes = await file.arrayBuffer();
+            const { wav } = await makeAlert(bytes);
+            const ext = (/\.([a-z0-9]{1,5})$/i.exec(file.name)?.[1] ?? 'm4a').toLowerCase(), version = Date.now() % 1000000000, name = file.name.slice(0, 120);
+            const native = nativeAthan();
+            if (native) await native.save({ full: toBase64(bytes), ext, alert: toBase64(wav), version, name });
+            else { if (webCustomUrl) URL.revokeObjectURL(webCustomUrl); webCustomUrl = URL.createObjectURL(file); toast(t('importWebOnly')); }
+            await commit({ ...state, athan: { ...state.athan, custom: { name, ext, version }, reciter: 'custom', sound: 'athan' } });
+            await syncSmart();
+            if (native) toast(t('imported'));
+        }
+        catch { toast(t('importFailed')); }
+    }
     if (el.id === 'athan-enabled') {
         const bridge = smartBridge();
         if (el.checked && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
@@ -914,15 +992,15 @@ finally {
 window.addEventListener('ayahflow:audio', e => { const detail = (e as CustomEvent<{
     status: string;
     url: string;
-}>).detail; audioState = detail.status; ownAudio = detail.url.startsWith('blob:'); if (detail.status === 'error')
+}>).detail; audioState = detail.status; ownAudio = detail.url.startsWith('blob:'); if (['stopped', 'error'].includes(detail.status) && previewing) { previewing = null; if (view === 'prayer') { const y = window.scrollY; render(); window.scrollTo(0, y); } } if (detail.status === 'error')
     toast(t('audioError')); document.body.classList.toggle('audio-playing', detail.status === 'playing'); const banner = document.querySelector<HTMLElement>('#audio-banner'); if (banner) {
     banner.hidden = ['stopped', 'error'].includes(detail.status);
     const strong = banner.querySelector('strong');
     if (strong)
-        strong.textContent = t(detail.status === 'loading' ? 'loadingAudio' : ownAudio ? 'yourRecording' : 'reference');
+        strong.textContent = bannerTitle();
     const sub = banner.querySelector('p');
     if (sub)
-        sub.textContent = t(ownAudio ? 'privateRecording' : 'audioProvider');
+        sub.textContent = bannerSub();
 } });
 window.addEventListener('ayahflow:record-limit', () => void finishRecording());
 window.addEventListener('ayahflow:record-error', () => { void finishRecording(); toast(t('micError')); });

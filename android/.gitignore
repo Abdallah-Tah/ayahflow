@@ -101,4 +101,4 @@ app/src/main/assets/capacitor.plugins.json
 app/src/main/res/xml/config.xml
 
 # Copied from public/sounds by scripts/native-configure.mjs
-app/src/main/res/raw/ayahflow_athan.mp3
+app/src/main/res/raw/ayahflow_athan_*.mp3

@@ -32,3 +32,19 @@ The recogniser's Quran text is never displayed; AyahFlow highlights its own sour
 | `adhan` 4.4.6 (adhan-js, Batoul Apps) | MIT | Bundled into `www/js/adhan.js` for offline prayer-time calculation |
 
 sunnah.com is linked for reading and translations; nothing is copied from it. The app does not claim endorsement by Tanzil, sunnah.com, the dataset author or any scholar.
+
+## Athan recordings
+
+Prepared by `scripts/prepare-athan.mjs` (SHA-256 pinned, loudness-normalised, mono; a ≤30 s alert clip for iOS) from Wikimedia Commons. The in-app reciter list shows each author and licence with a link. Clips made from CC BY-SA recordings are shared under CC BY-SA.
+
+| Name in app | Source | Author | Licence |
+| --- | --- | --- | --- |
+| “Beautiful adhan” | [Beautiful adhan.ogg](https://commons.wikimedia.org/wiki/File:Beautiful_adhan.ogg) | Adam-synagda | CC0 1.0 |
+| Azan · Andrewler | [Azan.ogg](https://commons.wikimedia.org/wiki/File:Azan.ogg) | Andrewler | CC BY-SA 4.0 |
+| The Prophet’s Mosque, Madinah | [33937 ejaz215 call-to-prayer-from-the-prophet-s-mo.ogg](https://commons.wikimedia.org/wiki/File:33937_ejaz215_call-to-prayer-from-the-prophet-s-mo.ogg) | ejaz215 (freesound.org/people/ejaz215/sounds/33937) | CC BY 3.0 |
+| Hassan II Mosque, Casablanca | [Llamada a oración Mezquita Hassan II.wav](https://commons.wikimedia.org/wiki/File:Llamada_a_oraci%C3%B3n_Mezquita_Hassan_II.wav) | Fraguando | CC BY-SA 4.0 |
+| Aaqib Azeez | [The Adhan - Muslim Call to Prayer - Aaqib Azeez.mp3](https://commons.wikimedia.org/wiki/File:The_Adhan_-_Muslim_Call_to_Prayer_-_Aaqib_Azeez.mp3) | Atcovi | CC BY-SA 4.0 |
+
+None of these recordings has yet been listened to by a person for this app. Before release confirm for each: a complete athan with correct wording, whether it is the Fajr version (as-salatu khayrun min an-nawm), audio quality, and that the declared licence is credible. Derived clips of CC BY-SA recordings are shared under CC BY-SA.
+
+A user may import their own athan recording; it stays on the device, is never exported, and its rights are the user's.

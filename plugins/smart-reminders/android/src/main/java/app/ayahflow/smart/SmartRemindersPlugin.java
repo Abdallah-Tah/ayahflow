@@ -148,6 +148,26 @@ public class SmartRemindersPlugin extends Plugin {
         call.resolve();
     }
 
+    /** Creates the notification channel for an imported athan (files/ayahflow/athan/...). Channel sounds are fixed once
+     * created, so each import gets a new channel id; older custom channels are removed. */
+    @PluginMethod
+    public void athanChannel(PluginCall call) {
+        String path = call.getString("path"), id = call.getString("id"), name = call.getString("name", "Athan");
+        if (path == null || id == null || !id.startsWith("ayahflow-athan-custom-") || path.contains("..")) { call.reject("path and id required"); return; }
+        if (android.os.Build.VERSION.SDK_INT < 26) { call.resolve(); return; }
+        java.io.File file = new java.io.File(getContext().getFilesDir(), path);
+        if (!file.exists()) { call.reject("file missing"); return; }
+        Uri uri = androidx.core.content.FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file);
+        getContext().grantUriPermission("com.android.systemui", uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        android.app.NotificationManager nm = (android.app.NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        for (android.app.NotificationChannel c : nm.getNotificationChannels()) if (c.getId().startsWith("ayahflow-athan-custom-") && !c.getId().equals(id)) nm.deleteNotificationChannel(c.getId());
+        android.app.NotificationChannel channel = new android.app.NotificationChannel(id, name, android.app.NotificationManager.IMPORTANCE_HIGH);
+        channel.setSound(uri, new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+        channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(channel);
+        call.resolve();
+    }
+
     @PluginMethod
     public void openSettings(PluginCall call) {
         Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", getContext().getPackageName(), null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

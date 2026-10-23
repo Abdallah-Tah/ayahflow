@@ -24,6 +24,9 @@ interface NativeBridge {
     smart: SmartBridge;
     scheduleAthan: (list: AthanAlert[]) => Promise<void>;
     setWidgetData: (data: WidgetData | null) => Promise<void>;
+    saveCustomAthan: (a: { full: string; ext: string; alert: string; version: number; name: string }) => Promise<void>;
+    customAthanUrl: (ext: string, version: number) => Promise<string>;
+    deleteCustomAthan: () => Promise<void>;
     onDeepLink: (handler: (url: string) => void) => void;
 }
 let nativeBridge: NativeBridge | null = null;
@@ -116,3 +119,4 @@ export function onDeepLink(handler: (url: string) => void): void { nativeBridge?
 /** Athan alerts and widget data (native only). */
 export async function scheduleAthan(list: AthanAlert[]): Promise<void> { await nativeBridge?.scheduleAthan(list); }
 export async function setWidgetData(data: WidgetData | null): Promise<void> { await nativeBridge?.setWidgetData(data); }
+export const nativeAthan = () => nativeBridge ? { save: nativeBridge.saveCustomAthan, url: nativeBridge.customAthanUrl, remove: nativeBridge.deleteCustomAthan } : null;
