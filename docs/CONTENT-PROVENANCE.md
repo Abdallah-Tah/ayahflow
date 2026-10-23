@@ -19,6 +19,8 @@ Translations and tafsir remain external links (Quran.com), not bundled text.
 
 `content/adhkar/spec.json` lists each dhikr with a cited hadith and two short boundary markers. `scripts/build-adhkar.mjs` slices the text **verbatim** from that hadith in the public-domain dataset `fawazahmed0/hadith-api@1` (Arabic editions); a marker that is not found fails the build, so no supplication is typed by hand. Every cited hadith is saved to `content/adhkar/sources.json`, and `tests/adhkar.test.mjs` re-checks offline that each text is an exact substring of its source. Quran-based adhkar (Ayat al-Kursi, the end of Al-Baqarah, the three Quls) are references into the Tanzil corpus.
 
+Counters (`counters` in the spec) work the same way: every phrase is a verbatim slice of a cited hadith, and each counter's target is backed by `evidence` phrases that must occur in its `countSource` (e.g. "في اليوم مائة مرة" in Muslim in-book 48/52; "ثلاثا وثلاثين" and "تمام المائة" in Muslim in-book 5/188). Where the phrase wording comes from another narration (the tasbih phrases from Muslim in-book 38/16), the app shows that source too.
+
 Recorded per entry: collection, number, in-book reference (verified to match sunnah.com's in-book reference, so `https://sunnah.com/<collection>/<book>/<hadith>` resolves), and the dataset's grades. Decisions that need a reviewer's eye:
 
 - The popular entering-home wording in Abu Dawud 5096 is graded *da‘if* by every grader in the dataset; it is not used. Entering home shows the authentic guidance (Muslim, in-book 36/136; Abu Dawud 3765, *sahih*) to remember Allah on entering, labelled as guidance rather than a fixed wording.

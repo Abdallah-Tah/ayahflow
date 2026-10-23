@@ -16,7 +16,12 @@ export interface SmartBridge {
     openSettings(): Promise<void>;
     notificationPermission(request: boolean): Promise<'granted' | 'denied' | 'prompt' | 'prompt-with-rationale'>;
     scheduleTimed(list: TimedReminder[]): Promise<void>;
+    /** Steps per local day from the device pedometer, read live and never saved by the app. */
+    steps(days: number): Promise<StepReading>;
 }
+/** iOS: CMPedometer (up to 7 days of history, kept by the system). Android: the step-counter sensor, sampled when the app
+ * reads it, so a day only counts from the first reading and steps since the last reading are given to today (approximate). */
+export interface StepReading { available: boolean; permission: 'granted' | 'denied' | 'prompt' | 'unavailable'; approximate: boolean; days: { day: string; steps: number }[] }
 export interface NativeConfig {
     location: boolean;
     vehicle: boolean;

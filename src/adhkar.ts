@@ -2,9 +2,9 @@
  * Content is generated from content/adhkar/ (verbatim hadith slices + Quran references), reviewStatus
  * 'awaiting-scholar-review'. A delivered reminder is never evidence of recitation: only explicit
  * completions (see AdhkarCompletion in engine.ts) count. */
-import ADHKAR, { type AdhkarEntry, type PrayerSet, type HadithSource } from './adhkar-data.js';
+import ADHKAR, { type AdhkarEntry, type PrayerSet, type HadithSource, type DhikrCounter } from './adhkar-data.js';
 import { chapter, verse } from './data.js';
-export type { AdhkarEntry, PrayerSet, HadithSource };
+export type { AdhkarEntry, PrayerSet, HadithSource, DhikrCounter };
 export const ADHKAR_REVIEW = ADHKAR.reviewStatus;
 export const ADHKAR_DATASET = ADHKAR.dataset;
 export const MOMENTS = ['morning', 'evening', 'leave_home', 'enter_home', 'vehicle', 'travel', 'work_arrive', 'work_leave', 'mosque_enter', 'mosque_leave', 'after_prayer', 'sleep', 'wake'] as const;
@@ -13,6 +13,16 @@ export type Moment = typeof MOMENTS[number];
 export const GENERAL_MOMENTS: readonly Moment[] = ['work_arrive', 'work_leave'];
 export const ADHKAR_ENTRIES: readonly AdhkarEntry[] = ADHKAR.adhkar;
 export const PRAYER_SETS: readonly PrayerSet[] = ADHKAR.prayer;
+export const COUNTERS: readonly DhikrCounter[] = ADHKAR.counters;
+export function counter(id: string): DhikrCounter { const c = COUNTERS.find(x => x.id === id); if (!c) throw new Error('Unknown counter'); return c; }
+/** Where a running count stands: the phrase being said now, how many of it are done, and completed rounds.
+ * A round is one pass through all steps (e.g. 33 + 33 + 33 + 1); counting past the target simply starts a new round. */
+export function counterPosition(c: DhikrCounter, n: number): { step: number; inStep: number; rounds: number; inRound: number } {
+    const rounds = Math.floor(n / c.total), inRound = n % c.total;
+    let left = inRound, step = 0;
+    while (step < c.steps.length - 1 && left >= c.steps[step]!.count) { left -= c.steps[step]!.count; step++; }
+    return { step, inStep: left, rounds, inRound };
+}
 export function entriesFor(moment: Moment): AdhkarEntry[] { return ADHKAR_ENTRIES.filter(e => e.moments.includes(moment)); }
 export function entry(id: string): AdhkarEntry { const e = ADHKAR_ENTRIES.find(x => x.id === id); if (!e) throw new Error('Unknown dhikr'); return e; }
 /** Quran passages of a Quran-based dhikr, read from the corpus (never stored twice). */

@@ -1,6 +1,7 @@
 import Foundation
 import Capacitor
 import CoreLocation
+import CoreMotion
 import CryptoKit
 
 /// Web-layer API for SmartReminders. Location is requested only from these calls, i.e. after the user turns on a
@@ -20,9 +21,11 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "reset", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setWidgetData", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "downloadAthan", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "downloadAthan", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "steps", returnType: CAPPluginReturnPromise)
     ]
     private var engine: SmartReminders { SmartReminders.shared }
+    private let pedometer = CMPedometer()
 
     override public func load() { DispatchQueue.main.async { self.engine.start() } }
 
@@ -88,6 +91,33 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve(["path": path, "bytes": data.count])
             } catch { call.reject("could not save") }
         }.resume()
+    }
+
+    /// Steps for each of the last `days` local days (at most 7, the history iOS keeps). Read from the system pedometer
+    /// under the Motion & Fitness permission; nothing is stored or sent anywhere.
+    @objc func steps(_ call: CAPPluginCall) {
+        guard CMPedometer.isStepCountingAvailable() else { call.resolve(["available": false, "permission": "unavailable", "approximate": false, "days": []]); return }
+        let count = max(1, min(call.getInt("days") ?? 7, 7))
+        let cal = Calendar.current, now = Date(), today = cal.startOfDay(for: now)
+        let format = DateFormatter()
+        format.calendar = Calendar(identifier: .gregorian); format.locale = Locale(identifier: "en_US_POSIX"); format.dateFormat = "yyyy-MM-dd"
+        let group = DispatchGroup(), lock = NSLock()
+        var days: [(Date, Int)] = [], denied = false
+        for i in 0..<count {
+            guard let start = cal.date(byAdding: .day, value: -i, to: today), let next = cal.date(byAdding: .day, value: 1, to: start) else { continue }
+            group.enter()
+            pedometer.queryPedometerData(from: start, to: min(next, now)) { data, error in
+                lock.lock()
+                if let error = error as NSError?, error.domain == CMErrorDomain, error.code == Int(CMErrorMotionActivityNotAuthorized.rawValue) { denied = true }
+                if let data { days.append((start, data.numberOfSteps.intValue)) }
+                lock.unlock(); group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            let status = CMPedometer.authorizationStatus()
+            let permission = denied || status == .denied || status == .restricted ? "denied" : status == .authorized ? "granted" : "prompt"
+            call.resolve(["available": true, "permission": permission, "approximate": false, "days": days.sorted { $0.0 < $1.0 }.map { ["day": format.string(from: $0.0), "steps": $0.1] }])
+        }
     }
 
     @objc func openSettings(_ call: CAPPluginCall) {

@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 8);
+    assert.equal(STATE_VERSION, 9);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -202,7 +202,7 @@ test('Widget data carries a week of prayers and windows, without coordinates', (
 });
 
 test('v7 reciters: bundled ids or a custom file; exports drop the custom file and fall back to a bundled reciter', () => {
-    assert.equal(STATE_VERSION, 8);
+    assert.equal(STATE_VERSION, 9);
     const base = initialState();
     assert.equal(base.athan.reciter, 'beautiful'); assert.equal(base.athan.custom, null);
     assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'unknown' } }), /reciter/);
@@ -252,4 +252,47 @@ test('Detections keep a short reason from the phone (no coordinates) and validat
     const s = { ...initialState(), detections: merged };
     assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(s))));
     assert.throws(() => validateState({ ...s, detections: [{ event: 'WAKE', at: 1, detail: 7 }] }), /detections/);
+});
+
+test('Counter phrases are verbatim slices; their counts are stated in the cited narration', async () => {
+    const { COUNTERS, counterPosition } = await import('../www/js/adhkar.js');
+    assert.deepEqual(COUNTERS.map(c => [c.id, c.total]), [['istighfar', 100], ['istighfar-tawbah', 70], ['tasbih-prayer', 100]]);
+    for (const c of COUNTERS) {
+        for (const s of c.steps) assert(sources[s.source.ref].text.includes(s.text), `${c.id}: "${s.text}" not verbatim in ${s.source.ref}`);
+        for (const ev of c.evidence) assert(key(sources[c.source.ref].text).includes(key(ev)), `${c.id}: count evidence missing`);
+        assert.match(sourceUrl(c.source), /^https:\/\/sunnah\.com\/[a-z]+\/\d+\/\d+$/);
+    }
+    assert.equal(COUNTERS.find(c => c.id === 'istighfar-tawbah').atLeast, true); // "more than seventy"
+    const tasbih = COUNTERS.find(c => c.id === 'tasbih-prayer');
+    assert.deepEqual(tasbih.steps.map(s => s.count), [33, 33, 33, 1]);
+    assert.deepEqual(counterPosition(tasbih, 0), { step: 0, inStep: 0, rounds: 0, inRound: 0 });
+    assert.deepEqual(counterPosition(tasbih, 33), { step: 1, inStep: 0, rounds: 0, inRound: 33 });
+    assert.deepEqual(counterPosition(tasbih, 99), { step: 3, inStep: 0, rounds: 0, inRound: 99 });
+    assert.deepEqual(counterPosition(tasbih, 100), { step: 0, inStep: 0, rounds: 1, inRound: 0 });
+    assert.deepEqual(counterPosition(COUNTERS[0], 137), { step: 0, inStep: 37, rounds: 1, inRound: 37 });
+});
+test('v9 counts are set (not added) per counter and day, validated, migrated and exported; steps are never stored', async () => {
+    const { setCount, countOn, defaultHealth } = await import('../www/js/engine.js');
+    let s = initialState();
+    assert.deepEqual(s.counts, []); assert.deepEqual(s.health, { steps: false, stepGoal: 8000 });
+    s = setCount(s, 'istighfar', 40, at(9));
+    assert.strictEqual(setCount(s, 'istighfar', 40, at(10)), s); // saving the same tap twice changes nothing
+    s = setCount(s, 'istighfar', 41, at(10));
+    assert.equal(s.counts.length, 1); assert.equal(countOn(s, 'istighfar', DAY), 41);
+    s = setCount(s, 'istighfar', 5, at(9) + 86400000);
+    assert.equal(countOn(s, 'istighfar', DAY), 41); assert.equal(s.counts.length, 2);
+    assert.throws(() => setCount(s, 'made-up', 1, at(9)), /count/);
+    assert.throws(() => setCount(s, 'istighfar', -1, at(9)), /count/);
+    assert.throws(() => setCount(s, 'istighfar', 1.5, at(9)), /count/);
+    assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).counts, s.counts);
+    assert.throws(() => validateState({ ...s, counts: [...s.counts, { ...s.counts[0] }] }), /counts/); // duplicate day
+    assert.throws(() => validateState({ ...s, counts: [{ id: 'istighfar', day: 'today', n: 1 }] }), /counts/);
+    assert.throws(() => validateState({ ...s, health: { steps: true, stepGoal: 10 } }), /step/);
+    assert.throws(() => validateState({ ...s, health: { steps: 'yes', stepGoal: 8000 } }), /step/);
+    assert.equal(Object.keys(s.health).join(), 'steps,stepGoal'); // a setting and a goal, no step data
+    const v8 = JSON.parse(JSON.stringify(initialState())); v8.version = 8; delete v8.counts; delete v8.health;
+    v8.xp = 30;
+    const m = validateState(v8);
+    assert.equal(m.version, 9); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
+    assert.deepEqual(exportable(s).counts, s.counts);
 });

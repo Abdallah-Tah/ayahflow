@@ -434,5 +434,91 @@
         "الصبح"
       ]
     }
+  ],
+  "counters": [
+    {
+      "id": "istighfar",
+      "title": {
+        "en": "Istighfar",
+        "fr": "Istighfar (demande de pardon)",
+        "ar": "الاستغفار"
+      },
+      "steps": [
+        {
+          "source": "muslim:6858",
+          "start": "استغفر الله",
+          "end": "الله",
+          "count": 100
+        }
+      ],
+      "countSource": "muslim:6858",
+      "evidence": [
+        "في اليوم مائة مرة"
+      ],
+      "also": [
+        "abudawud:1515"
+      ]
+    },
+    {
+      "id": "istighfar-tawbah",
+      "title": {
+        "en": "Istighfar and tawbah",
+        "fr": "Istighfar et repentir",
+        "ar": "الاستغفار والتوبة"
+      },
+      "steps": [
+        {
+          "source": "bukhari:6307",
+          "start": "استغفر الله واتوب اليه",
+          "end": "اليه",
+          "count": 70
+        }
+      ],
+      "countSource": "bukhari:6307",
+      "evidence": [
+        "اكثر من سبعين مرة"
+      ],
+      "atLeast": true
+    },
+    {
+      "id": "tasbih-prayer",
+      "title": {
+        "en": "Tasbih after prayer",
+        "fr": "Tasbih après la prière",
+        "ar": "التسبيح دبر الصلاة"
+      },
+      "steps": [
+        {
+          "source": "muslim:5601",
+          "start": "سبحان الله",
+          "end": "الله",
+          "count": 33
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الحمد لله",
+          "end": "لله",
+          "count": 33
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الله اكبر",
+          "end": "اكبر",
+          "count": 33
+        },
+        {
+          "source": "muslim:1352",
+          "start": "لا اله الا الله وحده",
+          "end": "قدير",
+          "count": 1
+        }
+      ],
+      "countSource": "muslim:1352",
+      "evidence": [
+        "ثلاثا وثلاثين",
+        "تمام المائة"
+      ],
+      "perPrayer": true
+    }
   ]
 }

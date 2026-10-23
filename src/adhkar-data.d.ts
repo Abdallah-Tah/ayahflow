@@ -17,5 +17,7 @@ export interface AdhkarEntry {
     quranRef?: string;
 }
 export interface PrayerSet { id: string; surahs: number[]; context: { en: string; fr: string; ar: string }; evidence: string[]; source: HadithSource; also: HadithSource[] }
-declare const ADHKAR: { dataset: string; reviewStatus: 'awaiting-scholar-review'; adhkar: AdhkarEntry[]; prayer: PrayerSet[] };
+/** A counted dhikr. Each phrase is a verbatim slice of its own source; the counts are stated in `source` (`evidence`). */
+export interface DhikrCounter { id: string; title: { en: string; fr: string; ar: string }; steps: { text: string; count: number; source: HadithSource }[]; total: number; evidence: string[]; source: HadithSource; also: HadithSource[]; atLeast?: true; perPrayer?: true }
+declare const ADHKAR: { dataset: string; reviewStatus: 'awaiting-scholar-review'; adhkar: AdhkarEntry[]; prayer: PrayerSet[]; counters: DhikrCounter[] };
 export default ADHKAR;

@@ -36,6 +36,7 @@ export const bridge = {
         async simulate(event) { return (await Smart.simulate({ event })).moments ?? []; },
         reset: () => Smart.reset(),
         openSettings: () => Smart.openSettings(),
+        steps: (days) => Smart.steps({ days }),
         async notificationPermission(request) { const p = request ? await LocalNotifications.requestPermissions() : await LocalNotifications.checkPermissions(); return p.display; },
         /** Replaces all pending timed reminders with `list` ([{ id, at, title, body, url }]). */
         async scheduleTimed(list) {

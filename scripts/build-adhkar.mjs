@@ -75,8 +75,20 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         for (const ref of p.also ?? []) also.push(source(ref, await get(ref)));
         prayer.push({ id: p.id, surahs: p.surahs, context: p.context, evidence: p.evidence, source: source(p.source, h), also });
     }
+    // Counters: each phrase is sliced from a cited hadith; the counts must be stated in `countSource` (checked by `evidence`).
+    const counters = [];
+    for (const c of spec.counters ?? []) {
+        const h = await get(c.countSource);
+        for (const ev of c.evidence) if (!plainKey(h.text).includes(plainKey(ev))) throw new Error(`${c.id}: evidence "${ev}" not in ${c.countSource}`);
+        const steps = [];
+        for (const s of c.steps) steps.push({ text: slice((await get(s.source)).text, s.start, s.end), count: s.count, source: source(s.source, await get(s.source)) });
+        const also = [];
+        for (const ref of c.also ?? []) also.push(source(ref, await get(ref)));
+        counters.push({ id: c.id, title: c.title, steps, total: steps.reduce((n, s) => n + s.count, 0), evidence: c.evidence, source: source(c.countSource, h), also, ...(c.atLeast ? { atLeast: true } : {}), ...(c.perPrayer ? { perPrayer: true } : {}) });
+    }
     await writeFile(path.join(root, 'content/adhkar/sources.json'), JSON.stringify({ dataset: spec.dataset, url: DATASET, hadiths: sources }, null, 1) + '\n');
-    await writeFile(path.join(root, 'content/adhkar/adhkar.json'), JSON.stringify({ dataset: spec.dataset, reviewStatus: 'awaiting-scholar-review', adhkar, prayer }, null, 1) + '\n');
-    console.log(`Built ${adhkar.length} adhkar and ${prayer.length} prayer-surah entries from ${Object.keys(sources).length} cited hadiths.`);
+    await writeFile(path.join(root, 'content/adhkar/adhkar.json'), JSON.stringify({ dataset: spec.dataset, reviewStatus: 'awaiting-scholar-review', adhkar, prayer, counters }, null, 1) + '\n');
+    console.log(`Built ${adhkar.length} adhkar, ${prayer.length} prayer-surah entries and ${counters.length} counters from ${Object.keys(sources).length} cited hadiths.`);
     for (const a of adhkar) if (a.text) console.log(`${a.id.padEnd(18)} ${a.text}`);
+    for (const c of counters) for (const s of c.steps) console.log(`${c.id.padEnd(18)} ×${String(s.count).padEnd(4)} ${s.text}`);
 }
