@@ -28,6 +28,8 @@ const pendingCounts: Record<string, { n: number; at: number }> = {};
 let countTimer: ReturnType<typeof setTimeout> | null = null;
 let stepReading: StepReading | null = null;
 let stepsAt = 0;
+/** Why the last step reading failed, shown on the Steps screen instead of a silent blank. */
+let stepError: string | null = null;
 /** Last drawn heart level, so a tap can animate the red rising from there. */
 let heartShown: { id: string; p: number } | null = null;
 let heartBeat = false;
@@ -547,7 +549,7 @@ async function refreshSteps(force = false): Promise<void> {
     const bridge = smartBridge();
     if (!bridge || !state.health.steps || (!force && Date.now() - stepsAt < 20000)) return;
     stepsAt = Date.now();
-    try { stepReading = await bridge.steps(7); } catch { stepReading = null; }
+    try { stepReading = await bridge.steps(7); stepError = null; } catch (e) { stepReading = null; stepError = e instanceof Error ? e.message : String(e); console.error('AyahFlow steps failed', stepError); }
     void pushWidget();
     if (view === 'today' || view === 'steps') { const y = window.scrollY; render(); window.scrollTo(0, y); }
 }
@@ -564,7 +566,7 @@ function dailyPulse(): string {
 function stepsView(): string {
     const r = stepReading, days = stepDays(), today = days.at(-1)!.steps, goal = state.health.stepGoal;
     const top = Math.max(goal, ...days.map(d => d.steps ?? 0)) * 1.1;
-    const notice = !isNative() ? miniNotice('stepsWeb') : !state.health.steps ? '' : r?.permission === 'denied' ? `<div class="notice warning">${ic('info', 18)}<p>${t('stepsDenied')}</p></div>${actionButton('open-settings', t('openSettings'), 'button secondary full')}` : r && !r.available ? miniNotice('stepsUnavailable') : '';
+    const notice = !isNative() ? miniNotice('stepsWeb') : !state.health.steps ? '' : stepError ? `<div class="notice warning">${ic('info', 18)}<p>${t('stepsFailed')} <span class="tiny">(${escapeHtml(stepError)})</span></p></div>` : !r ? miniNotice('stepsReading') : r?.permission === 'denied' ? `<div class="notice warning">${ic('info', 18)}<p>${t('stepsDenied')}</p></div>${actionButton('open-settings', t('openSettings'), 'button secondary full')}` : r && !r.available ? miniNotice('stepsUnavailable') : '';
     const bars = `<div class="step-bars" role="img" aria-label="${t('stepsWeek')}">${days.map(d => `<div class="step-bar ${d.day === dayKey() ? 'current' : ''} ${(d.steps ?? 0) >= goal ? 'met' : ''}"><span class="tiny muted">${d.steps === null ? '—' : d.steps >= 1000 ? `${formatNumber(Math.round(d.steps / 100) / 10, state.locale)}k` : num(d.steps)}</span><i style="height:${(d.steps ?? 0) / top * 72}%"></i><span class="tiny">${escapeHtml(d.label)}</span></div>`).join('')}<span class="goal-line" style="bottom:calc(${goal / top * 72}% + 21px)"></span></div>`;
     return `<p class="eyebrow mt12">${t('today')}</p><h1 class="page-title">${t('steps')}</h1><p class="page-sub">${t('stepsSub')}</p>${notice}
 ${state.health.steps ? `<section class="tap-zone">${ring((today ?? 0) / goal * 100, `<span class="tap-number">${today === null ? '—' : num(today)}<small>${t('of')} ${num(goal)}</small></span>`, `big ${(today ?? 0) >= goal ? 'met' : ''}`)}${(today ?? 0) >= goal ? `<span class="pill success">${ic('check', 12)} ${t('goalReached')}</span>` : ''}</section>
@@ -943,8 +945,8 @@ async function handleAction(el: HTMLElement): Promise<void> {
             if (!bridge) { toast(t('stepsWeb')); return; }
             await bridge.requestMotion().catch(() => null);
             await commit({ ...state, health: { ...state.health, steps: true } });
+            await navigate('steps');
             await refreshSteps(true);
-            render();
             break;
         }
         case 'steps-disable':

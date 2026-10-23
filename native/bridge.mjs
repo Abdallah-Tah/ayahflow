@@ -16,6 +16,9 @@ function blob64(text, type) { const raw = atob(text), bytes = new Uint8Array(raw
     bytes[i] = raw.charCodeAt(i); return new Blob([bytes], { type }); }
 async function shareFile(name, data, encoding) { if (!/^[\w.-]+$/.test(name))
     throw Error('Invalid file name'); const p = `ayahflow-exports/${name}`; await Filesystem.writeFile({ path: p, data, directory: Directory.Cache, recursive: true, ...(encoding ? { encoding } : {}) }); const { uri } = await Filesystem.getUri({ path: p, directory: Directory.Cache }); await Share.share({ title: 'AyahFlow', url: uri, dialogTitle: 'Save or share your practice' }); }
+/** iOS plays the bundled adhkar chime (scripts/make-chime.mjs; the system default if it cannot be found). Without a
+ * sound name the notification plugin posts silently. Android takes the sound from the notification channel. */
+const ADHKAR_SOUND = Capacitor.getPlatform() === 'ios' ? { sound: 'public/sounds/adhkar-chime.caf' } : {};
 /** Native geofence / vehicle / notification engine (plugins/smart-reminders). */
 const Smart = registerPlugin('AyahFlowSmart');
 /** Timed reminder ids: moment code * 1e6 + yymmdd (morning 1, evening 2, sleep 3). Kept clear of other ids. */
@@ -44,7 +47,7 @@ export const bridge = {
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
             if (!list.length) return;
             if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
-            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, smallIcon: 'ic_stat_ayahflow' })) });
+            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, ...ADHKAR_SOUND, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, smallIcon: 'ic_stat_ayahflow' })) });
         },
     },
     /** Replaces pending athan alerts. iOS plays a ≤30 s sound from Library/Sounds (copied there by the plugin);

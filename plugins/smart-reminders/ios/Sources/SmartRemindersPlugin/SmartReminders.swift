@@ -332,7 +332,8 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         let content = UNMutableNotificationContent()
         content.title = moments.compactMap { cfg.copy[$0]?.title }.joined(separator: " · ")
         content.body = cfg.copy[moments[0]]?.body ?? ""
-        content.sound = .default
+        // The bundled adhkar chime (scripts/make-chime.mjs); iOS falls back to the default sound if it is missing.
+        content.sound = UNNotificationSound(named: UNNotificationSoundName("public/sounds/adhkar-chime.caf"))
         content.threadIdentifier = "ayahflow.adhkar"
         // Read by @capacitor/local-notifications' tap handler and forwarded to the web layer.
         content.userInfo = ["cap_extra": ["url": "ayahflow://moment/" + moments.joined(separator: "+")]]
