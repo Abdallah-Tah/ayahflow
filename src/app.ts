@@ -479,11 +479,21 @@ const METHOD_LABEL: Record<PrayerMethod, string> = { MuslimWorldLeague: 'Muslim 
 const methodOptions = () => PRAYER_METHODS.map(m => `<option value="${m}" ${state.smart.method === m ? 'selected' : ''}>${METHOD_LABEL[m]}</option>`).join('');
 /** Method and Asr choice beside the times they change, with today's Asr both ways and a regional suggestion. */
 function calculationSection(): string {
-    const place = prayerPlace(state), hint = suggestedMethod(place), day = new Date();
+    const day = new Date();
     const asr = (hanafi: boolean) => { const t = timesFor({ ...state, smart: { ...state.smart, hanafi } }, day); return t ? clock(t.asr) : '—'; };
-    const suggest = hint && hint.method !== state.smart.method ? `<div class="notice mt12">${ic('pin', 18)}<p>${t('methodHint').replace('{region}', t('region_' + hint.region)).replace('{method}', METHOD_LABEL[hint.method])}<br>${actionButton('use-method', `${ic('check', 14)} ${t('useMethod').replace('{method}', METHOD_LABEL[hint.method])}`, 'text-button', `data-method="${hint.method}"`)}</p></div>` : '';
     return `<section class="settings-section"><h2>${t('calculation')}</h2><label class="select-row">${ic('globe', 16)}<select id="smart-method" aria-label="${t('prayerMethod')}">${methodOptions()}</select></label>
-<label class="setting-row"><span><strong>${t('hanafiAsr')}</strong><p>${t('asrBothWays').replace('{standard}', asr(false)).replace('{hanafi}', asr(true))}</p></span><input type="checkbox" id="smart-hanafi" ${state.smart.hanafi ? 'checked' : ''} aria-label="${t('hanafiAsr')}"></label>${suggest}<p class="tiny muted mt12">${t('methodCheckMosque')}</p></section>`;
+<label class="setting-row"><span><strong>${t('hanafiAsr')}</strong><p>${t('asrBothWays').replace('{standard}', asr(false)).replace('{hanafi}', asr(true))}</p></span><input type="checkbox" id="smart-hanafi" ${state.smart.hanafi ? 'checked' : ''} aria-label="${t('hanafiAsr')}"></label><p class="tiny muted mt12">${t('methodCheckMosque')}</p></section>`;
+}
+/** Shown first on the prayer screen when the settings differ from what mosques around the saved place usually use:
+ * the times both ways and one button to switch. Dismissing it keeps the user's choice for this session. */
+let timesHintDismissed = false;
+function timesHint(): string {
+    const hint = suggestedMethod(prayerPlace(state));
+    if (timesHintDismissed || !hint || (hint.method === state.smart.method && !state.smart.hanafi)) return '';
+    const usual = timesFor({ ...state, smart: { ...state.smart, method: hint.method, hanafi: false } }, new Date());
+    if (!usual) return '';
+    const now = [METHOD_LABEL[state.smart.method], state.smart.hanafi ? t('hanafiAsr') : ''].filter(Boolean).join(' + ');
+    return `<div class="always-card"><h3>${ic('clock', 18)} ${t('timesHintTitle')}</h3><p class="small">${t('timesHintBody').replace('{now}', now).replace('{region}', t('region_' + hint.region)).replace('{method}', METHOD_LABEL[hint.method])}</p><p class="small gold"><bdi>${t('p_fajr')} ${clock(usual.fajr)} · ${t('p_asr')} ${clock(usual.asr)} · ${t('p_isha')} ${clock(usual.isha)}</bdi></p>${actionButton('fix-times', `${ic('check', 15)} ${t('useMethod').replace('{method}', METHOD_LABEL[hint.method])}`, 'button primary full', `data-method="${hint.method}"`)}${actionButton('keep-times', t('keepMySettings'), 'text-button')}</div>`;
 }
 function prayerView(): string {
     const now = Date.now(), times = timesFor(state, new Date(now)), next = nextPrayer(state, now);
@@ -496,7 +506,7 @@ function prayerView(): string {
     const fajrChoices = [...reciters, ...ONLINE_RECORDINGS.filter(r => r.fajrOnly && state.athan.downloads.includes(r.id)).map(r => `online-${r.id}`)];
     const own = `<div class="own-athan"><label class="button secondary full" for="athan-file">${ic('upload', 16)} ${t(state.athan.custom ? 'replaceOwn' : 'useOwn')}</label><input type="file" id="athan-file" accept="audio/*" hidden>${state.athan.custom ? actionButton('athan-remove-own', t('removeOwn'), 'text-button danger-text') : ''}<p class="tiny muted mt12">${t('ownNote')}</p></div>`;
     const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('reciter')}</h2><p class="picker-label">${t('onDevice')}</p><div class="stack">${[...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])].map(reciterCard).join('')}</div>${own}<p class="picker-label mt20">${t('moreReciters')}</p><p class="tiny muted mb16">${t('moreRecitersNote')} <a href="${ONLINE_PROVIDER.page}" target="_blank" rel="noopener noreferrer">${escapeHtml(ONLINE_PROVIDER.provider)}${ic('link', 11)}</a>${smartBridge() ? '' : `<br>${t('appOnlyDownload')}`}</p><div class="stack">${ONLINE_RECORDINGS.map(onlineCard).join('')}</div><label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${fajrChoices.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
-    return `${head}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}<section class="settings-section">${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
+    return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}<section class="settings-section">${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
 }
 /** Keeps countdowns current while a page shows them, without re-rendering. */
 setInterval(() => { document.querySelectorAll<HTMLElement>('[data-countdown]').forEach(el => { el.textContent = countdown(Number(el.dataset.countdown)); }); }, 30000);
@@ -935,15 +945,19 @@ async function handleAction(el: HTMLElement): Promise<void> {
             if (view === 'counter') { render(); break; }
             await navigate('counter');
             break;
-        case 'use-method': {
+        case 'fix-times': {
             const method = d.method as PrayerMethod;
             if (!PRAYER_METHODS.includes(method)) return;
-            await commit({ ...state, smart: { ...state.smart, method } });
+            await commit({ ...state, smart: { ...state.smart, method, hanafi: false } });
             await syncSmart();
             toast(t('methodChanged').replace('{method}', METHOD_LABEL[method]));
             render();
             break;
         }
+        case 'keep-times':
+            timesHintDismissed = true;
+            render();
+            break;
         case 'rot-every': {
             const every = Number(d.every) as 30 | 60 | 120 | 180;
             if (!(ROTATION_INTERVALS as readonly number[]).includes(every)) return;
