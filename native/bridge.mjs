@@ -1,5 +1,6 @@
 /** Native storage and OS integrations. No network endpoint or audio upload. */
 import { App } from '@capacitor/app';
+import { registerPlugin } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
@@ -15,14 +16,43 @@ function blob64(text, type) { const raw = atob(text), bytes = new Uint8Array(raw
     bytes[i] = raw.charCodeAt(i); return new Blob([bytes], { type }); }
 async function shareFile(name, data, encoding) { if (!/^[\w.-]+$/.test(name))
     throw Error('Invalid file name'); const p = `ayahflow-exports/${name}`; await Filesystem.writeFile({ path: p, data, directory: Directory.Cache, recursive: true, ...(encoding ? { encoding } : {}) }); const { uri } = await Filesystem.getUri({ path: p, directory: Directory.Cache }); await Share.share({ title: 'AyahFlow', url: uri, dialogTitle: 'Save or share your practice' }); }
+/** Native geofence / vehicle / notification engine (plugins/smart-reminders). */
+const Smart = registerPlugin('AyahFlowSmart');
+/** Timed reminder ids: moment code * 1e6 + yymmdd (morning 1, evening 2, sleep 3). Kept clear of other ids. */
+const TIMED = (id) => id >= 1000000 && id < 4000000;
+let deepLinkHandler = null;
+const queuedLinks = [];
+function deliver(url) { if (typeof url !== 'string' || !url.startsWith('ayahflow://')) return; if (deepLinkHandler) deepLinkHandler(url); else queuedLinks.push(url); }
 export const bridge = {
+    smart: {
+        status: () => Smart.status(),
+        currentPosition: () => Smart.currentPosition(),
+        requestAlways: () => Smart.requestAlways(),
+        requestMotion: () => Smart.requestMotion(),
+        configure: (config) => Smart.configure({ config: JSON.stringify(config) }),
+        async takeEvents() { return (await Smart.takeEvents()).events ?? []; },
+        async simulate(event) { return (await Smart.simulate({ event })).moments ?? []; },
+        reset: () => Smart.reset(),
+        openSettings: () => Smart.openSettings(),
+        async notificationPermission(request) { const p = request ? await LocalNotifications.requestPermissions() : await LocalNotifications.checkPermissions(); return p.display; },
+        /** Replaces all pending timed reminders with `list` ([{ id, at, title, body, url }]). */
+        async scheduleTimed(list) {
+            const pending = (await LocalNotifications.getPending()).notifications.filter(n => TIMED(Number(n.id)));
+            if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
+            if (!list.length) return;
+            if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
+            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, smallIcon: 'ic_stat_ayahflow' })) });
+        },
+    },
+    /** Notification taps, iOS Shortcuts and links call this; links that arrive before the app is ready are queued. */
+    onDeepLink(handler) { deepLinkHandler = handler; queuedLinks.splice(0).forEach(handler); },
     async shareText(title, text) { await Share.share({ title, text, dialogTitle: title }); },
     async load() { return (await Preferences.get({ key: STATE })).value; },
     async save(value) { await Preferences.set({ key: STATE, value }); },
     async recordings() { const rows = await index(); return Promise.all(rows.map(async (r) => { const { data } = await Filesystem.readFile({ path: audioPath(r.id), directory: Directory.Data }); return { ...r, blob: data instanceof Blob ? data : blob64(data, r.mime) }; })); },
     async putRecording(r) { const { blob, ...meta } = r; await Filesystem.writeFile({ path: audioPath(r.id), directory: Directory.Data, data: await base64(blob), recursive: true }); const rows = await index(); await saveIndex([...rows.filter(x => x.id !== r.id), meta]); },
     async deleteRecording(id) { const rows = await index(); await Filesystem.deleteFile({ path: audioPath(id), directory: Directory.Data }); await saveIndex(rows.filter(x => x.id !== id)); },
-    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); try {
+    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); try {
         await Filesystem.rmdir({ path: 'ayahflow', directory: Directory.Data, recursive: true });
     }
     catch (e) {
@@ -45,3 +75,6 @@ export const bridge = {
 await App.addListener('appStateChange', ({ isActive }) => { if (!isActive)
     window.dispatchEvent(new Event('ayahflow:background')); });
 await App.addListener('backButton', () => window.dispatchEvent(new Event('ayahflow:back')));
+await App.addListener('appUrlOpen', ({ url }) => deliver(url));
+await LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => deliver(notification?.extra?.url));
+try { const launch = await App.getLaunchUrl(); if (launch?.url) deliver(launch.url); } catch { }

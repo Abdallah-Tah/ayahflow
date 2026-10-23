@@ -1,4 +1,5 @@
 import { initialState, validateState, type AppState } from './engine.js';
+import type { SmartBridge } from './smart.js';
 export interface Recording {
     id: string;
     surah: number;
@@ -20,6 +21,8 @@ interface NativeBridge {
     shareText: (title: string, text: string) => Promise<void>;
     remind: (time: string | null) => Promise<void>;
     haptic: () => void;
+    smart: SmartBridge;
+    onDeepLink: (handler: (url: string) => void) => void;
 }
 let nativeBridge: NativeBridge | null = null;
 let temporary = false;
@@ -104,3 +107,7 @@ export async function shareText(title: string, text: string): Promise<'shared' |
 export async function setReminder(time: string | null): Promise<void> { if (!nativeBridge)
     throw new Error('nativeOnly'); await nativeBridge.remind(time); }
 export function haptic(): void { nativeBridge?.haptic(); }
+
+/** Native smart-reminder engine, or null on the web (where automatic detection is not available). */
+export function smartBridge(): SmartBridge | null { return nativeBridge?.smart ?? null; }
+export function onDeepLink(handler: (url: string) => void): void { nativeBridge?.onDeepLink(handler); }

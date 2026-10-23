@@ -13,6 +13,15 @@ if (await exists(plist)) {
         s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>NSMicrophoneUsageDescription</key><string>AyahFlow uses the microphone to record your practice and, only when you turn on Follow my recitation, to follow your place in the text. Everything stays on this device; nothing is uploaded.</string>\n</dict>\n</plist>');
         await writeFile(plist, s);
     }
+    // Smart reminders: location/motion purpose strings and the ayahflow:// link scheme (added once; edits are preserved).
+    const keys = [
+        ['NSLocationWhenInUseUsageDescription', 'AyahFlow uses your location only to save places you choose, such as Home, Work or your mosque. They stay on this device.'],
+        ['NSLocationAlwaysAndWhenInUseUsageDescription', 'With “Always”, AyahFlow can remind you of the fitting dhikr when you leave or arrive at a saved place, even when the app is closed. Places and detections stay on this device.'],
+        ['NSMotionUsageDescription', 'AyahFlow checks recent motion to remind you of the riding dua when you travel by vehicle. Motion data stays on this device.'],
+    ];
+    for (const [key, text] of keys) if (!s.includes(`<key>${key}</key>`)) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, `<key>${key}</key><string>${text}</string>\n</dict>\n</plist>`);
+    if (!s.includes('<string>ayahflow</string>')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>app.ayahflow.moment</string><key>CFBundleURLSchemes</key><array><string>ayahflow</string></array></dict></array>\n</dict>\n</plist>');
+    await writeFile(plist, s);
     const privacy = 'ios/App/App/PrivacyInfo.xcprivacy';
     if (!await exists(privacy))
         await copyFile('native/PrivacyInfo.xcprivacy', privacy);
@@ -21,6 +30,8 @@ if (await exists(plist)) {
 const manifest = 'android/app/src/main/AndroidManifest.xml';
 if (await exists(manifest)) {
     let s = await readFile(manifest, 'utf8');
+    if (!s.includes('android:scheme="ayahflow"'))
+        s = s.replace(/(<category android:name="android.intent.category.LAUNCHER" \/>\s*<\/intent-filter>)/, '$1\n            <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="ayahflow" android:host="moment" />\n            </intent-filter>');
     if (!s.includes('android.permission.RECORD_AUDIO'))
         s = s.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <application');
     await writeFile(manifest, s);

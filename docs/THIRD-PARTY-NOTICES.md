@@ -22,3 +22,13 @@ The original application's licensing and public-release policy have not been cho
 **NPL-1.2 obligations.** Nothing may charge for the Work or any feature it powers: no price, subscription, paywall, trial or advertising on the app while it ships this feature. The licence file must travel with the model, and derivatives must stay under NPL-1.2. Whether distributing AyahFlow with the unmodified model makes the app itself a "Derivative" is not settled here; get a legal review before any store release.
 
 The recogniser's Quran text is never displayed; AyahFlow highlights its own source text by position only. Recognition output is not stored, not uploaded, and never presented as a pronunciation or Tajweed assessment.
+
+## Quran text, hadith texts and prayer times
+
+| Component | Licence | Notes |
+| --- | --- | --- |
+| Tanzil Quran Text (Uthmani, Version 1.1) and metadata, © 2007-2026 Tanzil Project | CC BY 3.0, verbatim only | Committed unmodified with its copyright block in `content/tanzil/`; copied into the build; credited with a link to tanzil.net in the app |
+| `fawazahmed0/hadith-api` Arabic hadith editions | The Unlicense (public domain dedication) | Only the cited hadiths are stored (`content/adhkar/sources.json`); dua texts are verbatim slices. No translation text is bundled |
+| `adhan` 4.4.6 (adhan-js, Batoul Apps) | MIT | Bundled into `www/js/adhan.js` for offline prayer-time calculation |
+
+sunnah.com is linked for reading and translations; nothing is copied from it. The app does not claim endorsement by Tanzil, sunnah.com, the dataset author or any scholar.

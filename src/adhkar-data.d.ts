@@ -13,6 +13,8 @@ export interface AdhkarEntry {
     source: HadithSource;
     also: HadithSource[];
     note?: 'muallaq';
+    /** The dua quotes these Quran ayahs (shown as a reference; the wording is the narration's). */
+    quranRef?: string;
 }
 export interface PrayerSet { id: string; surahs: number[]; context: { en: string; fr: string; ar: string }; evidence: string[]; source: HadithSource; also: HadithSource[] }
 declare const ADHKAR: { dataset: string; reviewStatus: 'awaiting-scholar-review'; adhkar: AdhkarEntry[]; prayer: PrayerSet[] };

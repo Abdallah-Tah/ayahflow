@@ -62,7 +62,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         const h = await get(a.source);
         const also = [];
         for (const ref of a.also ?? []) also.push(source(ref, await get(ref)));
-        const entry = { id: a.id, moments: a.moments, kind: a.kind, repeat: a.repeat, title: a.title, source: source(a.source, h), also, ...(a.note ? { note: a.note } : {}) };
+        const entry = { id: a.id, moments: a.moments, kind: a.kind, repeat: a.repeat, title: a.title, source: source(a.source, h), also, ...(a.note ? { note: a.note } : {}), ...(a.quranRef ? { quranRef: a.quranRef } : {}) };
         if (a.kind === 'quran') entry.quran = Array.isArray(a.quran[0]) ? a.quran.map(([s, from, to]) => ({ surah: s, from: from ?? 1, to: to ?? null })) : [{ surah: a.quran[0], from: a.quran[1], to: a.quran[2] }];
         else entry.text = slice(h.text, a.start, a.end);
         adhkar.push(entry);

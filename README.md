@@ -44,6 +44,22 @@ Open `http://localhost:4173`. The precompiled `www/` folder is included. This ro
 
 Arabic content has source references and structural tests. That is not a substitute for a qualified editorial review. See `docs/CONTENT-PROVENANCE.md`.
 
+### Full Quran
+
+All 114 surahs and 6236 ayahs from Tanzil (Uthmani 1.1, CC BY 3.0), verbatim and checksum-pinned, with search, a juz filter, the basmala as a heading, and every practice mode working across the whole text. See `docs/CONTENT-PROVENANCE.md`.
+
+### Adhkar and smart reminders
+
+The **Adhkar** tab has morning, evening, after-prayer, sleep and waking collections, and moments for leaving and entering home, riding, journeys and the mosque. Each text is quoted verbatim from a cited hadith (with grades and a sunnah.com link) or read from the Quran corpus; scholar review is pending. A repeat counter and an explicit "I recited it" are the only things recorded: a reminder is never counted as a recitation.
+
+**Automatic reminders** (iPhone and Android app, all off until you turn them on):
+
+- *Places* — save Home, Work and your mosque from your current location (100–500 m). Leaving or arriving triggers the fitting dhikr; inside the morning or evening window the collection is grouped into the same notification.
+- *Vehicle* — Android uses activity-recognition transitions (`IN_VEHICLE`). iPhone checks recent motion when the system wakes the app (significant location change or leaving Home), so it can be late or missed; an iOS Shortcuts automation (“When CarPlay connects → Open URL `ayahflow://moment/vehicle`”) is the dependable route.
+- *Time* — morning after Fajr, evening after ‘Asr and a sleep reminder, from prayer times calculated on the device (adhan-js; method, Hanafi ‘Asr and window span are settings).
+
+The rules engine (`src/adhkar.ts`) applies cooldowns, once-per-day collections, grouping and the user's choices; the native engines in `plugins/smart-reminders` (Swift and Java) follow the same steps while the app is closed. Saved places and detections stay on the device and are excluded from exports; no network request is made. **Not yet verified on physical devices** for real geofence crossings or vehicle trips; the OS can delay or drop background events.
+
 ### Voice following (experimental)
 
 In the reader, **Follow my recitation** listens (after an explicit tap and a one-time consent) and highlights the ayah and word you are reciting, scrolling with you. Recognition runs fully on the device with [Tilawa](https://github.com/yazinsai/tilawa) (`@tilawa/core`, MIT) and ONNX Runtime Web. Audio is not stored or uploaded, and nothing is added to your progress. It follows your place only: it is not a pronunciation or Tajweed check and can be wrong.

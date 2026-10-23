@@ -27,7 +27,7 @@ test('Quran-based adhkar read real ayahs from the corpus', () => {
     assert.equal(quranPassages(kursi)[0].ayahs[0].text, verse(2, 255));
     const quls = quranPassages(ADHKAR_ENTRIES.find(e => e.id === 'three-quls'));
     assert.deepEqual(quls.map(q => [q.surah, q.ayahs.length]), [[112, 4], [113, 5], [114, 6]]);
-    assert.deepEqual(quranPassages(ADHKAR_ENTRIES.find(e => e.id === 'riding'))[0].ayahs.map(a => a.n), [13, 14]);
+    const riding = ADHKAR_ENTRIES.find(e => e.id === 'riding'); assert.equal(riding.kind, 'dua'); assert.equal(riding.quranRef, '43:13-14'); verse(43, 13); verse(43, 14); assert(sources['abudawud:2602'].text.includes(riding.text));
 });
 test('No dhikr relies on a hadith graded weak by every grader recorded', () => {
     for (const e of ADHKAR_ENTRIES) {
@@ -123,4 +123,44 @@ test('Version 5 saves validate places and settings; exports never contain coordi
     assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(out))));
     const fresh = initialState();
     assert.equal(fresh.smart.location || fresh.smart.vehicle || fresh.smart.timed, false); // nothing is on until the user turns it on
+});
+import { nativeConfig, timedReminders, timedId, enabledMoments, mergeDetections, momentPreview, momentDone } from '../www/js/smart.js';
+const copy = m => ({ title: m, body: momentPreview(m) ?? 'general' });
+const NOW = new Date(2026, 9, 22, 5, 0).getTime();
+const withHome = (smart = {}) => ({ ...initialState(), places: { home: { lat: 21.4225, lng: 39.8262, radius: 150 }, work: null, mosque: null }, smart: { ...initialState().smart, ...smart } });
+test('Native config carries regions, rules, a week of windows and verbatim previews, but nothing is enabled by default', () => {
+    const c = nativeConfig(withHome(), copy, NOW);
+    assert.deepEqual(c.regions, [{ id: 'home', lat: 21.4225, lng: 39.8262, radius: 150 }]);
+    assert.equal(c.windows.length, 8); assert(c.windows.every(w => w.morning && w.morning[0] < w.morning[1]));
+    assert.equal(c.location, false); assert.equal(c.vehicle, false);
+    assert(!c.enabled.includes('leave_home') && !c.enabled.includes('vehicle') && !c.enabled.includes('morning'));
+    assert.equal(c.copy.leave_home.body, ADHKAR_ENTRIES.find(e => e.id === 'leave-home').text);
+    assert.equal(c.timedIds.morning['2026-10-22'], timedId('morning', '2026-10-22'));
+});
+test('Enabling location turns on place moments only; vehicle needs its own switch', () => {
+    const e = enabledMoments(withHome({ location: true }));
+    assert(e.includes('leave_home') && e.includes('mosque_enter') && e.includes('morning'));
+    assert(!e.includes('vehicle'));
+    assert(enabledMoments(withHome({ vehicle: true })).includes('vehicle'));
+});
+test('Timed reminder ids are stable, distinct per moment and day, and inside the reserved range', () => {
+    assert.equal(timedId('morning', '2026-10-22'), 1261022); assert.equal(timedId('sleep', '2026-12-31'), 3261231);
+    const r = timedReminders(withHome({ timed: true, sleepTime: '22:30' }), copy, NOW);
+    assert.equal(new Set(r.map(x => x.id)).size, r.length);
+    assert(r.every(x => x.id >= 1000000 && x.id < 4000000 && x.at > NOW && x.url === `ayahflow://moment/${x.moment}`));
+    assert.deepEqual([...new Set(r.map(x => x.moment))].sort(), ['evening', 'morning', 'sleep']);
+    assert.equal(timedReminders(withHome({ timed: false }), copy, NOW).length, 0);
+});
+test('A morning already completed today is not scheduled again today', () => {
+    let s = withHome({ timed: true });
+    for (const e of ADHKAR_ENTRIES.filter(x => x.moments.includes('morning'))) s = completeDhikr(s, e.id, 'morning', NOW, `t-${e.id}`);
+    assert(momentDone(s, 'morning', NOW));
+    const ids = timedReminders(s, copy, NOW).map(x => x.id);
+    assert(!ids.includes(timedId('morning', '2026-10-22'))); assert(ids.includes(timedId('morning', '2026-10-23')));
+    assert.equal(nativeConfig(s, copy, NOW).completedDay.morning, '2026-10-22');
+});
+test('Detections merge without duplicates and stay capped', () => {
+    const merged = mergeDetections([{ event: 'EXIT_HOME', at: 1 }], [{ event: 'EXIT_HOME', at: 1 }, { event: 'ENTER_VEHICLE', at: 2 }]);
+    assert.deepEqual(merged, [{ event: 'EXIT_HOME', at: 1 }, { event: 'ENTER_VEHICLE', at: 2 }]);
+    assert.equal(mergeDetections([], Array.from({ length: 80 }, (_, i) => ({ event: 'ENTER_HOME', at: i }))).length, 50);
 });

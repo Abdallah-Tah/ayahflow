@@ -40,6 +40,18 @@
 - [ ] Evaluate following accuracy with real learners' recitation (not only a professional reciter), including noise and children's voices; document failure modes.
 - [ ] Legal review of NPL-1.2 for the intended distribution; confirm the app and this feature stay free of charge and advertising.
 
+## Smart reminders
+
+- [x] Rules engine, timed-reminder ids, prayer windows, completions and v5 migration covered by unit tests.
+- [x] Adhkar texts verified offline as verbatim slices of committed source hadiths; grades recorded; weak entering-home wording excluded.
+- [ ] Physical iPhone: Home/Work/Mosque exits and entries with the app closed, after force-quit, after reboot, in Low Power Mode; measure delay.
+- [ ] Physical iPhone: vehicle reminder on real drives (significant-change wake + motion history) and the CarPlay/Bluetooth Shortcut route.
+- [ ] Physical Android: geofences and `IN_VEHICLE` transitions with battery optimisation on/off, after reboot (BootReceiver), on Android 10–15.
+- [ ] Notification taps open the right moment from a cold start on both platforms.
+- [ ] Permission flows: denial, "While using" only, precise location off, revocation, and that features turn themselves off honestly.
+- [ ] App Store / Play review of background-location justification and the in-app explanation.
+- [ ] Scholar review of every adhkar entry, the prayer-surah notes and the morning/evening window options.
+
 ## Quran and learning quality
 
 - [ ] Qualified reviewer checks the Arabic corpus and all displayed glyphs/marks against the chosen convention.

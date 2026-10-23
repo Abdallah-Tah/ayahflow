@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import SmartRemindersPlugin
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Own the location manager from launch: iOS relaunches AyahFlow in the background (without a scene or
+        // web view) to deliver geofence and significant-change events for smart adhkar reminders.
+        SmartReminders.shared.start()
         return true
     }
 

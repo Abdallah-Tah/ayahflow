@@ -122,7 +122,7 @@
    "moments": [
     "vehicle"
    ],
-   "kind": "quran",
+   "kind": "dua",
    "repeat": 1,
    "title": {
     "en": "Riding a vehicle",
@@ -152,14 +152,37 @@
      }
     ]
    },
-   "also": [],
-   "quran": [
+   "also": [
     {
-     "surah": 43,
-     "from": 13,
-     "to": 14
+     "ref": "tirmidhi:3446",
+     "collection": "Jami' at-Tirmidhi",
+     "number": "3446",
+     "inBook": {
+      "book": 48,
+      "hadith": 77
+     },
+     "grades": [
+      {
+       "by": "Ahmad Muhammad Shakir",
+       "grade": "Sahih"
+      },
+      {
+       "by": "Al-Albani",
+       "grade": "Sahih"
+      },
+      {
+       "by": "Bashar Awad Maarouf",
+       "grade": "Hasan Sahih"
+      },
+      {
+       "by": "Zubair Ali Zai",
+       "grade": "Sahih"
+      }
+     ]
     }
-   ]
+   ],
+   "quranRef": "43:13-14",
+   "text": "سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ * وَإِنَّا إِلَى رَبِّنَا لَمُنْقَلِبُونَ"
   },
   {
    "id": "riding-istighfar",
