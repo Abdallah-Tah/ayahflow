@@ -1,0 +1,14 @@
+{
+  "provider": "AlAdhan (Islamic Network)",
+  "page": "https://aladhan.com/download-adhans",
+  "terms": "https://alquran.cloud/terms-and-conditions",
+  "notes": "Not bundled. Downloaded only when the user asks, behind the online-audio permission, checked against the pinned SHA-256, and kept on the device. Islamic Network's terms (2026-06-14) allow streaming and downloading its audio for personal use; copyright stays with the reciters, who may request removal. The terms do not name cdn.aladhan.com explicitly. Reciter names follow aladhan.com/download-adhans. a1 is the Fajr athan (as-salatu khayrun min an-nawm), so it is offered for Fajr only.",
+  "recordings": [
+    { "id": "alafasy-dubai", "file": "a4", "url": "https://cdn.aladhan.com/audio/adhans/a4.mp3", "sha256": "b816ca02d445647a6dd9d9b519e2255f4d6a3597958907f6a9cbab237dcd5b67", "bytes": 5375044, "seconds": 215, "fajrOnly": false, "name": { "en": "Mishary Rashid Alafasy · Dubai One", "fr": "Mishary Rashid Alafasy · Dubai One", "ar": "مشاري راشد العفاسي · دبي ون" } },
+    { "id": "alafasy-2", "file": "a7", "url": "https://cdn.aladhan.com/audio/adhans/a7.mp3", "sha256": "c9ae6f1f750a5f6c7248e64ba9364ce327d3fe2671a4aec6043b1fc4c8f37db2", "bytes": 3881483, "seconds": 243, "fajrOnly": false, "name": { "en": "Mishary Rashid Alafasy · II", "fr": "Mishary Rashid Alafasy · II", "ar": "مشاري راشد العفاسي · ٢" } },
+    { "id": "alafasy-3", "file": "a9", "url": "https://cdn.aladhan.com/audio/adhans/a9.mp3", "sha256": "f75249b8ebd4ec8c31cacbdf8ea9dc9dd3bbbf992cb9e10903e0c0a5fe486abf", "bytes": 4114842, "seconds": 257, "fajrOnly": false, "name": { "en": "Mishary Rashid Alafasy · III", "fr": "Mishary Rashid Alafasy · III", "ar": "مشاري راشد العفاسي · ٣" } },
+    { "id": "zahrani", "file": "a11-mansour-al-zahrani", "url": "https://cdn.aladhan.com/audio/adhans/a11-mansour-al-zahrani.mp3", "sha256": "aa900fd91c1a25a195951c4b7a8c094e06e94cab2664777cb1b3e9993a7e79da", "bytes": 3358625, "seconds": 132, "fajrOnly": false, "name": { "en": "Mansour Al-Zahrani", "fr": "Mansour Al-Zahrani", "ar": "منصور الزهراني" } },
+    { "id": "ozcan", "file": "a2", "url": "https://cdn.aladhan.com/audio/adhans/a2.mp3", "sha256": "b0cb4f5d0f1b1e7f0c44112b168ba7c8274ef6a127f2955d335a869f93540c05", "bytes": 3805132, "seconds": 238, "fajrOnly": false, "name": { "en": "Hafiz Mustafa Özcan · Türkiye", "fr": "Hafiz Mustafa Özcan · Turquie", "ar": "الحافظ مصطفى أوزجان · تركيا" } },
+    { "id": "nafees-fajr", "file": "a1", "url": "https://cdn.aladhan.com/audio/adhans/a1.mp3", "sha256": "68c460c82eb977d914738917069d714d3e94eecc648c38e038683b40c79e98ae", "bytes": 3418938, "seconds": 214, "fajrOnly": true, "name": { "en": "Ahmad al-Nafees · Fajr", "fr": "Ahmad al-Nafees · Fajr", "ar": "أحمد النفيس · الفجر" } }
+  ]
+}

@@ -27,6 +27,10 @@ interface NativeBridge {
     saveCustomAthan: (a: { full: string; ext: string; alert: string; version: number; name: string }) => Promise<void>;
     customAthanUrl: (ext: string, version: number) => Promise<string>;
     deleteCustomAthan: () => Promise<void>;
+    downloadOnlineAthan: (r: { id: string; url: string; sha256: string }) => Promise<string>;
+    saveOnlineAlert: (id: string, alert: string, name: string) => Promise<void>;
+    onlineAthanUrl: (id: string) => Promise<string>;
+    deleteOnlineAthan: (id: string) => Promise<void>;
     onDeepLink: (handler: (url: string) => void) => void;
 }
 let nativeBridge: NativeBridge | null = null;
@@ -119,4 +123,4 @@ export function onDeepLink(handler: (url: string) => void): void { nativeBridge?
 /** Athan alerts and widget data (native only). */
 export async function scheduleAthan(list: AthanAlert[]): Promise<void> { await nativeBridge?.scheduleAthan(list); }
 export async function setWidgetData(data: WidgetData | null): Promise<void> { await nativeBridge?.setWidgetData(data); }
-export const nativeAthan = () => nativeBridge ? { save: nativeBridge.saveCustomAthan, url: nativeBridge.customAthanUrl, remove: nativeBridge.deleteCustomAthan } : null;
+export const nativeAthan = () => nativeBridge ? { save: nativeBridge.saveCustomAthan, url: nativeBridge.customAthanUrl, remove: nativeBridge.deleteCustomAthan, download: nativeBridge.downloadOnlineAthan, saveAlert: nativeBridge.saveOnlineAlert, onlineUrl: nativeBridge.onlineAthanUrl, removeOnline: nativeBridge.deleteOnlineAthan } : null;

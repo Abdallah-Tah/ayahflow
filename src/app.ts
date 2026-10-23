@@ -6,7 +6,7 @@ import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
-import { ATHAN_RECORDINGS, MAX_IMPORT_BYTES, recording, bundledUrl, makeAlert, toBase64 } from './athan.js';
+import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
 type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer';
 let state: AppState = initialState();
@@ -26,6 +26,7 @@ let smartStatus: SmartStatus | null = null;
 let notificationState: string | null = null;
 /** Which athan is previewing in the app (reciter id), if any. */
 let previewing: string | null = null;
+let previewUrl = '';
 /** Browser preview only: an imported recording lasts until the page closes. */
 let webCustomUrl: string | null = null;
 let libraryQuery = '';
@@ -353,7 +354,9 @@ function dateLine(): string {
 }
 function bannerTitle(): string { return audioState === 'loading' ? t('loadingAudio') : previewing ? t('athan') : t(ownAudio ? 'yourRecording' : 'reference'); }
 function bannerSub(): string { return previewing ? reciterName(previewing) : t(ownAudio ? 'privateRecording' : 'audioProvider'); }
-const reciterName = (id: string) => id === 'custom' ? state.athan.custom?.name ?? t('kindOwn') : recording(id)?.name[state.locale] ?? id;
+const reciterName = (id: string) => id === 'custom' ? state.athan.custom?.name ?? t('kindOwn') : id.startsWith('online-') ? online(id.slice(7))?.name[state.locale] ?? id : recording(id)?.name[state.locale] ?? id;
+/** Download in progress (online id), so its button shows progress. */
+let downloadingAthan: string | null = null;
 /** Today's prayers on one line at their real times, with "now" and the next prayer called out. */
 function prayerDay(): string {
     const now = Date.now(), times = timesFor(state, new Date(now)), next = nextPrayer(state, now);
@@ -363,6 +366,14 @@ function prayerDay(): string {
     const pos = (at: number) => { if (at <= stops[0]!) return 10; if (at >= stops[4]!) return 90; const i = stops.findIndex((x, k) => at >= x && at < stops[k + 1]!); return 10 + 20 * (i + (at - stops[i]!) / (stops[i + 1]! - stops[i]!)); };
     const status = state.athan.enabled ? `${ic('bell', 13)} ${escapeHtml(state.athan.sound === 'chime' ? t('soundChime') : reciterName(next.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter))}` : `${ic('bell', 13)} ${t('athanOffShort')}`;
     return `<button class="prayer-day" data-action="nav" data-view="prayer"><div class="row between"><span class="eyebrow">${t('nextPrayer')}</span><span class="athan-chip ${state.athan.enabled ? 'on' : ''}">${status}</span></div><div class="prayer-day-main"><span class="grow"><strong class="prayer-day-name">${t('p_' + next.prayer)}</strong><span class="small gold" data-countdown="${next.at}">${countdown(next.at, now)}</span></span><span class="prayer-day-time">${clock(next.at)}</span></div><div class="day-line" aria-hidden="true"><span class="day-fill" style="width:${pos(now) - 10}%"></span>${PRAYERS.map(p => `<span class="day-mark ${times[p] <= now ? 'past' : ''} ${next.at === times[p] ? 'next' : ''}" style="inset-inline-start:${pos(times[p])}%"></span>`).join('')}<span class="day-now" style="inset-inline-start:${pos(now)}%"></span></div><div class="day-labels">${PRAYERS.map(p => `<span class="${next.at === times[p] ? 'next' : ''} ${times[p] <= now ? 'past' : ''}"><b>${t('p_' + p)}</b>${clock(times[p])}</span>`).join('')}</div></button>`;
+}
+function onlineCard(r: typeof ONLINE_RECORDINGS[number]): string {
+    const id = `online-${r.id}`, have = state.athan.downloads.includes(r.id), playing = previewing === id && audioState === 'playing';
+    const active = r.fajrOnly ? state.athan.fajrReciter === id : state.athan.reciter === id;
+    const meta = `${num(Math.round(r.seconds / 60 * 10) / 10)} ${t('minuteShort')} · ${num(Math.round(r.bytes / 100000) / 10)} ${t('megabytes')}${r.fajrOnly ? ` · ${t('fajrOnlyTag')}` : ''}`;
+    const action = !have ? (downloadingAthan === r.id ? `<span class="pill gold">${t('downloading')}</span>` : actionButton('athan-download', `${ic('download', 15)} ${t('download')}`, 'button subtle', `data-online="${r.id}" ${smartBridge() ? '' : 'disabled'}`))
+        : active ? `<span class="pill success">${ic('check', 12)} ${t('selected')}</span>` : actionButton('athan-reciter', t(r.fajrOnly ? 'useForFajr' : 'choose'), 'button subtle', `data-reciter="${id}" ${r.fajrOnly ? 'data-fajr="1"' : ''}`);
+    return `<div class="reciter ${active ? 'selected' : ''}"><button class="reciter-play" data-action="athan-preview" data-reciter="${id}" aria-label="${t(playing ? 'stopAthan' : 'listenAthan')}: ${escapeHtml(r.name[state.locale])}">${ic(playing ? 'stop' : 'play', 16)}</button><div class="grow"><strong>${escapeHtml(r.name[state.locale])}</strong><p class="tiny muted">${meta}</p><p class="tiny reciter-credit">${have ? `${ic('check', 11)} ${t('onDevice')} · ${actionButton('athan-remove-online', t('removeOwn'), 'link-button', `data-online="${r.id}"`)}` : t('streamNote')}</p></div>${action}</div>`;
 }
 function reciterCard(id: string): string {
     const r = recording(id), active = state.athan.reciter === id, playing = previewing === id && audioState === 'playing';
@@ -381,9 +392,10 @@ function prayerView(): string {
     const rows: [string, number][] = [['fajr', times.fajr], ['sunrise', times.sunrise], ['dhuhr', times.dhuhr], ['asr', times.asr], ['maghrib', times.maghrib], ['isha', times.isha]];
     const list = rows.map(([k, at]) => { const isNext = !!next && next.prayer === k && next.at === at, prayer = (PRAYERS as readonly string[]).includes(k); return `<div class="prayer-row ${isNext ? 'next' : ''} ${at < now ? 'past' : ''}"><span class="grow"><strong>${t('p_' + k)}</strong>${isNext ? `<span class="tiny gold" data-countdown="${at}">${countdown(at, now)}</span>` : ''}</span><span class="prayer-time">${clock(at)}</span>${prayer ? `<button class="icon-button ${state.athan.enabled && state.athan.prayers[k as PrayerName] ? 'active' : ''}" data-action="athan-prayer" data-prayer="${k}" aria-pressed="${state.athan.prayers[k as PrayerName]}" aria-label="${t('athan')} · ${t('p_' + k)}" ${state.athan.enabled ? '' : 'disabled'}>${ic('bell', 17)}</button>` : '<span class="bell-spacer"></span>'}</div>`; }).join('');
     const tomorrow = next && dayKey(next.at) !== dayKey(now) ? `<p class="tiny muted mt12">${t('nextPrayer')}: ${t('p_' + next.prayer)} · ${clock(next.at)}</p>` : '';
-    const reciters = [...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])];
+    const reciters = [...ATHAN_RECORDINGS.map(r => r.id), ...ONLINE_RECORDINGS.filter(r => !r.fajrOnly && state.athan.downloads.includes(r.id)).map(r => `online-${r.id}`), ...(state.athan.custom ? ['custom'] : [])];
+    const fajrChoices = [...reciters, ...ONLINE_RECORDINGS.filter(r => r.fajrOnly && state.athan.downloads.includes(r.id)).map(r => `online-${r.id}`)];
     const own = `<div class="own-athan"><label class="button secondary full" for="athan-file">${ic('upload', 16)} ${t(state.athan.custom ? 'replaceOwn' : 'useOwn')}</label><input type="file" id="athan-file" accept="audio/*" hidden>${state.athan.custom ? actionButton('athan-remove-own', t('removeOwn'), 'text-button danger-text') : ''}<p class="tiny muted mt12">${t('ownNote')}</p></div>`;
-    const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('reciter')}</h2><div class="stack">${reciters.map(reciterCard).join('')}</div>${own}<label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${reciters.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
+    const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('reciter')}</h2><p class="picker-label">${t('onDevice')}</p><div class="stack">${[...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])].map(reciterCard).join('')}</div>${own}<p class="picker-label mt20">${t('moreReciters')}</p><p class="tiny muted mb16">${t('moreRecitersNote')} <a href="${ONLINE_PROVIDER.page}" target="_blank" rel="noopener noreferrer">${escapeHtml(ONLINE_PROVIDER.provider)}${ic('link', 11)}</a>${smartBridge() ? '' : `<br>${t('appOnlyDownload')}`}</p><div class="stack">${ONLINE_RECORDINGS.map(onlineCard).join('')}</div><label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${fajrChoices.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
     return `${head}<div class="prayer-list">${list}</div>${tomorrow}${athan}<section class="settings-section">${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
 }
 /** Keeps countdowns current while a page shows them, without re-rendering. */
@@ -809,18 +821,50 @@ async function handleAction(el: HTMLElement): Promise<void> {
             const id = d.reciter ?? state.athan.reciter;
             if (previewing === id && audioState === 'playing') { stopAudio(); previewing = null; render(); return; }
             if (recordingActive() || followingActive()) return;
-            const url = id === 'custom' ? (nativeAthan() && state.athan.custom ? await nativeAthan()!.url(state.athan.custom.ext, state.athan.custom.version) : webCustomUrl) : bundledUrl(id);
+            const url = id === 'custom' ? (nativeAthan() && state.athan.custom ? await nativeAthan()!.url(state.athan.custom.ext, state.athan.custom.version) : webCustomUrl)
+                : id.startsWith('online-') ? (state.athan.downloads.includes(id.slice(7)) && nativeAthan() ? await nativeAthan()!.onlineUrl(id.slice(7)) : online(id.slice(7))?.url ?? null)
+                : bundledUrl(id);
             if (!url) return;
             previewing = id;
+            previewUrl = url;
             void playAudio(url).catch(() => { previewing = null; });
             setTimeout(render, 60);
             break;
         }
         case 'athan-reciter':
-            await commit({ ...state, athan: { ...state.athan, reciter: d.reciter!, sound: 'athan' } });
+            await commit({ ...state, athan: d.fajr ? { ...state.athan, fajrReciter: d.reciter!, sound: 'athan' } : { ...state.athan, reciter: d.reciter!, sound: 'athan' } });
             await syncSmart();
             render();
             break;
+        case 'athan-download': {
+            const r = online(d.online ?? ''), native = nativeAthan();
+            if (!r || !native || downloadingAthan) return;
+            if (!await confirmAction(`${t('downloadConfirm')}\n${r.name[state.locale]} · ${num(Math.round(r.bytes / 100000) / 10)} ${t('megabytes')}`)) return;
+            downloadingAthan = r.id;
+            render();
+            try {
+                const bytes = fromBase64(await native.download(r));
+                const { wav } = await makeAlert(bytes);
+                await native.saveAlert(r.id, toBase64(wav), r.name.en);
+                await commit({ ...state, athan: { ...state.athan, downloads: [...state.athan.downloads.filter(x => x !== r.id), r.id] } });
+                await syncSmart();
+                toast(t('downloaded'));
+            }
+            catch { toast(t('downloadFailed')); }
+            finally { downloadingAthan = null; render(); }
+            break;
+        }
+        case 'athan-remove-online': {
+            const r = online(d.online ?? '');
+            if (!r || !await confirmAction(`${t('removeOwn')} · ${r.name[state.locale]}?`)) return;
+            stopAudio();
+            await nativeAthan()?.removeOnline(r.id);
+            const id = `online-${r.id}`, fallback = ATHAN_RECORDINGS[0]!.id;
+            await commit({ ...state, athan: { ...state.athan, downloads: state.athan.downloads.filter(x => x !== r.id), reciter: state.athan.reciter === id ? fallback : state.athan.reciter, fajrReciter: state.athan.fajrReciter === id ? fallback : state.athan.fajrReciter } });
+            await syncSmart();
+            render();
+            break;
+        }
         case 'athan-remove-own': {
             if (!await confirmAction(`${t('removeOwn')} · ${state.athan.custom?.name ?? ''}?`)) return;
             stopAudio();
@@ -992,7 +1036,7 @@ finally {
 window.addEventListener('ayahflow:audio', e => { const detail = (e as CustomEvent<{
     status: string;
     url: string;
-}>).detail; audioState = detail.status; ownAudio = detail.url.startsWith('blob:'); if (['stopped', 'error'].includes(detail.status) && previewing) { previewing = null; if (view === 'prayer') { const y = window.scrollY; render(); window.scrollTo(0, y); } } if (detail.status === 'error')
+}>).detail; audioState = detail.status; ownAudio = detail.url.startsWith('blob:'); if (detail.status === 'playing' && previewing && detail.url === previewUrl && view === 'prayer') { const y = window.scrollY; render(); window.scrollTo(0, y); } if (['stopped', 'error'].includes(detail.status) && previewing && detail.url === previewUrl) { previewing = null; if (view === 'prayer') { const y = window.scrollY; render(); window.scrollTo(0, y); } } if (detail.status === 'error')
     toast(t('audioError')); document.body.classList.toggle('audio-playing', detail.status === 'playing'); const banner = document.querySelector<HTMLElement>('#audio-banner'); if (banner) {
     banner.hidden = ['stopped', 'error'].includes(detail.status);
     const strong = banner.querySelector('strong');

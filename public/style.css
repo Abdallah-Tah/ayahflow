@@ -210,3 +210,4 @@ dialog{width:calc(100% - 40px);max-width:390px;background:var(--panel);color:var
 .reciter-credit a{color:var(--soft);text-decoration:none;display:inline-flex;gap:3px;align-items:center}.reciter .button{min-height:38px;padding:7px 12px;font-size:12px}
 .own-athan{margin-top:12px}.own-athan label.button{cursor:pointer}
 @media(max-width:360px){.prayer-day-name{font-size:28px}.prayer-day-time{font-size:23px}.day-labels b{font-size:11px}.day-labels span{font-size:10px}.reciter{flex-wrap:wrap}}
+.link-button{color:var(--soft);text-decoration:underline;font-size:inherit;padding:0;min-height:0}.reciter .pill{white-space:nowrap}

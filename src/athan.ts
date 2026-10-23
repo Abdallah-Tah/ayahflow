@@ -1,7 +1,11 @@
 /** Athan recordings: the bundled catalogue and the user's own imported file.
  * An imported file stays on this device. It is decoded here to make the ≤30 s iOS alert (WAV); nothing is uploaded. */
-import ATHAN_DATA, { type AthanRecording } from './athan-data.js';
-export type { AthanRecording };
+import ATHAN_DATA, { type AthanRecording, type OnlineAthan } from './athan-data.js';
+export type { AthanRecording, OnlineAthan };
+export const ONLINE_RECORDINGS: readonly OnlineAthan[] = ATHAN_DATA.online.recordings;
+export const ONLINE_PROVIDER = ATHAN_DATA.online;
+export function online(id: string): OnlineAthan | null { return ONLINE_RECORDINGS.find(r => r.id === id) ?? null; }
+export function fromBase64(b64: string): ArrayBuffer { const s = atob(b64), out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out.buffer; }
 export const ATHAN_RECORDINGS: readonly AthanRecording[] = ATHAN_DATA.recordings;
 export const ATHAN_REVIEW_NOTES = ATHAN_DATA.reviewNotes;
 export const ALERT_SECONDS = ATHAN_DATA.alertSeconds;
@@ -25,9 +29,9 @@ export function toBase64(buf: ArrayBuffer): string {
     for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
     return btoa(s);
 }
-/** Decodes an audio file and renders the first ALERT_SECONDS (from where sound begins) as a faded mono 22.05 kHz WAV. */
+/** Decodes an audio file and renders the first ALERT_SECONDS (from where sound begins) as a faded mono 44.1 kHz 16-bit WAV. */
 export async function makeAlert(file: ArrayBuffer): Promise<{ wav: ArrayBuffer; duration: number }> {
-    const rate = 22050, ctx = new AudioContext();
+    const rate = 44100, ctx = new AudioContext();
     let decoded: AudioBuffer;
     try { decoded = await ctx.decodeAudioData(file.slice(0)); }
     finally { void ctx.close(); }

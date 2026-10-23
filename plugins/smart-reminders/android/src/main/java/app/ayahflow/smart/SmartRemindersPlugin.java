@@ -153,19 +153,52 @@ public class SmartRemindersPlugin extends Plugin {
     @PluginMethod
     public void athanChannel(PluginCall call) {
         String path = call.getString("path"), id = call.getString("id"), name = call.getString("name", "Athan");
-        if (path == null || id == null || !id.startsWith("ayahflow-athan-custom-") || path.contains("..")) { call.reject("path and id required"); return; }
+        boolean custom = id != null && id.startsWith("ayahflow-athan-custom-");
+        if (path == null || id == null || !(custom || id.startsWith("ayahflow-athan-online-")) || path.contains("..")) { call.reject("path and id required"); return; }
         if (android.os.Build.VERSION.SDK_INT < 26) { call.resolve(); return; }
         java.io.File file = new java.io.File(getContext().getFilesDir(), path);
         if (!file.exists()) { call.reject("file missing"); return; }
         Uri uri = androidx.core.content.FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file);
         getContext().grantUriPermission("com.android.systemui", uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
         android.app.NotificationManager nm = (android.app.NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
-        for (android.app.NotificationChannel c : nm.getNotificationChannels()) if (c.getId().startsWith("ayahflow-athan-custom-") && !c.getId().equals(id)) nm.deleteNotificationChannel(c.getId());
+        if (custom) for (android.app.NotificationChannel c : nm.getNotificationChannels()) if (c.getId().startsWith("ayahflow-athan-custom-") && !c.getId().equals(id)) nm.deleteNotificationChannel(c.getId());
         android.app.NotificationChannel channel = new android.app.NotificationChannel(id, name, android.app.NotificationManager.IMPORTANCE_HIGH);
         channel.setSound(uri, new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
         channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         nm.createNotificationChannel(channel);
         call.resolve();
+    }
+
+    /** Downloads an athan the user asked for: HTTPS from cdn.aladhan.com only, at most 12 MB, verified against the pinned
+     * SHA-256, saved only under files/ayahflow/athan/online/ (Capacitor's Directory.Data). */
+    @PluginMethod
+    public void downloadAthan(PluginCall call) {
+        String url = call.getString("url"), sha = call.getString("sha256"), path = call.getString("path");
+        if (url == null || !url.startsWith("https://cdn.aladhan.com/") || sha == null || sha.length() != 64 || path == null || !path.matches("^ayahflow/athan/online/[a-z0-9-]+\\.mp3$")) { call.reject("not allowed"); return; }
+        new Thread(() -> {
+            java.net.HttpURLConnection conn = null;
+            try {
+                conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                conn.setConnectTimeout(15000); conn.setReadTimeout(60000);
+                if (conn.getResponseCode() != 200) { call.reject("download failed"); return; }
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                try (java.io.InputStream in = conn.getInputStream()) {
+                    byte[] buf = new byte[65536]; int n;
+                    while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); if (out.size() > 12000000) { call.reject("too large"); return; } }
+                }
+                byte[] data = out.toByteArray();
+                byte[] digest = java.security.MessageDigest.getInstance("SHA-256").digest(data);
+                StringBuilder hex = new StringBuilder();
+                for (byte b : digest) hex.append(String.format("%02x", b));
+                if (!hex.toString().equalsIgnoreCase(sha)) { call.reject("checksum mismatch"); return; }
+                java.io.File target = new java.io.File(getContext().getFilesDir(), path);
+                target.getParentFile().mkdirs();
+                try (java.io.FileOutputStream f = new java.io.FileOutputStream(target)) { f.write(data); }
+                JSObject o = new JSObject(); o.put("path", path); o.put("bytes", data.length);
+                call.resolve(o);
+            } catch (Exception e) { call.reject("download failed"); }
+            finally { if (conn != null) conn.disconnect(); }
+        }).start();
     }
 
     @PluginMethod

@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 7);
+    assert.equal(STATE_VERSION, 8);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -202,7 +202,7 @@ test('Widget data carries a week of prayers and windows, without coordinates', (
 });
 
 test('v7 reciters: bundled ids or a custom file; exports drop the custom file and fall back to a bundled reciter', () => {
-    assert.equal(STATE_VERSION, 7);
+    assert.equal(STATE_VERSION, 8);
     const base = initialState();
     assert.equal(base.athan.reciter, 'beautiful'); assert.equal(base.athan.custom, null);
     assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'unknown' } }), /reciter/);
@@ -212,4 +212,36 @@ test('v7 reciters: bundled ids or a custom file; exports drop the custom file an
     const out = exportable(withCustom);
     assert.equal(out.athan.custom, null); assert.equal(out.athan.reciter, 'beautiful');
     assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(out))));
+});
+
+test('v8 online athans: chosen only once downloaded; the Fajr athan only for Fajr; exports drop device files', async () => {
+    const { ONLINE_RECORDINGS } = await import('../www/js/athan.js');
+    assert(ONLINE_RECORDINGS.length >= 6);
+    for (const r of ONLINE_RECORDINGS) { assert.match(r.url, /^https:\/\/cdn\.aladhan\.com\/audio\/adhans\/[a-z0-9-]+\.mp3$/); assert.match(r.sha256, /^[0-9a-f]{64}$/); assert(r.bytes > 0 && r.bytes < 12000000); }
+    const base = initialState();
+    assert.deepEqual(base.athan.downloads, []);
+    assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'online-alafasy-dubai' } }), /downloads/);
+    const ok = { ...base, athan: { ...base.athan, downloads: ['alafasy-dubai', 'nafees-fajr'], reciter: 'online-alafasy-dubai', fajrReciter: 'online-nafees-fajr' } };
+    assert.equal(validateState(JSON.parse(JSON.stringify(ok))).athan.reciter, 'online-alafasy-dubai');
+    assert.throws(() => validateState({ ...ok, athan: { ...ok.athan, reciter: 'online-nafees-fajr' } }), /downloads/);
+    assert.throws(() => validateState({ ...ok, athan: { ...ok.athan, downloads: ['made-up'] } }), /downloads/);
+    const out = exportable(ok);
+    assert.deepEqual(out.athan.downloads, []); assert.equal(out.athan.reciter, 'beautiful'); assert.equal(out.athan.fajrReciter, 'beautiful');
+    assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(out))));
+    const v7 = JSON.parse(JSON.stringify(base)); v7.version = 7; delete v7.athan.downloads;
+    assert.deepEqual(validateState(v7).athan.downloads, []);
+});
+test('Bundled athan alerts are 44.1 kHz 16-bit PCM CAF files, 28 s, so iOS can play them', async () => {
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const files = readdirSync(new URL('../public/sounds/', import.meta.url)).filter(f => f.endsWith('-alert.caf'));
+    assert.equal(files.length, 5);
+    for (const f of files) {
+        const b = readFileSync(new URL('../public/sounds/' + f, import.meta.url));
+        assert.equal(b.toString('ascii', 0, 4), 'caff', f);
+        const desc = b.indexOf('desc');
+        assert.equal(b.readDoubleBE(desc + 12), 44100, f);
+        assert.equal(b.toString('ascii', desc + 20, desc + 24), 'lpcm', f);
+        const data = b.indexOf('data'), seconds = (Number(b.readBigInt64BE(data + 4)) - 4) / 2 / 44100;
+        assert(Math.abs(seconds - 28) < 0.1, `${f}: ${seconds}s`);
+    }
 });

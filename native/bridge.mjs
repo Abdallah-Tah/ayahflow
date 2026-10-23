@@ -57,25 +57,41 @@ export const bridge = {
         if (android) {
             await LocalNotifications.createChannel({ id: 'ayahflow-prayer', name: 'Prayer times', description: 'A quiet alert at prayer times', importance: 4, visibility: 1 });
         }
-        const channel = (n) => n.reciter === null ? 'ayahflow-prayer' : n.reciter === 'custom' ? `ayahflow-athan-custom-${n.customVersion}` : `ayahflow-athan-${n.reciter}`;
-        if (android) for (const id of new Set(list.filter(n => n.reciter && n.reciter !== 'custom').map(n => n.reciter)))
+        const channel = (n) => n.reciter === null ? 'ayahflow-prayer' : n.reciter === 'custom' ? `ayahflow-athan-custom-${n.customVersion}` : `ayahflow-athan-${n.reciter}`; // online: ayahflow-athan-online-<id>
+        if (android) for (const id of new Set(list.filter(n => n.reciter && n.reciter !== 'custom' && !n.reciter.startsWith('online-')).map(n => n.reciter)))
             await LocalNotifications.createChannel({ id: `ayahflow-athan-${id}`, name: `Athan · ${id}`, description: 'The athan at prayer times', importance: 5, sound: `ayahflow_athan_${id}.mp3`, visibility: 1, vibration: true });
-        const sound = (n) => n.reciter === null ? {} : { sound: android ? (n.reciter === 'custom' ? undefined : `ayahflow_athan_${n.reciter}.mp3`) : n.reciter === 'custom' ? 'ayahflow-athan-custom.wav' : `ayahflow-athan-${n.reciter}.caf` };
+        const local = (r) => r === 'custom' || r.startsWith('online-');
+        const sound = (n) => n.reciter === null ? {} : { sound: android ? (local(n.reciter) ? undefined : `ayahflow_athan_${n.reciter}.mp3`) : n.reciter === 'custom' ? 'ayahflow-athan-custom.wav' : n.reciter.startsWith('online-') ? `ayahflow-athan-${n.reciter}.wav` : `ayahflow-athan-${n.reciter}.caf` };
         await LocalNotifications.schedule({ notifications: list.filter(n => ATHAN(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, ...sound(n), channelId: channel(n), extra: { url: 'ayahflow://prayer' }, smallIcon: 'ic_stat_ayahflow' })) });
     },
     /** Saves an imported athan: the full file for in-app playback (and Android's channel) and a ≤30 s WAV alert in
      * Library/Sounds for iOS. Stays on this device; never exported. */
     async saveCustomAthan({ full, ext, alert, version, name }) {
-        await Filesystem.rmdir({ path: 'ayahflow/athan', directory: Directory.Data, recursive: true }).catch(() => { });
-        const path = `ayahflow/athan/custom-${version}.${ext}`;
+        await Filesystem.rmdir({ path: 'ayahflow/athan/custom', directory: Directory.Data, recursive: true }).catch(() => { });
+        const path = `ayahflow/athan/custom/custom-${version}.${ext}`;
         await Filesystem.writeFile({ path, directory: Directory.Data, data: full, recursive: true });
         if (Capacitor.getPlatform() === 'ios') await Filesystem.writeFile({ path: 'Sounds/ayahflow-athan-custom.wav', directory: Directory.Library, data: alert, recursive: true });
         else await Smart.athanChannel({ path, id: `ayahflow-athan-custom-${version}`, name: `Athan · ${name}` });
     },
-    async customAthanUrl(ext, version) { const { uri } = await Filesystem.getUri({ path: `ayahflow/athan/custom-${version}.${ext}`, directory: Directory.Data }); return Capacitor.convertFileSrc(uri); },
+    async customAthanUrl(ext, version) { const { uri } = await Filesystem.getUri({ path: `ayahflow/athan/custom/custom-${version}.${ext}`, directory: Directory.Data }); return Capacitor.convertFileSrc(uri); },
     async deleteCustomAthan() {
-        await Filesystem.rmdir({ path: 'ayahflow/athan', directory: Directory.Data, recursive: true }).catch(() => { });
+        await Filesystem.rmdir({ path: 'ayahflow/athan/custom', directory: Directory.Data, recursive: true }).catch(() => { });
         if (Capacitor.getPlatform() === 'ios') await Filesystem.deleteFile({ path: 'Sounds/ayahflow-athan-custom.wav', directory: Directory.Library }).catch(() => { });
+    },
+    /** Online recordings (AlAdhan): native download with host and checksum checks, then a ≤30 s alert made on the device. */
+    async downloadOnlineAthan(r) {
+        const path = `ayahflow/athan/online/${r.id}.mp3`;
+        await Smart.downloadAthan({ url: r.url, sha256: r.sha256, path });
+        return (await Filesystem.readFile({ path, directory: Directory.Data })).data;
+    },
+    async saveOnlineAlert(id, alert, name) {
+        if (Capacitor.getPlatform() === 'ios') await Filesystem.writeFile({ path: `Sounds/ayahflow-athan-online-${id}.wav`, directory: Directory.Library, data: alert, recursive: true });
+        else await Smart.athanChannel({ path: `ayahflow/athan/online/${id}.mp3`, id: `ayahflow-athan-online-${id}`, name: `Athan · ${name}` });
+    },
+    async onlineAthanUrl(id) { const { uri } = await Filesystem.getUri({ path: `ayahflow/athan/online/${id}.mp3`, directory: Directory.Data }); return Capacitor.convertFileSrc(uri); },
+    async deleteOnlineAthan(id) {
+        await Filesystem.deleteFile({ path: `ayahflow/athan/online/${id}.mp3`, directory: Directory.Data }).catch(() => { });
+        if (Capacitor.getPlatform() === 'ios') await Filesystem.deleteFile({ path: `Sounds/ayahflow-athan-online-${id}.wav`, directory: Directory.Library }).catch(() => { });
     },
     /** Hands the precomputed widget timeline to the native widgets and asks them to refresh. */
     setWidgetData: (data) => Smart.setWidgetData({ data: JSON.stringify(data) }),
@@ -87,7 +103,7 @@ export const bridge = {
     async recordings() { const rows = await index(); return Promise.all(rows.map(async (r) => { const { data } = await Filesystem.readFile({ path: audioPath(r.id), directory: Directory.Data }); return { ...r, blob: data instanceof Blob ? data : blob64(data, r.mime) }; })); },
     async putRecording(r) { const { blob, ...meta } = r; await Filesystem.writeFile({ path: audioPath(r.id), directory: Directory.Data, data: await base64(blob), recursive: true }); const rows = await index(); await saveIndex([...rows.filter(x => x.id !== r.id), meta]); },
     async deleteRecording(id) { const rows = await index(); await Filesystem.deleteFile({ path: audioPath(id), directory: Directory.Data }); await saveIndex(rows.filter(x => x.id !== id)); },
-    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); await bridge.scheduleAthan([]).catch(() => { }); await bridge.deleteCustomAthan().catch(() => { }); await bridge.setWidgetData(null).catch(() => { }); try {
+    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); await bridge.scheduleAthan([]).catch(() => { }); await bridge.deleteCustomAthan().catch(() => { }); await Filesystem.rmdir({ path: 'ayahflow/athan', directory: Directory.Data, recursive: true }).catch(() => { }); await bridge.setWidgetData(null).catch(() => { }); try {
         await Filesystem.rmdir({ path: 'ayahflow', directory: Directory.Data, recursive: true });
     }
     catch (e) {

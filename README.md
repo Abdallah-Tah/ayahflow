@@ -60,6 +60,10 @@ The **Adhkar** tab has morning, evening, after-prayer, sleep and waking collecti
 
 The rules engine (`src/adhkar.ts`) applies cooldowns, once-per-day collections, grouping and the user's choices; the native engines in `plugins/smart-reminders` (Swift and Java) follow the same steps while the app is closed. Saved places and detections stay on the device and are excluded from exports; no network request is made. **Not yet verified on physical devices** for real geofence crossings or vehicle trips; the OS can delay or drop background events.
 
+### Athan
+
+Five openly licensed recordings are bundled (Wikimedia Commons; credits and licences in the app and in `docs/THIRD-PARTY-NOTICES.md`), with a separate Fajr choice. Six well-known recordings from AlAdhan (Islamic Network) — three by Mishary Rashid Alafasy, Mansour Al-Zahrani, Hafiz Mustafa Özcan and Ahmad al-Nafees (Fajr) — can be streamed to preview and downloaded on request; they are not bundled. Users can also import their own recording. iOS plays a 28 s alert (44.1 kHz PCM; iOS caps notification sounds at 30 s); Android plays the full recording. None of the recordings has yet been checked by listening for this app.
+
 ### Voice following (experimental)
 
 In the reader, **Follow my recitation** listens (after an explicit tap and a one-time consent) and highlights the ayah and word you are reciting, scrolling with you. Recognition runs fully on the device with [Tilawa](https://github.com/yazinsai/tilawa) (`@tilawa/core`, MIT) and ONNX Runtime Web. Audio is not stored or uploaded, and nothing is added to your progress. It follows your place only: it is not a pronunciation or Tajweed check and can be wrong.

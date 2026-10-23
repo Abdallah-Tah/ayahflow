@@ -48,3 +48,18 @@ Prepared by `scripts/prepare-athan.mjs` (SHA-256 pinned, loudness-normalised, mo
 None of these recordings has yet been listened to by a person for this app. Before release confirm for each: a complete athan with correct wording, whether it is the Fajr version (as-salatu khayrun min an-nawm), audio quality, and that the declared licence is credible. Derived clips of CC BY-SA recordings are shared under CC BY-SA.
 
 A user may import their own athan recording; it stays on the device, is never exported, and its rights are the user's.
+
+### Online athan library (not bundled)
+
+| Reciter | File on cdn.aladhan.com | Length | Use |
+| --- | --- | --- | --- |
+| Mishary Rashid Alafasy · Dubai One | `a4.mp3` | 215 s |  |
+| Mishary Rashid Alafasy · II | `a7.mp3` | 243 s |  |
+| Mishary Rashid Alafasy · III | `a9.mp3` | 257 s |  |
+| Mansour Al-Zahrani | `a11-mansour-al-zahrani.mp3` | 132 s |  |
+| Hafiz Mustafa Özcan · Türkiye | `a2.mp3` | 238 s |  |
+| Ahmad al-Nafees · Fajr | `a1.mp3` | 214 s | Fajr only |
+
+Not bundled. Downloaded only when the user asks, behind the online-audio permission, checked against the pinned SHA-256, and kept on the device. Islamic Network's terms (2026-06-14) allow streaming and downloading its audio for personal use; copyright stays with the reciters, who may request removal. The terms do not name cdn.aladhan.com explicitly. Reciter names follow aladhan.com/download-adhans. a1 is the Fajr athan (as-salatu khayrun min an-nawm), so it is offered for Fajr only. Source and attribution: https://aladhan.com/download-adhans · Terms: https://alquran.cloud/terms-and-conditions.
+
+**Network.** These files are fetched only when the user taps **Download** (or **Listen**, which streams the same file), from `https://cdn.aladhan.com` only. The native download checks the host, size (≤ 12 MB) and SHA-256 before saving. Nothing about the user is sent beyond an ordinary HTTPS request.

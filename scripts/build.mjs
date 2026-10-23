@@ -28,7 +28,7 @@ await cp('content/tanzil', 'www/content/tanzil', { recursive: true }); // Licenc
 await writeFile('www/js/adhkar-data.js', `/* Generated from content/adhkar/adhkar.json — do not edit. Source: ${JSON.parse(await readFile('content/adhkar/adhkar.json', 'utf8')).dataset}. */\nexport default ${await readFile('content/adhkar/adhkar.json', 'utf8')};\n`);
 // Athan catalogue (names, credits, licences) for the recordings in public/sounds (scripts/prepare-athan.mjs).
 { const { reviewNotes, alertSeconds, recordings } = JSON.parse(await readFile('content/athan/sources.json', 'utf8'));
-  await writeFile('www/js/athan-data.js', `/* Generated from content/athan/sources.json — do not edit. */\nexport default ${JSON.stringify({ reviewNotes, alertSeconds, recordings: recordings.map(({ download, sha256, ...r }) => r) })};\n`); }
+  await writeFile('www/js/athan-data.js', `/* Generated from content/athan/sources.json — do not edit. */\nexport default ${JSON.stringify({ reviewNotes, alertSeconds, recordings: recordings.map(({ download, sha256, ...r }) => r), online: JSON.parse(await readFile('content/athan/online.json', 'utf8')) })};\n`); }
 // Offline prayer times: adhan-js (MIT), bundled because the web build has no bundler.
 await (await import('esbuild')).build({ entryPoints: ['node_modules/adhan/lib/esm/Adhan.js'], outfile: 'www/js/adhan.js', bundle: true, format: 'esm', target: 'es2020', minify: true, legalComments: 'inline', logLevel: 'warning' });
 // Optional voice following. Shipped only when `npm run voice:fetch` has verified the NPL-1.2 model into vendor/.
