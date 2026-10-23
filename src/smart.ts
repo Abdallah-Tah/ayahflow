@@ -128,13 +128,16 @@ export function athanSchedule(state: AppState, label: (p: PrayerName, at: number
     return prayersFrom(state, now).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, dayKey(p.at)), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
 }
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
-export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string> }
-export function widgetData(state: AppState, label: (key: string) => string, now = Date.now(), extra: Record<string, string> = {}): WidgetData {
+/** Today's dhikr counts, adhkar progress and (only when the step tracker is on) the latest step reading, for the widget. */
+export interface WidgetDaily { day: string; counters: { id: string; label: string; n: number; total: number; atLeast: boolean; perPrayer: boolean }[]; adhkar: { key: Moment; label: string; done: number; total: number }[]; steps: { today: number; goal: number; at: number } | null }
+export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string>; daily: WidgetDaily | null }
+export function widgetData(state: AppState, label: (key: string) => string, now = Date.now(), extra: Record<string, string> = {}, daily: WidgetDaily | null = null): WidgetData {
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() + i); return d; });
     return {
         v: 1, updatedAt: now, rtl: state.locale === 'ar', locale: state.locale,
         prayers: prayersFrom(state, now).map(p => ({ key: p.prayer, label: label('p_' + p.prayer), at: p.at })),
         windows: days.map(d => { const w = windowsFor(state, d); return { morning: w.morning, evening: w.evening }; }),
-        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', ...extra },
+        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), stepsTab: label('steps'), rounds: label('rounds'), stepsOff: label('widgetStepsOff'), toGo: label('toGo'), goalReached: label('goalReached'), updated: label('widgetUpdated'), ...extra },
+        daily,
     };
 }

@@ -1,6 +1,9 @@
 import WidgetKit
 import SwiftUI
 import Security
+#if canImport(AppIntents)
+import AppIntents
+#endif
 
 /// Timeline precomputed by the app (src/smart.ts widgetData) and shared through the keychain. No coordinates.
 struct SharedTimeline: Decodable {
@@ -13,6 +16,18 @@ struct SharedTimeline: Decodable {
     let prayers: [Prayer]
     let windows: [Window]
     let labels: [String: String]
+    /// Today's dhikr counts, adhkar progress and the latest step reading (src/smart.ts WidgetDaily).
+    let daily: Daily?
+
+    struct Daily: Decodable {
+        struct Counter: Decodable { let id: String; let label: String; let n: Int; let total: Int; let atLeast: Bool; let perPrayer: Bool }
+        struct Adhkar: Decodable { let key: String; let label: String; let done: Int; let total: Int }
+        struct Steps: Decodable { let today: Int; let goal: Int; let at: Double }
+        let day: String
+        let counters: [Counter]
+        let adhkar: [Adhkar]
+        let steps: Steps?
+    }
 
     static func load() -> SharedTimeline? {
         guard let group = Bundle.main.object(forInfoDictionaryKey: "AyahFlowSharedKeychain") as? String else { return nil }
@@ -38,13 +53,49 @@ struct PrayerEntry: TimelineEntry {
     let labels: [String: String]
     let rtl: Bool
     let locale: Locale
+    /// Today's dhikr and steps, or nil when the app has not shared any for today (counts start again at midnight).
+    var daily: SharedTimeline.Daily? = nil
+    var page: WidgetPage = .prayer
+}
+
+/// The pages of the medium widget. The chosen page is kept in the widget extension's own defaults.
+enum WidgetPage: Int, CaseIterable {
+    case prayer, dhikr, steps
+    static var current: WidgetPage { WidgetPage(rawValue: UserDefaults.standard.integer(forKey: "widgetPage")) ?? .prayer }
+    var symbol: String { switch self { case .prayer: return "moon.stars"; case .dhikr: return "circle.dotted"; case .steps: return "figure.walk" } }
+    func label(_ labels: [String: String]) -> String {
+        switch self { case .prayer: return labels["prayerTab"] ?? "Prayer"; case .dhikr: return labels["dhikrTab"] ?? "Dhikr"; case .steps: return labels["stepsTab"] ?? "Steps" }
+    }
+}
+
+#if canImport(AppIntents)
+/// Tapping a tab in the widget switches page without opening the app (iOS 17 interactive widgets).
+@available(iOS 17.0, *)
+struct ShowWidgetPage: AppIntent {
+    static var title: LocalizedStringResource = "Show widget page"
+    static var isDiscoverable = false
+    @Parameter(title: "Page") var page: Int
+    init() {}
+    init(_ page: WidgetPage) { self.page = page.rawValue }
+    func perform() async throws -> some IntentResult {
+        UserDefaults.standard.set(page, forKey: "widgetPage")
+        return .result()
+    }
+}
+#endif
+
+private func dayKey(_ date: Date) -> String {
+    let f = DateFormatter()
+    f.calendar = Calendar(identifier: .gregorian); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+    return f.string(from: date)
 }
 
 struct Provider: TimelineProvider {
     private static func sample() -> PrayerEntry {
         let now = Date(), at = { (h: Double) in now.addingTimeInterval(h * 3600).timeIntervalSince1970 * 1000 }
         let today: [SharedTimeline.Prayer] = [.init(key: "fajr", label: "Fajr", at: at(-8)), .init(key: "dhuhr", label: "Dhuhr", at: at(-2)), .init(key: "asr", label: "Asr", at: at(1.4)), .init(key: "maghrib", label: "Maghrib", at: at(4)), .init(key: "isha", label: "Isha", at: at(5.3))]
-        return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current)
+        let daily = SharedTimeline.Daily(day: dayKey(now), counters: [.init(id: "istighfar", label: "Istighfar", n: 64, total: 100, atLeast: false, perPrayer: false), .init(id: "istighfar-tawbah", label: "Istighfar and tawbah", n: 20, total: 70, atLeast: true, perPrayer: false), .init(id: "tasbih-prayer", label: "Tasbih after prayer", n: 200, total: 100, atLeast: false, perPrayer: true)], adhkar: [.init(key: "morning", label: "Morning adhkar", done: 4, total: 5), .init(key: "evening", label: "Evening adhkar", done: 0, total: 5)], steps: .init(today: 5840, goal: 8000, at: now.timeIntervalSince1970 * 1000))
+        return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current, daily: daily, page: .current)
     }
 
     func placeholder(in context: Context) -> PrayerEntry { Provider.sample() }
@@ -69,7 +120,8 @@ struct Provider: TimelineProvider {
 
     private func entry(at date: Date, _ data: SharedTimeline?) -> PrayerEntry {
         let locale = data?.locale.map { Locale(identifier: $0) } ?? .current
-        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale) }
+        let daily = data?.daily.flatMap { $0.day == dayKey(date) ? $0 : nil }
+        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current) }
         guard let data, !data.prayers.isEmpty else { return empty(.noData) }
         let ms = date.timeIntervalSince1970 * 1000
         guard let index = data.prayers.firstIndex(where: { $0.at > ms }) else { return empty(.stale) }
@@ -81,7 +133,7 @@ struct Provider: TimelineProvider {
         let inside = { (w: [Double]?) in w.map { $0.count == 2 && ms >= $0[0] && ms < $0[1] } ?? false }
         let moment: (key: String, label: String)? = data.windows.contains { inside($0.morning) } ? (key: "morning", label: data.labels["morning"] ?? "Morning adhkar")
             : data.windows.contains { inside($0.evening) } ? (key: "evening", label: data.labels["evening"] ?? "Evening adhkar") : nil
-        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale)
+        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current)
     }
 }
 
@@ -93,6 +145,24 @@ private enum Palette {
     static let goldBright = Color(red: 239 / 255, green: 220 / 255, blue: 173 / 255)
     static let text = Color(red: 243 / 255, green: 240 / 255, blue: 231 / 255)
     static let muted = Color(red: 167 / 255, green: 173 / 255, blue: 159 / 255)
+    static let green = Color(red: 166 / 255, green: 197 / 255, blue: 165 / 255)
+}
+
+private func number(_ n: Int, _ locale: Locale) -> String { let f = NumberFormatter(); f.locale = locale; f.numberStyle = .decimal; return f.string(from: NSNumber(value: n)) ?? String(n) }
+
+/// A progress ring with content in the middle.
+private struct Ring<Inner: View>: View {
+    let value: Double
+    var color: Color = Palette.gold
+    var width: CGFloat = 6
+    @ViewBuilder let inner: () -> Inner
+    var body: some View {
+        ZStack {
+            Circle().stroke(Palette.line, lineWidth: width)
+            Circle().trim(from: 0, to: max(0.001, min(1, value))).stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round)).rotationEffect(.degrees(-90))
+            inner()
+        }
+    }
 }
 
 private func formatted(_ date: Date, _ locale: Locale, hijri: Bool) -> String {
@@ -115,7 +185,8 @@ struct PrayerWidgetView: View {
     }
 
     @ViewBuilder var content: some View {
-        if entry.state != .ready || entry.next == nil {
+        if family == .systemMedium && entry.page != .prayer { paged(entry.page == .dhikr ? AnyView(dhikrPage) : AnyView(stepsPage)) }
+        else if entry.state != .ready || entry.next == nil {
             VStack(alignment: .leading, spacing: 6) {
                 Text("AyahFlow").font(.system(.headline, design: .serif)).foregroundColor(Palette.gold)
                 Text(entry.state == .stale ? (entry.labels["stale"] ?? "Open AyahFlow to refresh prayer times.") : (entry.labels["noPlace"] ?? "Save Home in AyahFlow to see prayer times."))
@@ -126,7 +197,7 @@ struct PrayerWidgetView: View {
             case .accessoryInline: Text("\(next.label) \(next.date, style: .time)")
             case .accessoryCircular: circular(next)
             case .accessoryRectangular: rectangular(next)
-            case .systemMedium: medium(next)
+            case .systemMedium: paged(AnyView(medium(next)))
             case .systemLarge: large(next)
             default: small(next)
             }
@@ -191,6 +262,113 @@ struct PrayerWidgetView: View {
             .font(.system(size: 10, weight: .medium)).foregroundColor(entry.labels["athanOn"] == "1" ? Palette.gold : Palette.muted).lineLimit(1)
     }
 
+    // MARK: Pages
+    /// Tabs along the top of the medium widget; each one switches page in place (iOS 17+). Older iOS shows prayer times only.
+    @ViewBuilder private var tabs: some View {
+        #if canImport(AppIntents)
+        if #available(iOSApplicationExtension 17.0, *) {
+            HStack(spacing: 4) {
+                ForEach(WidgetPage.allCases, id: \.rawValue) { p in
+                    Button(intent: ShowWidgetPage(p)) {
+                        HStack(spacing: 3) { Image(systemName: p.symbol); if p == entry.page { Text(p.label(entry.labels)) } }
+                            .font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                            .foregroundColor(p == entry.page ? Palette.bg : Palette.muted)
+                            .padding(.horizontal, p == entry.page ? 8 : 6).padding(.vertical, 4)
+                            .background(Capsule().fill(p == entry.page ? Palette.gold : Palette.line.opacity(0.6)))
+                    }.buttonStyle(.plain)
+                }
+            }
+        }
+        #endif
+    }
+
+    private func paged(_ page: AnyView) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) { dateHeader().layoutPriority(0); Spacer(minLength: 4); tabs.layoutPriority(1) }
+            page.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func counter(_ id: String) -> SharedTimeline.Daily.Counter? { entry.daily?.counters.first { $0.id == id } }
+
+    private func istighfarRing(size: CGFloat) -> some View {
+        let c = counter("istighfar"), n = c?.n ?? 0, total = c?.total ?? 100
+        return Link(destination: URL(string: "ayahflow://counter/istighfar")!) {
+            Ring(value: Double(n % total == 0 && n > 0 ? total : n % total) / Double(total), color: n >= total ? Palette.green : Palette.gold, width: size / 11) {
+                VStack(spacing: 0) {
+                    Text("أستغفر الله").font(.system(size: size * 0.11, design: .serif)).foregroundColor(Palette.goldBright).lineLimit(1).minimumScaleFactor(0.5)
+                    Text(number(n, entry.locale)).font(.system(size: size * 0.27, weight: .regular, design: .serif)).foregroundColor(Palette.text).monospacedDigit().minimumScaleFactor(0.5)
+                    Text("/ " + number(total, entry.locale)).font(.system(size: size * 0.1)).foregroundColor(Palette.muted)
+                }.padding(size * 0.14)
+            }.frame(width: size, height: size)
+        }
+    }
+
+    private func row(_ label: String, _ value: String, _ progress: Double?, done: Bool, url: String) -> some View {
+        Link(destination: URL(string: url)!) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Text(label).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer(minLength: 2)
+                    if done { Image(systemName: "checkmark").foregroundColor(Palette.green) }
+                    Text(value).foregroundColor(done ? Palette.green : Palette.goldBright).monospacedDigit()
+                }.font(.system(size: 11, weight: .medium))
+                if let progress {
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Palette.line)
+                            Capsule().fill(done ? Palette.green : Palette.gold).frame(width: g.size.width * max(0, min(1, progress)))
+                        }
+                    }.frame(height: 3)
+                }
+            }
+        }
+    }
+
+    private var dhikrRows: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            if let t = counter("istighfar-tawbah") { row(t.label, number(t.n, entry.locale) + " / " + number(t.total, entry.locale) + (t.atLeast ? "+" : ""), Double(t.n) / Double(t.total), done: t.n >= t.total, url: "ayahflow://counter/\(t.id)") }
+            if let t = counter("tasbih-prayer") { row(t.label, number(t.n / t.total, entry.locale) + " " + (entry.labels["rounds"] ?? "rounds"), nil, done: false, url: "ayahflow://counter/\(t.id)") }
+            ForEach(entry.daily?.adhkar.filter { $0.total > 0 }.prefix(2) ?? [], id: \.key) { a in
+                row(a.label, number(a.done, entry.locale) + " / " + number(a.total, entry.locale), Double(a.done) / Double(a.total), done: a.done >= a.total, url: "ayahflow://moment/\(a.key)")
+            }
+        }
+    }
+
+    private var dhikrPage: some View {
+        HStack(alignment: .center, spacing: 14) {
+            istighfarRing(size: 92)
+            dhikrRows.frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder private func stepsSummary(ringSize: CGFloat) -> some View {
+        if let st = entry.daily?.steps {
+            let met = st.today >= st.goal
+            HStack(alignment: .center, spacing: 14) {
+                Ring(value: Double(st.today) / Double(max(1, st.goal)), color: met ? Palette.green : Palette.gold, width: ringSize / 11) {
+                    Image(systemName: "figure.walk").font(.system(size: ringSize * 0.32)).foregroundColor(met ? Palette.green : Palette.gold)
+                }.frame(width: ringSize, height: ringSize)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text((entry.labels["stepsTab"] ?? "Steps").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold)
+                    Text(number(st.today, entry.locale)).font(.system(size: ringSize * 0.34, design: .serif)).foregroundColor(Palette.text).monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
+                    Text(met ? (entry.labels["goalReached"] ?? "Goal reached") : number(st.goal - st.today, entry.locale) + " " + (entry.labels["toGo"] ?? "to go"))
+                        .font(.system(size: 11, weight: .medium)).foregroundColor(met ? Palette.green : Palette.goldBright)
+                    HStack(spacing: 3) { Text(entry.labels["updated"] ?? "Updated"); Text(Date(timeIntervalSince1970: st.at / 1000), style: .time) }
+                        .font(.system(size: 10)).foregroundColor(Palette.muted)
+                }
+                Spacer(minLength: 0)
+            }
+        } else {
+            HStack(spacing: 10) {
+                Image(systemName: "figure.walk").font(.title2).foregroundColor(Palette.gold)
+                Text(entry.labels["stepsOff"] ?? "Turn on step tracking in AyahFlow to see steps here.").font(.caption).foregroundColor(Palette.muted)
+            }
+        }
+    }
+
+    private var stepsPage: some View { Link(destination: URL(string: "ayahflow://steps")!) { stepsSummary(ringSize: 88) } }
+
     // MARK: Families
     private func small(_ next: SharedTimeline.Prayer) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -217,8 +395,15 @@ struct PrayerWidgetView: View {
             HStack(alignment: .bottom) { nextBlock(next, size: 34); Spacer() }
             progress(next)
             Rectangle().fill(Palette.line).frame(height: 1)
-            prayerRows(next, spacing: 8, font: .system(size: 15, design: .serif))
+            prayerRows(next, spacing: 6, font: .system(size: 14, design: .serif))
             Spacer(minLength: 0)
+            if entry.daily != nil {
+                Rectangle().fill(Palette.line).frame(height: 1)
+                HStack(alignment: .center, spacing: 12) {
+                    istighfarRing(size: 70)
+                    if entry.daily?.steps != nil { Link(destination: URL(string: "ayahflow://steps")!) { stepsSummary(ringSize: 52) } } else { dhikrRows }
+                }
+            }
             momentLink()
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -265,12 +450,100 @@ struct NextPrayerWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "AyahFlowNextPrayer", provider: Provider()) { PrayerWidgetView(entry: $0) }
             .configurationDisplayName("Prayer times")
-            .description("The next prayer with a live countdown, today's times, the Hijri date and the adhkar for the moment.")
+            .description("Prayer times with a live countdown. The medium size has Prayer, Dhikr and Steps pages; the large size shows them together.")
+            .supportedFamilies(families)
+    }
+}
+
+/// Small istighfar and steps widgets: stack them with the prayer widget (Smart Stack) and swipe between them.
+struct DhikrWidgetView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: PrayerEntry
+    var body: some View {
+        let c = entry.daily?.counters.first { $0.id == "istighfar" }, n = c?.n ?? 0, total = c?.total ?? 100
+        Group {
+            if family == .systemSmall {
+                VStack(spacing: 6) {
+                    Text((c?.label ?? "Istighfar").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.1).foregroundColor(Palette.gold).lineLimit(1)
+                    Ring(value: Double(n >= total ? total : n) / Double(total), color: n >= total ? Palette.green : Palette.gold, width: 8) {
+                        VStack(spacing: 0) {
+                            Text(number(n, entry.locale)).font(.system(size: 30, design: .serif)).foregroundColor(Palette.text).monospacedDigit().minimumScaleFactor(0.5)
+                            Text("/ " + number(total, entry.locale)).font(.system(size: 11)).foregroundColor(Palette.muted)
+                        }
+                    }
+                }
+            } else {
+                circularGauge(Double(min(n, total)) / Double(total), symbol: "circle.dotted", value: number(n, entry.locale))
+            }
+        }
+        .widgetURL(URL(string: "ayahflow://counter/istighfar"))
+        .modifier(WidgetBackground())
+    }
+}
+
+struct StepsWidgetView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: PrayerEntry
+    var body: some View {
+        let st = entry.daily?.steps
+        Group {
+            if family == .systemSmall {
+                if let st {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text((entry.labels["stepsTab"] ?? "Steps").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.1).foregroundColor(Palette.gold)
+                        Ring(value: Double(st.today) / Double(max(1, st.goal)), color: st.today >= st.goal ? Palette.green : Palette.gold, width: 8) {
+                            VStack(spacing: 0) {
+                                Text(number(st.today, entry.locale)).font(.system(size: 22, design: .serif)).foregroundColor(Palette.text).monospacedDigit().minimumScaleFactor(0.5).lineLimit(1)
+                                Text("/ " + number(st.goal, entry.locale)).font(.system(size: 10)).foregroundColor(Palette.muted)
+                            }.padding(10)
+                        }.frame(maxWidth: .infinity)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Image(systemName: "figure.walk").font(.title2).foregroundColor(Palette.gold)
+                        Text(entry.labels["stepsOff"] ?? "Turn on step tracking in AyahFlow to see steps here.").font(.caption).foregroundColor(Palette.muted)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+            } else {
+                circularGauge(st.map { Double($0.today) / Double(max(1, $0.goal)) } ?? 0, symbol: "figure.walk", value: st.map { $0.today >= 10000 ? number($0.today / 1000, entry.locale) + "k" : number($0.today, entry.locale) } ?? "—")
+            }
+        }
+        .widgetURL(URL(string: "ayahflow://steps"))
+        .modifier(WidgetBackground())
+    }
+}
+
+@ViewBuilder private func circularGauge(_ value: Double, symbol: String, value label: String) -> some View {
+    if #available(iOSApplicationExtension 16.0, *) {
+        Gauge(value: max(0, min(1, value))) { Image(systemName: symbol) } currentValueLabel: { Text(label).font(.system(size: 11).monospacedDigit()) }.gaugeStyle(.accessoryCircular)
+    } else { Text(label) }
+}
+
+struct IstighfarWidget: Widget {
+    var families: [WidgetFamily] { if #available(iOSApplicationExtension 16.0, *) { return [.systemSmall, .accessoryCircular] }; return [.systemSmall] }
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "AyahFlowIstighfar", provider: Provider()) { DhikrWidgetView(entry: $0) }
+            .configurationDisplayName("Istighfar")
+            .description("Today's istighfar count. Tap to keep counting.")
+            .supportedFamilies(families)
+    }
+}
+
+struct StepsWidget: Widget {
+    var families: [WidgetFamily] { if #available(iOSApplicationExtension 16.0, *) { return [.systemSmall, .accessoryCircular] }; return [.systemSmall] }
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "AyahFlowSteps", provider: Provider()) { StepsWidgetView(entry: $0) }
+            .configurationDisplayName("Steps")
+            .description("Today's steps against your goal, as last read by AyahFlow.")
             .supportedFamilies(families)
     }
 }
 
 @main
 struct AyahFlowWidgets: WidgetBundle {
-    var body: some Widget { NextPrayerWidget() }
+    var body: some Widget {
+        NextPrayerWidget()
+        IstighfarWidget()
+        StepsWidget()
+    }
 }

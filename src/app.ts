@@ -1,6 +1,6 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, type RuleId } from './data.js';
 import { COUNTERS, counter, counterPosition, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
-import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, type SmartStatus, type StepReading } from './smart.js';
+import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, MAX_COUNT, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
@@ -333,9 +333,23 @@ async function syncSmart(): Promise<void> {
             await bridge.scheduleTimed(timedReminders(state, copyFor));
             await scheduleAthan(athanSchedule(state, (p, at) => ({ title: `${t('p_' + p)} · ${clock(at)}`, body: t('athanBody') })));
         }
-        await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }));
+        await pushWidget();
     }
     catch (e) { console.error('AyahFlow reminders sync failed', e instanceof Error ? e.message : e); if (state.smart.location || state.smart.vehicle || state.smart.timed || state.athan.enabled) toast(t('reminderSyncFailed')); }
+}
+/** Today's counts, adhkar progress and the latest step reading (only while the step tracker is on) for the widget. */
+function widgetDaily(): WidgetDaily {
+    const today = stepReading?.days.find(x => x.day === dayKey())?.steps;
+    return {
+        day: dayKey(),
+        counters: COUNTERS.map(c => ({ id: c.id, label: c.title[state.locale], n: count(c.id), total: c.total, atLeast: !!c.atLeast, perPrayer: !!c.perPrayer })),
+        adhkar: (['morning', 'evening', 'sleep'] as const).map(m => { const [done, total] = momentProgress(m); return { key: m, label: t('m_' + m), done, total }; }),
+        steps: state.health.steps && today !== undefined ? { today, goal: state.health.stepGoal, at: stepsAt } : null,
+    };
+}
+async function pushWidget(): Promise<void> {
+    if (!isNative()) return;
+    await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }, widgetDaily())).catch(() => { });
 }
 const platform = (): string => (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() ?? 'web';
 /** Each reminder asks for its permission only when the user turns it on, and stays off if it is refused. */
@@ -444,6 +458,7 @@ async function flushCounts(): Promise<void> {
     const saved = ids.map(id => [id, pendingCounts[id]!] as const);
     try { if (next !== state) await commit(next); } catch { return; }
     for (const [id, p] of saved) if (pendingCounts[id] === p) delete pendingCounts[id];
+    void pushWidget();
 }
 function ring(p: number, inner: string, cls = ''): string { return `<span class="ring ${cls}" style="--p:${Math.max(0, Math.min(100, p))}%">${inner}</span>`; }
 function counterTile(c: typeof COUNTERS[number]): string {
@@ -471,6 +486,7 @@ async function refreshSteps(force = false): Promise<void> {
     if (!bridge || !state.health.steps || (!force && Date.now() - stepsAt < 20000)) return;
     stepsAt = Date.now();
     try { stepReading = await bridge.steps(7); } catch { stepReading = null; }
+    void pushWidget();
     if (view === 'today' || view === 'steps') { const y = window.scrollY; render(); window.scrollTo(0, y); }
 }
 function dailyPulse(): string {
@@ -832,6 +848,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
         case 'steps-disable':
             await commit({ ...state, health: { ...state.health, steps: false } });
             stepReading = null;
+            void pushWidget();
             await navigate('today');
             break;
         case 'step-goal': {
@@ -1216,7 +1233,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && COUNTERS.some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });
