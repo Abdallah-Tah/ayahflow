@@ -71,5 +71,6 @@
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>With “Always”, AyahFlow can remind you of the fitting dhikr when you leave or arrive at a saved place, even when the app is closed. Places and detections stay on this device.</string>
 <key>NSMotionUsageDescription</key><string>AyahFlow checks recent motion to remind you of the riding dua when you travel by vehicle. Motion data stays on this device.</string>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>app.ayahflow.moment</string><key>CFBundleURLSchemes</key><array><string>ayahflow</string></array></dict></array>
+<key>AyahFlowSharedKeychain</key><string>$(AppIdentifierPrefix)com.buildwithabdallah.ayahflow.shared</string>
 </dict>
 </plist>

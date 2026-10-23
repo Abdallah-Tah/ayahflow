@@ -2,7 +2,7 @@
  * Decisions are local; places never leave the device; a reminder is never counted as a recitation. */
 import { RULES, ONCE_PER_DAY, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassages, type Moment, type DayWindows, type SmartEvent } from './adhkar.js';
 import { prayerTimes, dayWindows, type Times } from './prayer.js';
-import { dayKey, completedToday, type AppState, type Detection } from './engine.js';
+import { dayKey, completedToday, PRAYERS, type AppState, type Detection, type PrayerName } from './engine.js';
 export interface SmartStatus { location: 'always' | 'whenInUse' | 'denied' | 'restricted' | 'prompt'; motion: 'granted' | 'denied' | 'restricted' | 'prompt' | 'unavailable'; monitoring: string[]; precise: boolean }
 export interface SmartBridge {
     status(): Promise<SmartStatus>;
@@ -97,4 +97,38 @@ export function momentPreview(m: Moment): string | null {
 export function mergeDetections(existing: Detection[], events: { event: SmartEvent; at: number }[]): Detection[] {
     const seen = new Set(existing.map(d => `${d.event}@${d.at}`));
     return [...existing, ...events.filter(e => !seen.has(`${e.event}@${e.at}`)).map(e => ({ event: e.event, at: e.at }))].sort((a, b) => a.at - b.at).slice(-50);
+}
+
+// ---- Athan and widget ---------------------------------------------------------------------------
+const PRAYER_CODE: Record<PrayerName, number> = { fajr: 4, dhuhr: 5, asr: 6, maghrib: 7, isha: 8 };
+/** Stable athan notification id per prayer and day (codes 4-8; adhkar reminders use 1-3). */
+export function athanId(prayer: PrayerName, day: string): number { return PRAYER_CODE[prayer] * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
+export interface PrayerAt { prayer: PrayerName; at: number }
+/** Prayer times from the saved place for `days` days starting today, in order. Empty without a saved place. */
+export function prayersFrom(state: AppState, now = Date.now(), days = 7): PrayerAt[] {
+    const out: PrayerAt[] = [];
+    for (let i = 0; i < days; i++) {
+        const d = new Date(now); d.setDate(d.getDate() + i);
+        const t = timesFor(state, d);
+        if (t) for (const p of PRAYERS) out.push({ prayer: p, at: t[p] });
+    }
+    return out;
+}
+export function nextPrayer(state: AppState, now = Date.now()): PrayerAt | null { return prayersFrom(state, now, 2).find(p => p.at > now) ?? null; }
+export interface AthanAlert { id: number; at: number; prayer: PrayerName; title: string; body: string; sound: 'athan' | 'chime' }
+/** Athan alerts for the next week (35 at most, within iOS's 64 pending notifications together with adhkar reminders). */
+export function athanSchedule(state: AppState, label: (p: PrayerName, at: number) => { title: string; body: string }, now = Date.now()): AthanAlert[] {
+    if (!state.athan.enabled) return [];
+    return prayersFrom(state, now).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, dayKey(p.at)), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), sound: state.athan.sound }));
+}
+/** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
+export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; prayers: { key: PrayerName; label: string; at: number }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string> }
+export function widgetData(state: AppState, label: (key: string) => string, now = Date.now()): WidgetData {
+    const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() + i); return d; });
+    return {
+        v: 1, updatedAt: now, rtl: state.locale === 'ar',
+        prayers: prayersFrom(state, now).map(p => ({ key: p.prayer, label: label('p_' + p.prayer), at: p.at })),
+        windows: days.map(d => { const w = windowsFor(state, d); return { morning: w.morning, evening: w.evening }; }),
+        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), app: 'AyahFlow' },
+    };
 }

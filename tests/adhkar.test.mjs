@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 5);
+    assert.equal(STATE_VERSION, 6);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -124,7 +124,7 @@ test('Version 5 saves validate places and settings; exports never contain coordi
     const fresh = initialState();
     assert.equal(fresh.smart.location || fresh.smart.vehicle || fresh.smart.timed, false); // nothing is on until the user turns it on
 });
-import { nativeConfig, timedReminders, timedId, enabledMoments, mergeDetections, momentPreview, momentDone } from '../www/js/smart.js';
+import { nativeConfig, timedReminders, timedId, enabledMoments, mergeDetections, momentPreview, momentDone, athanSchedule, athanId, nextPrayer, prayersFrom, widgetData } from '../www/js/smart.js';
 const copy = m => ({ title: m, body: momentPreview(m) ?? 'general' });
 const NOW = new Date(2026, 9, 22, 5, 0).getTime();
 const withHome = (smart = {}) => ({ ...initialState(), places: { home: { lat: 21.4225, lng: 39.8262, radius: 150 }, work: null, mosque: null }, smart: { ...initialState().smart, ...smart } });
@@ -163,4 +163,38 @@ test('Detections merge without duplicates and stay capped', () => {
     const merged = mergeDetections([{ event: 'EXIT_HOME', at: 1 }], [{ event: 'EXIT_HOME', at: 1 }, { event: 'ENTER_VEHICLE', at: 2 }]);
     assert.deepEqual(merged, [{ event: 'EXIT_HOME', at: 1 }, { event: 'ENTER_VEHICLE', at: 2 }]);
     assert.equal(mergeDetections([], Array.from({ length: 80 }, (_, i) => ({ event: 'ENTER_HOME', at: i }))).length, 50);
+});
+
+const label = (p, at) => ({ title: p, body: String(at) });
+test('Athan is off by default and needs a saved place', () => {
+    assert.equal(initialState().athan.enabled, false);
+    assert.equal(athanSchedule(withHome(), label, NOW).length, 0);
+    const noPlace = { ...initialState(), athan: { ...initialState().athan, enabled: true } };
+    assert.equal(athanSchedule(noPlace, label, NOW).length, 0);
+    assert.equal(nextPrayer(noPlace, NOW), null);
+});
+test('Athan schedule: five prayers a day for a week, in the future, chosen prayers only, stable ids', () => {
+    const s = { ...withHome(), athan: { enabled: true, prayers: { fajr: true, dhuhr: true, asr: false, maghrib: true, isha: true }, sound: 'athan' } };
+    const a = athanSchedule(s, label, NOW);
+    assert(a.length >= 27 && a.length <= 28, a.length);
+    assert(a.every(x => x.at > NOW && x.prayer !== 'asr' && x.sound === 'athan'));
+    assert.equal(new Set(a.map(x => x.id)).size, a.length);
+    assert.equal(athanId('fajr', '2026-10-22'), 4261022); assert.equal(athanId('isha', '2026-10-22'), 8261022);
+    assert(a.every(x => x.id >= 4000000 && x.id < 9000000)); // never collides with adhkar reminder ids (1-3 million)
+    const timed = timedReminders({ ...s, smart: { ...s.smart, timed: true, sleepTime: '22:00' } }, copy, NOW);
+    assert(a.length + timed.length <= 64, 'iOS keeps at most 64 pending notifications');
+});
+test('Next prayer is the first one after now, rolling to tomorrow', () => {
+    const s = withHome();
+    const today = prayersFrom(s, NOW, 1);
+    assert.deepEqual(today.map(p => p.prayer), ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']);
+    assert.equal(nextPrayer(s, today[1].at - 1).prayer, 'dhuhr');
+    const late = nextPrayer(s, today[4].at + 60000);
+    assert.equal(late.prayer, 'fajr'); assert(late.at > today[4].at);
+});
+test('Widget data carries a week of prayers and windows, without coordinates', () => {
+    const w = widgetData(withHome(), k => k, NOW);
+    assert.equal(w.prayers.length, 35); assert.equal(w.windows.length, 7);
+    assert(!JSON.stringify(w).includes('39.8262') && !JSON.stringify(w).includes('21.4225'));
+    assert.equal(widgetData(initialState(), k => k, NOW).prayers.length, 0);
 });

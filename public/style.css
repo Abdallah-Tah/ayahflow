@@ -184,3 +184,10 @@ dialog{width:calc(100% - 40px);max-width:390px;background:var(--panel);color:var
 .detection{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line)}
 .nav-item{font-size:10.5px}.nav-item svg{padding-inline:12px}
 @media(max-width:360px){.moment-grid{grid-template-columns:1fr 1fr}.nav-item svg{padding-inline:8px}.place-row{flex-direction:column}.place-actions{align-items:stretch;width:100%}}
+
+/* Prayer times and athan */
+.prayer-strip{width:100%;display:flex;align-items:center;gap:12px;margin-top:14px;padding:13px 16px;border:1px solid var(--line);border-radius:16px;background:var(--panel);text-align:start}.prayer-strip strong{display:block;font:17px var(--serif);font-weight:400}.prayer-strip .small{font-variant-numeric:tabular-nums;white-space:nowrap}
+.prayer-list{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);overflow:hidden}
+.prayer-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}.prayer-row:first-child{border-top:0}.prayer-row strong{display:block;font:18px var(--serif);font-weight:400}
+.prayer-row.past{opacity:.55}.prayer-row.next{background:rgb(var(--tint) / .1);box-shadow:inset 3px 0 0 var(--gold)}[dir=rtl] .prayer-row.next{box-shadow:inset -3px 0 0 var(--gold)}
+.prayer-time{font:20px var(--serif);color:var(--gold-bright);font-variant-numeric:tabular-nums}.prayer-row .icon-button{height:38px;min-width:38px}.prayer-row .icon-button:disabled{opacity:.3}.bell-spacer{width:38px}

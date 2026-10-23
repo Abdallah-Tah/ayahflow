@@ -20,6 +20,7 @@ if (await exists(plist)) {
         ['NSMotionUsageDescription', 'AyahFlow checks recent motion to remind you of the riding dua when you travel by vehicle. Motion data stays on this device.'],
     ];
     for (const [key, text] of keys) if (!s.includes(`<key>${key}</key>`)) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, `<key>${key}</key><string>${text}</string>\n</dict>\n</plist>`);
+    if (!s.includes('AyahFlowSharedKeychain')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>AyahFlowSharedKeychain</key><string>$(AppIdentifierPrefix)com.buildwithabdallah.ayahflow.shared</string>\n</dict>\n</plist>');
     if (!s.includes('<string>ayahflow</string>')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>app.ayahflow.moment</string><key>CFBundleURLSchemes</key><array><string>ayahflow</string></array></dict></array>\n</dict>\n</plist>');
     await writeFile(plist, s);
     const privacy = 'ios/App/App/PrivacyInfo.xcprivacy';
@@ -36,6 +37,9 @@ if (await exists(manifest)) {
         s = s.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <application');
     await writeFile(manifest, s);
     await mkdir('android/app/src/main/res/drawable', { recursive: true });
+    // Athan for the Android notification channel (full recording; see content/athan/source.json).
+    await mkdir('android/app/src/main/res/raw', { recursive: true });
+    await copyFile('public/sounds/athan.mp3', 'android/app/src/main/res/raw/ayahflow_athan.mp3');
     await writeFile('android/app/src/main/res/drawable/ic_stat_ayahflow.xml', '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFFFF" android:pathData="M3,3 L11,5 L11,22 L3,20 Z M13,5 L21,3 L21,20 L13,22 Z"/></vector>');
     console.log('Android: microphone declaration added. Test WebView permission prompts on a real device.');
 }

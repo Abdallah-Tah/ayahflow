@@ -49,6 +49,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         applyMonitoring()
+        AthanSound.install()
     }
 
     // MARK: Configuration

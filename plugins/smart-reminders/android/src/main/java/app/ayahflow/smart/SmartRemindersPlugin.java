@@ -134,6 +134,17 @@ public class SmartRemindersPlugin extends Plugin {
     public void reset(PluginCall call) {
         SmartEngine.prefs(getContext()).edit().clear().apply();
         SmartEngine.apply(getContext());
+        PrayerWidgetProvider.refresh(getContext());
+        call.resolve();
+    }
+
+    /** Widget timeline JSON from src/smart.ts (prayer times and labels); "null" clears it. */
+    @PluginMethod
+    public void setWidgetData(PluginCall call) {
+        String json = call.getString("data");
+        if (json == null || json.equals("null")) SmartEngine.prefs(getContext()).edit().remove(PrayerWidgetProvider.DATA).apply();
+        else SmartEngine.prefs(getContext()).edit().putString(PrayerWidgetProvider.DATA, json).apply();
+        PrayerWidgetProvider.refresh(getContext());
         call.resolve();
     }
 

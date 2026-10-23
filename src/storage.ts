@@ -1,5 +1,5 @@
 import { initialState, validateState, type AppState } from './engine.js';
-import type { SmartBridge } from './smart.js';
+import type { SmartBridge, AthanAlert, WidgetData } from './smart.js';
 export interface Recording {
     id: string;
     surah: number;
@@ -22,6 +22,8 @@ interface NativeBridge {
     remind: (time: string | null) => Promise<void>;
     haptic: () => void;
     smart: SmartBridge;
+    scheduleAthan: (list: AthanAlert[]) => Promise<void>;
+    setWidgetData: (data: WidgetData | null) => Promise<void>;
     onDeepLink: (handler: (url: string) => void) => void;
 }
 let nativeBridge: NativeBridge | null = null;
@@ -111,3 +113,6 @@ export function haptic(): void { nativeBridge?.haptic(); }
 /** Native smart-reminder engine, or null on the web (where automatic detection is not available). */
 export function smartBridge(): SmartBridge | null { return nativeBridge?.smart ?? null; }
 export function onDeepLink(handler: (url: string) => void): void { nativeBridge?.onDeepLink(handler); }
+/** Athan alerts and widget data (native only). */
+export async function scheduleAthan(list: AthanAlert[]): Promise<void> { await nativeBridge?.scheduleAthan(list); }
+export async function setWidgetData(data: WidgetData | null): Promise<void> { await nativeBridge?.setWidgetData(data); }

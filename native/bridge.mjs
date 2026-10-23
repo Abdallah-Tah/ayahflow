@@ -1,6 +1,6 @@
 /** Native storage and OS integrations. No network endpoint or audio upload. */
 import { App } from '@capacitor/app';
-import { registerPlugin } from '@capacitor/core';
+import { registerPlugin, Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
@@ -20,6 +20,8 @@ async function shareFile(name, data, encoding) { if (!/^[\w.-]+$/.test(name))
 const Smart = registerPlugin('AyahFlowSmart');
 /** Timed reminder ids: moment code * 1e6 + yymmdd (morning 1, evening 2, sleep 3). Kept clear of other ids. */
 const TIMED = (id) => id >= 1000000 && id < 4000000;
+/** Athan ids: prayer code (4-8) * 1e6 + yymmdd. */
+const ATHAN = (id) => id >= 4000000 && id < 9000000;
 let deepLinkHandler = null;
 const queuedLinks = [];
 function deliver(url) { if (typeof url !== 'string' || !url.startsWith('ayahflow://')) return; if (deepLinkHandler) deepLinkHandler(url); else queuedLinks.push(url); }
@@ -44,6 +46,22 @@ export const bridge = {
             await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, smallIcon: 'ic_stat_ayahflow' })) });
         },
     },
+    /** Replaces pending athan alerts. iOS plays a ≤30 s sound from Library/Sounds (copied there by the plugin);
+     * Android 8+ takes the sound from the notification channel (res/raw/ayahflow_athan.mp3). */
+    async scheduleAthan(list) {
+        const pending = (await LocalNotifications.getPending()).notifications.filter(n => ATHAN(Number(n.id)));
+        if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
+        if (!list.length) return;
+        if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
+        const android = Capacitor.getPlatform() === 'android';
+        if (android) {
+            await LocalNotifications.createChannel({ id: 'ayahflow-athan', name: 'Athan', description: 'The athan at prayer times', importance: 5, sound: 'ayahflow_athan.mp3', visibility: 1, vibration: true });
+            await LocalNotifications.createChannel({ id: 'ayahflow-prayer', name: 'Prayer times', description: 'A quiet alert at prayer times', importance: 4, visibility: 1 });
+        }
+        await LocalNotifications.schedule({ notifications: list.filter(n => ATHAN(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, ...(n.sound === 'athan' ? { sound: android ? 'ayahflow_athan.mp3' : 'ayahflow-athan.caf' } : {}), channelId: n.sound === 'athan' ? 'ayahflow-athan' : 'ayahflow-prayer', extra: { url: 'ayahflow://prayer' }, smallIcon: 'ic_stat_ayahflow' })) });
+    },
+    /** Hands the precomputed widget timeline to the native widgets and asks them to refresh. */
+    setWidgetData: (data) => Smart.setWidgetData({ data: JSON.stringify(data) }),
     /** Notification taps, iOS Shortcuts and links call this; links that arrive before the app is ready are queued. */
     onDeepLink(handler) { deepLinkHandler = handler; queuedLinks.splice(0).forEach(handler); },
     async shareText(title, text) { await Share.share({ title, text, dialogTitle: title }); },
@@ -52,7 +70,7 @@ export const bridge = {
     async recordings() { const rows = await index(); return Promise.all(rows.map(async (r) => { const { data } = await Filesystem.readFile({ path: audioPath(r.id), directory: Directory.Data }); return { ...r, blob: data instanceof Blob ? data : blob64(data, r.mime) }; })); },
     async putRecording(r) { const { blob, ...meta } = r; await Filesystem.writeFile({ path: audioPath(r.id), directory: Directory.Data, data: await base64(blob), recursive: true }); const rows = await index(); await saveIndex([...rows.filter(x => x.id !== r.id), meta]); },
     async deleteRecording(id) { const rows = await index(); await Filesystem.deleteFile({ path: audioPath(id), directory: Directory.Data }); await saveIndex(rows.filter(x => x.id !== id)); },
-    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); try {
+    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); await bridge.scheduleAthan([]).catch(() => { }); await bridge.setWidgetData(null).catch(() => { }); try {
         await Filesystem.rmdir({ path: 'ayahflow', directory: Directory.Data, recursive: true });
     }
     catch (e) {

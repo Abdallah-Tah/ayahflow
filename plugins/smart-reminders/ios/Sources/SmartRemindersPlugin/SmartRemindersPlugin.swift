@@ -17,7 +17,8 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "takeEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "simulate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "reset", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setWidgetData", returnType: CAPPluginReturnPromise)
     ]
     private var engine: SmartReminders { SmartReminders.shared }
 
@@ -58,6 +59,14 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func reset(_ call: CAPPluginCall) { DispatchQueue.main.async { self.engine.reset(); call.resolve() } }
+
+    /// Widget timeline JSON from src/smart.ts (prayer times and labels). Pass null to clear it.
+    @objc func setWidgetData(_ call: CAPPluginCall) {
+        let json = call.getString("data")
+        let data = (json == nil || json == "null") ? nil : json!.data(using: .utf8)
+        let status = SharedWidgetStore.save(data)
+        status == errSecSuccess ? call.resolve() : call.reject("widget store failed (\(status))")
+    }
 
     @objc func openSettings(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
