@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 11);
+    assert.equal(STATE_VERSION, 12);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -173,10 +173,10 @@ test('Athan is off by default and needs a saved place', () => {
     assert.equal(athanSchedule(noPlace, label, NOW).length, 0);
     assert.equal(nextPrayer(noPlace, NOW), null);
 });
-test('Athan schedule: five prayers a day for a week, in the future, chosen prayers only, stable ids', () => {
+test('Athan schedule: five prayers a day for the planned days, in the future, chosen prayers only, stable ids', () => {
     const s = { ...withHome(), athan: { ...initialState().athan, enabled: true, prayers: { fajr: true, dhuhr: true, asr: false, maghrib: true, isha: true }, fajrReciter: 'madinah' } };
     const a = athanSchedule(s, label, NOW);
-    assert(a.length >= 27 && a.length <= 28, a.length);
+    assert(a.length >= 15 && a.length <= 16, a.length); // 4 planned days, Asr off
     assert(a.every(x => x.at > NOW && x.prayer !== 'asr'));
     assert(a.every(x => x.reciter === (x.prayer === 'fajr' ? 'madinah' : 'beautiful')));
     assert(athanSchedule({ ...s, athan: { ...s.athan, sound: 'chime' } }, label, NOW).every(x => x.reciter === null));
@@ -202,7 +202,7 @@ test('Widget data carries a week of prayers and windows, without coordinates', (
 });
 
 test('v7 reciters: bundled ids or a custom file; exports drop the custom file and fall back to a bundled reciter', () => {
-    assert.equal(STATE_VERSION, 11);
+    assert.equal(STATE_VERSION, 12);
     const base = initialState();
     assert.equal(base.athan.reciter, 'beautiful'); assert.equal(base.athan.custom, null);
     assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'unknown' } }), /reciter/);
@@ -293,7 +293,7 @@ test('v9 counts are set (not added) per counter and day, validated, migrated and
     const v8 = JSON.parse(JSON.stringify(initialState())); v8.version = 8; delete v8.counts; delete v8.health;
     v8.xp = 30;
     const m = validateState(v8);
-    assert.equal(m.version, 11); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
+    assert.equal(m.version, 12); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
     assert.deepEqual(exportable(s).counts, s.counts);
 });
 
@@ -352,4 +352,46 @@ test('Istighfar reminders: off by default; 3 a day for today and tomorrow; none 
     const v10 = JSON.parse(JSON.stringify(initialState())); v10.version = 10; delete v10.istighfarReminder;
     assert.equal(validateState(v10).istighfarReminder, false);
     assert.throws(() => validateState({ ...on, istighfarReminder: 'yes' }), /istighfar/);
+});
+
+test('Rotation phrases are verbatim slices of their cited narrations, including the tahlil of Tirmidhi 3430', async () => {
+    const { ROTATION, ROTATION_GROUPS } = await import('../www/js/adhkar.js');
+    assert.equal(ROTATION.length, 12);
+    for (const r of ROTATION) { assert(sources[r.source.ref].text.includes(r.text), `${r.id} not verbatim in ${r.source.ref}`); assert.match(sourceUrl(r.source), /^https:\/\/sunnah\.com\//); }
+    assert.deepEqual(ROTATION.filter(r => r.source.ref === 'tirmidhi:3430').map(r => key(r.text)), ['لا اله الا الله والله اكبر', 'لا اله الا الله وحده', 'لا اله الا الله وحده لا شريك له', 'لا اله الا الله له الملك وله الحمد', 'لا اله الا الله ولا حول ولا قوة الا بالله']);
+    assert.deepEqual(ROTATION_GROUPS.flatMap(g => g.ids).sort(), ROTATION.map(r => r.id).sort()); // every phrase is shown once
+});
+test('Rotation reminders: off by default, inside waking hours, in turn, capped so all reminders fit iOS’s 64', async () => {
+    const { rotationReminders, ROTATION_MAX, PLAN_DAYS, istighfarReminders } = await import('../www/js/smart.js');
+    const { ROTATION } = await import('../www/js/adhkar.js');
+    const phrases = ROTATION.slice(0, 3).map(r => ({ id: r.id, text: r.text, note: 'src' }));
+    const at8 = new Date(2026, 9, 22, 7, 0).getTime();
+    assert.equal(initialState().rotation.enabled, false);
+    assert.deepEqual(rotationReminders(initialState(), phrases, 'Dhikr', at8), []);
+    const on = { ...initialState(), rotation: { ...initialState().rotation, enabled: true, every: 120, from: '08:00', to: '20:00' } };
+    const r = rotationReminders(on, phrases, 'Dhikr', at8);
+    assert.equal(r.length, 14); // 08:00–20:00 every 2 h = 7 a day, today and tomorrow
+    assert.deepEqual(r.slice(0, 7).map(x => new Date(x.at).getHours()), [8, 10, 12, 14, 16, 18, 20]);
+    assert.deepEqual(r.slice(0, 4).map(x => x.phrase), [phrases[0].id, phrases[1].id, phrases[2].id, phrases[0].id]);
+    assert.equal(r[0].body, `${phrases[0].text}\nsrc`); assert.equal(r[0].url, 'ayahflow://rotation');
+    assert(r.every(x => x.id >= 12000000 && x.id < 13000000)); assert.equal(new Set(r.map(x => x.id)).size, r.length);
+    // Re-planning later keeps each slot's phrase.
+    const later = rotationReminders(on, phrases, 'Dhikr', new Date(2026, 9, 22, 11, 0).getTime());
+    assert.equal(later.find(x => new Date(x.at).getHours() === 12).phrase, r.find(x => new Date(x.at).getHours() === 12).phrase);
+    const busy = rotationReminders({ ...on, rotation: { ...on.rotation, every: 30, from: '06:00', to: '23:30' } }, phrases, 'Dhikr', at8);
+    assert.equal(busy.length, ROTATION_MAX);
+    assert.equal(PLAN_DAYS * 5 + PLAN_DAYS * 3 + 6 + ROTATION_MAX, 64); // athan + adhkar + istighfar + rotation
+    assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, every: 5 } }), /rotation/);
+    assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, from: '21:00', to: '08:00' } }), /rotation/);
+    assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, phrases: ['made-up'] } }), /rotation/);
+    const v11 = JSON.parse(JSON.stringify(initialState())); v11.version = 11; delete v11.rotation;
+    assert.deepEqual(validateState(v11).rotation.phrases, ROTATION.map(x => x.id));
+    void istighfarReminders;
+});
+test('Removing an own counter also removes it from the rotation', async () => {
+    const { addCounter, removeCounter } = await import('../www/js/engine.js');
+    let s = addCounter(initialState(), { id: 'my-z1', title: '', text: 'x', target: 10 });
+    s = { ...s, rotation: { ...s.rotation, phrases: [...s.rotation.phrases, 'my-z1'] } };
+    assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(s))));
+    assert(!removeCounter(s, 'my-z1').rotation.phrases.includes('my-z1'));
 });

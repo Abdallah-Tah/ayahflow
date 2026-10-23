@@ -2,9 +2,9 @@
  * Content is generated from content/adhkar/ (verbatim hadith slices + Quran references), reviewStatus
  * 'awaiting-scholar-review'. A delivered reminder is never evidence of recitation: only explicit
  * completions (see AdhkarCompletion in engine.ts) count. */
-import ADHKAR, { type AdhkarEntry, type PrayerSet, type HadithSource, type DhikrCounter } from './adhkar-data.js';
+import ADHKAR, { type AdhkarEntry, type PrayerSet, type HadithSource, type DhikrCounter, type RotationPhrase } from './adhkar-data.js';
 import { chapter, verse } from './data.js';
-export type { AdhkarEntry, PrayerSet, HadithSource, DhikrCounter };
+export type { AdhkarEntry, PrayerSet, HadithSource, DhikrCounter, RotationPhrase };
 export const ADHKAR_REVIEW = ADHKAR.reviewStatus;
 export const ADHKAR_DATASET = ADHKAR.dataset;
 export const MOMENTS = ['morning', 'evening', 'leave_home', 'enter_home', 'vehicle', 'travel', 'work_arrive', 'work_leave', 'mosque_enter', 'mosque_leave', 'after_prayer', 'sleep', 'wake'] as const;
@@ -14,6 +14,14 @@ export const GENERAL_MOMENTS: readonly Moment[] = ['work_arrive', 'work_leave'];
 export const ADHKAR_ENTRIES: readonly AdhkarEntry[] = ADHKAR.adhkar;
 export const PRAYER_SETS: readonly PrayerSet[] = ADHKAR.prayer;
 export const COUNTERS: readonly DhikrCounter[] = ADHKAR.counters;
+export const ROTATION: readonly RotationPhrase[] = ADHKAR.rotation;
+/** How the rotation phrases are grouped on the settings screen. */
+export const ROTATION_GROUPS: readonly { key: string; ids: string[] }[] = [
+    { key: 'tahlil', ids: ['tahlil-takbir', 'tahlil-wahdahu', 'tahlil-la-sharik', 'tahlil-mulk', 'tahlil-hawqala'] },
+    { key: 'fourWords', ids: ['subhanallah', 'alhamdulillah', 'la-ilaha-illallah', 'allahu-akbar'] },
+    { key: 'istighfarGroup', ids: ['astaghfirullah', 'astaghfirullah-tawbah'] },
+    { key: 'tasbihGroup', ids: ['subhanallah-wabihamdihi'] },
+];
 export function counter(id: string): DhikrCounter { const c = COUNTERS.find(x => x.id === id); if (!c) throw new Error('Unknown counter'); return c; }
 /** Where a running count stands: the phrase being said now, how many of it are done, and completed rounds.
  * A round is one pass through all steps (e.g. 33 + 33 + 33 + 1); counting past the target simply starts a new round. */

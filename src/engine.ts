@@ -1,5 +1,5 @@
 import { SURAH_DATA, chapter, verse } from './data.js';
-import { MOMENTS, ADHKAR_ENTRIES, COUNTERS, type Moment, type SmartEvent } from './adhkar.js';
+import { MOMENTS, ADHKAR_ENTRIES, COUNTERS, ROTATION, type Moment, type SmartEvent } from './adhkar.js';
 export type Mode = 'next' | 'previous' | 'listen' | 'recall' | 'locate';
 export const MODES: readonly Mode[] = ['next', 'previous', 'listen', 'recall', 'locate'];
 export type Locale = 'en' | 'fr' | 'ar';
@@ -10,8 +10,9 @@ export type ReadingLayout = 'cards' | 'flow';
  * v4 → v5 added places, smart reminder settings, adhkar completions and the detection log; v5 → v6 added athan settings;
  * v6 → v7 added the athan reciter (and a separate Fajr reciter) and an imported recording;
  * v7 → v8 added athan recordings downloaded on request (AlAdhan); v8 → v9 added dhikr counts and the step-tracker setting;
- * v9 → v10 added the user's own counters; v10 → v11 added istighfar reminders (off by default). */
-export const STATE_VERSION = 11;
+ * v9 → v10 added the user's own counters; v10 → v11 added istighfar reminders (off by default);
+ * v11 → v12 added dhikr rotation reminders (off by default). */
+export const STATE_VERSION = 12;
 import ATHAN_DATA from './athan-data.js';
 /** Bundled athan recordings (content/athan/sources.json) plus the user's own imported file. */
 export const ATHAN_RECITERS: readonly string[] = ATHAN_DATA.recordings.map(r => r.id);
@@ -58,6 +59,11 @@ export const MAX_COUNT = 100000;
 /** A counter the user added: their own words and target. Shown as "added by you"; the app never checks or edits the text. */
 export interface CustomCounter { id: string; title: string; text: string; target: number }
 export const MAX_CUSTOM_COUNTERS = 30;
+/** Reminders through the waking hours, each showing the next chosen phrase in turn. */
+export interface DhikrRotation { enabled: boolean; every: 30 | 60 | 120 | 180; from: string; to: string; phrases: string[] }
+export const ROTATION_INTERVALS = [30, 60, 120, 180] as const;
+export const defaultRotation = (): DhikrRotation => ({ enabled: false, every: 60, from: '08:00', to: '22:00', phrases: ROTATION.map(r => r.id) });
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 export function validCustomCounter(c: unknown): c is CustomCounter {
     const x = c as CustomCounter;
     return !!x && typeof x === 'object' && typeof x.id === 'string' && /^my-[a-z0-9]{1,24}$/.test(x.id) && typeof x.title === 'string' && x.title.length <= 60
@@ -107,7 +113,7 @@ export interface Session {
     kind: 'daily' | 'practice';
 }
 export interface AppState {
-    version: 11;
+    version: 12;
     locale: Locale;
     theme: Theme;
     arabicSize: ArabicSize;
@@ -124,6 +130,7 @@ export interface AppState {
     myCounters: CustomCounter[];
     /** A few istighfar reminders a day until the target is reached. */
     istighfarReminder: boolean;
+    rotation: DhikrRotation;
     goal: 3 | 7 | 10;
     selectedSurahs: number[];
     cards: Record<string, ReviewCard>;
@@ -148,7 +155,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 11, athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 12, rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -256,8 +263,8 @@ export function completedAccuracy(state: AppState): number | null { const a = st
 export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
-    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder'> & { version: number; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation'> & { version: number; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
@@ -292,6 +299,12 @@ export function validateState(raw: unknown): AppState {
         const usable = (id: string) => !id.startsWith('online-') || d.includes(id.slice(7));
         if (!Array.isArray(d) || d.some(x => !ONLINE_ATHAN.includes(x)) || new Set(d).size !== d.length || !usable(a.reciter) || !usable(a.fajrReciter) || FAJR_ONLY.includes(a.reciter))
             throw new Error('Invalid athan downloads');
+    }
+    if (s.version >= 12) {
+        const r = s.rotation, mine = new Set((s.myCounters ?? []).map(c => c.id));
+        if (!r || typeof r.enabled !== 'boolean' || !(ROTATION_INTERVALS as readonly number[]).includes(r.every) || !HHMM.test(r.from) || !HHMM.test(r.to) || r.from >= r.to
+            || !Array.isArray(r.phrases) || r.phrases.length > 100 || r.phrases.some(p => typeof p !== 'string' || !(ROTATION.some(x => x.id === p) || mine.has(p))) || new Set(r.phrases).size !== r.phrases.length)
+            throw new Error('Invalid dhikr rotation settings');
     }
     if (s.version >= 11 && typeof s.istighfarReminder !== 'boolean')
         throw new Error('Invalid istighfar reminder setting');
@@ -342,7 +355,7 @@ export function validateState(raw: unknown): AppState {
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone({ ...s, version: 11, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [] } : s.version < 8 ? { ...s.athan!, downloads: [] } : s.athan!, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    return structuredClone({ ...s, version: 12, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [] } : s.version < 8 ? { ...s.athan!, downloads: [] } : s.athan!, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */
@@ -422,5 +435,5 @@ export function addCounter(state: AppState, c: CustomCounter): AppState {
 export function removeCounter(state: AppState, id: string): AppState {
     if (!state.myCounters.some(x => x.id === id))
         return state;
-    return { ...state, myCounters: state.myCounters.filter(x => x.id !== id), counts: state.counts.filter(x => x.id !== id) };
+    return { ...state, myCounters: state.myCounters.filter(x => x.id !== id), counts: state.counts.filter(x => x.id !== id), rotation: { ...state.rotation, phrases: state.rotation.phrases.filter(p => p !== id) } };
 }

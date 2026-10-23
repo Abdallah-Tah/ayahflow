@@ -520,5 +520,79 @@
       ],
       "perPrayer": true
     }
+  ],
+  "rotation": [
+    {
+      "id": "tahlil-takbir",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله والله اكبر",
+      "end": "والله اكبر"
+    },
+    {
+      "id": "tahlil-wahdahu",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله وحده",
+      "end": "الله وحده"
+    },
+    {
+      "id": "tahlil-la-sharik",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله وحده لا شريك له",
+      "end": "لا شريك له"
+    },
+    {
+      "id": "tahlil-mulk",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله له الملك",
+      "end": "وله الحمد"
+    },
+    {
+      "id": "tahlil-hawqala",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله ولا حول",
+      "end": "الا بالله"
+    },
+    {
+      "id": "subhanallah",
+      "source": "muslim:5601",
+      "start": "سبحان الله",
+      "end": "سبحان الله"
+    },
+    {
+      "id": "alhamdulillah",
+      "source": "muslim:5601",
+      "start": "الحمد لله",
+      "end": "الحمد لله"
+    },
+    {
+      "id": "allahu-akbar",
+      "source": "muslim:5601",
+      "start": "الله اكبر",
+      "end": "الله اكبر"
+    },
+    {
+      "id": "la-ilaha-illallah",
+      "source": "muslim:5601",
+      "start": "لا اله الا الله",
+      "end": "الا الله"
+    },
+    {
+      "id": "subhanallah-wabihamdihi",
+      "source": "muslim:6843",
+      "start": "سبحان الله وبحمده",
+      "end": "سبحان الله وبحمده"
+    },
+    {
+      "id": "astaghfirullah",
+      "source": "muslim:6858",
+      "start": "استغفر الله",
+      "end": "الله"
+    },
+    {
+      "id": "astaghfirullah-tawbah",
+      "source": "bukhari:6307",
+      "start": "استغفر الله واتوب اليه",
+      "end": "اليه"
+    }
   ]
 }

@@ -1,14 +1,14 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, type RuleId } from './data.js';
-import { COUNTERS, counter, counterPosition, type DhikrCounter, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
-import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, istighfarReminders, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
-import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, MAX_CUSTOM_COUNTERS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
+import { COUNTERS, ROTATION, ROTATION_GROUPS, counter, counterPosition, type DhikrCounter, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
+import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, istighfarReminders, rotationReminders, ROTATION_MAX, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
+import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
-type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps';
+type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation';
 let state: AppState = initialState();
 let view: View = 'today';
 let selectedOption: string | null = null;
@@ -95,13 +95,13 @@ catch (e) {
     throw e;
 } }
 function wave(): string { return `<span class="wave" aria-hidden="true">${[8, 13, 20, 12, 26, 32, 20, 37, 24, 16, 29, 19, 12, 7].map((h, i) => `<i style="--h:${h}px;--delay:${i * .067}s"></i>`).join('')}</span>`; }
-function nav(): string { const active = view === 'reader' ? 'quran' : view === 'lesson' || view === 'tajweed' || view === 'recite' ? 'practice' : view === 'moment' || view === 'reminders' || view === 'counter' ? 'adhkar' : view === 'prayer' || view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home'], ['adhkar', 'tasbih'], ['quran', 'book'], ['practice', 'layers'], ['progress', 'chart']].map(([v, i]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(v!)}</span></button>`).join('')}</nav>`; }
+function nav(): string { const active = view === 'reader' ? 'quran' : view === 'lesson' || view === 'tajweed' || view === 'recite' ? 'practice' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home'], ['adhkar', 'tasbih'], ['quran', 'book'], ['practice', 'layers'], ['progress', 'chart']].map(([v, i]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(v!)}</span></button>`).join('')}</nav>`; }
 function header(): string {
     if (view === 'session' && state.session) {
         const s = state.session;
         return `<header class="app-header">${actionButton('pause', ic('close'), 'icon-button', `aria-label="${t('pause')}"`)}<span class="header-detail">${t('question')} ${num(s.index + 1)} ${t('of')} ${num(s.queue.length)}</span><span class="top-meta">${ic('leaf', 16)} ${num(state.xp)}</span></header>`;
     }
-    if (['reader', 'lesson', 'recite', 'tajweed', 'settings', 'moment', 'reminders', 'prayer', 'counter', 'steps'].includes(view))
+    if (['reader', 'lesson', 'recite', 'tajweed', 'settings', 'moment', 'reminders', 'prayer', 'counter', 'steps', 'rotation'].includes(view))
         return `<header class="app-header">${backButton()}<span class="header-wordmark">Ayah<span class="gold">Flow</span></span><span style="width:44px"></span></header>`;
     return `<header class="app-header"><button class="brand" data-action="nav" data-view="today" aria-label="AyahFlow ${t('today')}"><img src="./assets/icon.svg" alt=""><span>Ayah<span>Flow</span></span></button><div class="row gap8"><span class="top-meta">${ic('leaf', 15)} ${num(streak(state.days))}</span><button class="icon-button" data-action="nav" data-view="settings" aria-label="${t('settings')}">${ic('gear', 21)}</button></div></header>`;
 }
@@ -276,7 +276,7 @@ function momentTile(m: Moment): string {
 }
 function adhkarView(): string {
     const on = state.smart.location || state.smart.vehicle || state.smart.timed;
-    return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('adhkarTitle')}</h1><p class="page-sub">${t('adhkarSub')}</p>${nowCard()}<section class="section"><h2 class="section-title mb16">${t('counters')}</h2><div class="moment-grid">${counterDefs().map(counterTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('dailyMoments')}</h2><div class="moment-grid">${DAILY.map(momentTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('outMoments')}</h2><div class="moment-grid">${OUT.map(momentTile).join('')}</div></section><button class="feature-wide row section" data-action="nav" data-view="reminders"><span class="gold">${ic('radar', 24)}</span><span class="grow"><h3>${t('autoReminders')}</h3><p>${on ? `${[state.smart.location && t('locationReminders'), state.smart.vehicle && t('vehicleReminders'), state.smart.timed && t('timedReminders')].filter(Boolean).join(' · ')}` : t('autoSub')}</p></span>${chevronEnd()}</button><p class="gentle">${t('adhkarReview')}</p>`;
+    return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('adhkarTitle')}</h1><p class="page-sub">${t('adhkarSub')}</p>${nowCard()}<section class="section"><h2 class="section-title mb16">${t('counters')}</h2><div class="moment-grid">${counterDefs().map(counterTile).join('')}</div><button class="feature-wide row mt12" data-action="nav" data-view="rotation"><span class="gold">${ic('bell', 24)}</span><span class="grow"><h3>${t('rotationTitle')}</h3><p>${state.rotation.enabled ? `${t('rotationEvery')} ${rotationLabel(state.rotation.every)} · ${state.rotation.from}–${state.rotation.to}` : t('rotationSub')}</p></span>${chevronEnd()}</button></section><section class="section"><h2 class="section-title mb16">${t('dailyMoments')}</h2><div class="moment-grid">${DAILY.map(momentTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('outMoments')}</h2><div class="moment-grid">${OUT.map(momentTile).join('')}</div></section><button class="feature-wide row section" data-action="nav" data-view="reminders"><span class="gold">${ic('radar', 24)}</span><span class="grow"><h3>${t('autoReminders')}</h3><p>${on ? `${[state.smart.location && t('locationReminders'), state.smart.vehicle && t('vehicleReminders'), state.smart.timed && t('timedReminders')].filter(Boolean).join(' · ')}` : t('autoSub')}</p></span>${chevronEnd()}</button><p class="gentle">${t('adhkarReview')}</p>`;
 }
 function momentView(): string {
     const ms = momentIds.length ? momentIds : ['morning' as Moment];
@@ -340,6 +340,7 @@ async function syncSmart(): Promise<void> {
             await bridge.scheduleTimed(timedReminders(state, copyFor));
             await scheduleAthan(athanSchedule(state, (p, at) => ({ title: `${t('p_' + p)} · ${clock(at)}`, body: t('athanBody') })));
             await syncIstighfar();
+            await syncRotation();
         }
         await pushWidget();
     }
@@ -360,6 +361,35 @@ async function pushWidget(): Promise<void> {
     await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }, widgetDaily())).catch(() => { });
 }
 /** Re-plans istighfar reminders, e.g. after the count changes, so the count they show stays right and they stop at the target. */
+/** The chosen rotation phrases, built-in (with their source) and the user's own. */
+function rotationPhrases(): { id: string; text: string; note: string }[] {
+    return state.rotation.phrases.flatMap(id => {
+        const r = ROTATION.find(x => x.id === id);
+        if (r) return [{ id, text: r.text, note: `${r.source.collection} ${r.source.number}` }];
+        const mine = state.myCounters.find(x => x.id === id);
+        return mine ? [{ id, text: mine.text, note: t('addedByYou') }] : [];
+    });
+}
+async function syncRotation(): Promise<void> {
+    const bridge = smartBridge();
+    if (bridge) await bridge.scheduleRotation(rotationReminders(state, rotationPhrases(), t('rotationTitle')));
+}
+const rotationLabel = (every: number) => every < 60 ? `${num(every)} ${t('minuteShort')}` : `${num(every / 60)} ${t('hourShort')}`;
+function rotationView(): string {
+    const r = state.rotation, chosen = new Set(r.phrases), next = rotationReminders(state, rotationPhrases(), '', Date.now()).slice(0, 3);
+    const row = (id: string, text: string, note: string, arabic: boolean) => `<label class="phrase-row ${chosen.has(id) ? 'on' : ''}"><input type="checkbox" id="rot-p-${id}" ${chosen.has(id) ? 'checked' : ''} aria-label="${escapeHtml(text)}"><span class="grow"><span class="${arabic ? 'arabic' : ''} phrase-text" ${arabic ? 'lang="ar" dir="rtl"' : 'dir="auto"'}>${escapeHtml(text)}</span><span class="tiny muted">${escapeHtml(note)}</span></span></label>`;
+    const groups = ROTATION_GROUPS.map(g => `<h3 class="small gold mt20 mb8">${t('rot_' + g.key)}</h3>${g.ids.map(id => { const p = ROTATION.find(x => x.id === id)!; return row(id, p.text, `${p.source.collection} ${p.source.number}`, true); }).join('')}`).join('');
+    const own = state.myCounters.length ? `<h3 class="small gold mt20 mb8">${t('addedByYou')}</h3>${state.myCounters.map(c => row(c.id, c.text, c.title || t('addedByYou'), false)).join('')}` : '';
+    const preview = r.enabled && next.length ? `<div class="notice mt12">${ic('bell', 18)}<p>${t('rotationNext')}<br>${next.map(n => `<bdi>${clock(n.at)}</bdi> · <span lang="ar" dir="auto">${escapeHtml(n.body.split('\n')[0]!)}</span>`).join('<br>')}</p></div>` : '';
+    return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('rotationTitle')}</h1><p class="page-sub">${t('rotationIntro')}</p>
+${isNative() ? '' : miniNotice('rotationWeb')}
+<section class="settings-section"><label class="setting-row"><span><strong>${t('rotationOn')}</strong><p>${t('rotationOnSub')}</p></span><input type="checkbox" id="rot-enabled" ${r.enabled ? 'checked' : ''} aria-label="${t('rotationOn')}"></label>
+<h2 class="mt20">${t('rotationEvery')}</h2><div class="segment" role="group">${ROTATION_INTERVALS.map(n => `<button data-action="rot-every" data-every="${n}" class="${r.every === n ? 'active' : ''}" aria-pressed="${r.every === n}">${rotationLabel(n)}</button>`).join('')}</div>
+<h2 class="mt20">${t('rotationHours')}</h2><div class="row gap8"><label class="select-row grow">${t('rotationFrom')} <input type="time" id="rot-from" value="${r.from}"></label><label class="select-row grow">${t('rotationTo')} <input type="time" id="rot-to" value="${r.to}"></label></div>${preview}</section>
+<section class="section"><div class="row between"><h2 class="section-title">${t('rotationPhrases')}</h2><span class="tiny muted">${num(chosen.size)}</span></div>${groups}${own}
+<button class="text-button mt12" data-action="nav" data-view="counter">${ic('tasbih', 14)} ${t('addCounter')}</button></section>
+<p class="gentle">${t('rotationLimit').replace('{n}', num(ROTATION_MAX))}</p>`;
+}
 async function syncIstighfar(): Promise<void> {
     const bridge = smartBridge(), c = counter('istighfar');
     if (!bridge) return;
@@ -584,7 +614,7 @@ ${state.health.steps ? `<section class="tap-zone">${ring((today ?? 0) / goal * 1
 <section class="settings-section"><h2>${t('stepsGoal')}</h2><div class="segment">${[5000, 8000, 10000, 12000].map(g => `<button data-action="step-goal" data-goal="${g}" class="${goal === g ? 'active' : ''}" aria-pressed="${goal === g}">${num(g)}</button>`).join('')}</div></section>
 ${actionButton('steps-disable', t('stepsOff'), 'text-button')}` : isNative() ? primary('steps-enable', t('stepsEnable')) : ''}<p class="gentle">${t('stepsPrivacy')}</p>`;
 }
-const views: Record<View, () => string> = { today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayerView, counter: counterView, steps: stepsView };
+const views: Record<View, () => string> = { today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayerView, counter: counterView, steps: stepsView, rotation: rotationView };
 function render(): void { applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); root.innerHTML = `<div class="app-shell">${header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''}" id="main" tabindex="-1">${views[view]()}</main>${nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') applyFollow(); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
@@ -894,6 +924,14 @@ async function handleAction(el: HTMLElement): Promise<void> {
             if (view === 'counter') { render(); break; }
             await navigate('counter');
             break;
+        case 'rot-every': {
+            const every = Number(d.every) as 30 | 60 | 120 | 180;
+            if (!(ROTATION_INTERVALS as readonly number[]).includes(every)) return;
+            await commit({ ...state, rotation: { ...state.rotation, every } });
+            try { await syncRotation(); } catch { toast(t('reminderSyncFailed')); }
+            render();
+            break;
+        }
         case 'counter-add':
             await flushCounts();
             addingCounter = true;
@@ -1224,7 +1262,7 @@ root.addEventListener('input', e => { const el = e.target as HTMLInputElement; i
     libraryQuery = el.value;
     document.querySelector('#surah-list')!.innerHTML = surahRows();
 } });
-root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind'].includes(el.id))
+root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind', 'rot-enabled', 'rot-from', 'rot-to'].includes(el.id) && !el.id.startsWith('rot-p-'))
     return; try {
     if (el.id === 'audio-toggle') {
         if (!el.checked)
@@ -1263,6 +1301,24 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
             if (native) toast(t('imported'));
         }
         catch { toast(t('importFailed')); }
+    }
+    if (el.id.startsWith('rot-')) {
+        const r = { ...state.rotation };
+        if (el.id === 'rot-enabled') {
+            const bridge = smartBridge();
+            if (el.checked && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
+            r.enabled = el.checked;
+        }
+        if (el.id === 'rot-from' || el.id === 'rot-to') {
+            const from = el.id === 'rot-from' ? el.value : r.from, to = el.id === 'rot-to' ? el.value : r.to;
+            if (!/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to) || from >= to) { toast(t('rotationHoursInvalid')); render(); return; }
+            r.from = from; r.to = to;
+        }
+        if (el.id.startsWith('rot-p-')) { const id = el.id.slice(6); r.phrases = el.checked ? [...r.phrases.filter(p => p !== id), id] : r.phrases.filter(p => p !== id); }
+        await commit({ ...state, rotation: r });
+        try { await syncRotation(); if (el.id === 'rot-enabled' && el.checked) toast(t('rotationEnabled')); } catch { toast(t('reminderSyncFailed')); }
+        const y = window.scrollY; render(); window.scrollTo(0, y);
+        return;
     }
     if (el.id === 'istighfar-remind') {
         const bridge = smartBridge();
@@ -1353,7 +1409,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });

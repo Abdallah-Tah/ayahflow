@@ -18,6 +18,8 @@ export interface SmartBridge {
     scheduleTimed(list: TimedReminder[]): Promise<void>;
     /** Replaces the pending istighfar reminders. */
     scheduleIstighfar(list: IstighfarReminder[]): Promise<void>;
+    /** Replaces the pending dhikr rotation reminders. */
+    scheduleRotation(list: RotationReminder[]): Promise<void>;
     /** Steps per local day from the device pedometer, read live and never saved by the app. */
     steps(days: number): Promise<StepReading>;
 }
@@ -39,6 +41,29 @@ export interface NativeConfig {
 export interface TimedReminder { id: number; at: number; title: string; body: string; url: string; moment: Moment }
 const CODE: Partial<Record<Moment, number>> = { morning: 1, evening: 2, sleep: 3 };
 /** Stable id per moment and day, shared with the native engines so a grouped reminder can cancel the timed one. */
+/** Days of adhkar and athan notifications planned ahead (refreshed whenever the app opens). Four days leaves room in
+ * iOS's 64 pending notifications for istighfar (≤ 6) and rotation (≤ ROTATION_MAX) reminders. */
+export const PLAN_DAYS = 4;
+export const ROTATION_MAX = 64 - PLAN_DAYS * 5 - PLAN_DAYS * 3 - 6;
+export interface RotationReminder { id: number; at: number; title: string; body: string; url: string; phrase: string }
+/** Reminders every `every` minutes between `from` and `to` (today and tomorrow, at most ROTATION_MAX), each with the
+ * next chosen phrase. A slot's phrase depends only on its time, so re-planning never reshuffles them. Ids 12×10⁶ + n. */
+export function rotationReminders(state: AppState, phrases: { id: string; text: string; note: string }[], title: string, now = Date.now()): RotationReminder[] {
+    const r = state.rotation;
+    if (!r.enabled || !phrases.length) return [];
+    const out: RotationReminder[] = [], step = r.every * 60000;
+    const [fh, fm] = r.from.split(':').map(Number), [th, tm] = r.to.split(':').map(Number);
+    for (let i = 0; i < 2 && out.length < ROTATION_MAX; i++) {
+        const d = new Date(now); d.setDate(d.getDate() + i);
+        const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), fh, fm).getTime(), end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), th, tm).getTime();
+        for (let at = start; at <= end && out.length < ROTATION_MAX; at += step) {
+            if (at <= now) continue;
+            const p = phrases[Math.floor((at - start) / step + i * 97) % phrases.length]!;
+            out.push({ id: 12000000 + out.length, at, title, body: `${p.text}\n${p.note}`, url: 'ayahflow://rotation', phrase: p.id });
+        }
+    }
+    return out;
+}
 /** Istighfar reminders: three slots a day (ids 9–11 × 10⁶ + yymmdd), kept apart from adhkar (1–3) and athan (4–8). */
 export const ISTIGHFAR_SLOTS = ['lateMorning', 'afternoon', 'evening'] as const;
 export type IstighfarSlot = typeof ISTIGHFAR_SLOTS[number];
@@ -109,7 +134,7 @@ export function nativeConfig(state: AppState, copy: (m: Moment) => { title: stri
 export function timedReminders(state: AppState, copy: (m: Moment) => { title: string; body: string }, now = Date.now()): TimedReminder[] {
     if (!state.smart.timed) return [];
     const out: TimedReminder[] = [], enabled = new Set(state.smart.moments);
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < PLAN_DAYS; i++) {
         const d = new Date(now); d.setDate(d.getDate() + i);
         const day = dayKey(d.getTime()), t = timesFor(state, d);
         const at = (h: number, m: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m).getTime();
@@ -159,7 +184,7 @@ export interface AthanAlert { id: number; at: number; prayer: PrayerName; title:
 /** Athan alerts for the next week (35 at most, within iOS's 64 pending notifications together with adhkar reminders). */
 export function athanSchedule(state: AppState, label: (p: PrayerName, at: number) => { title: string; body: string }, now = Date.now()): AthanAlert[] {
     if (!state.athan.enabled) return [];
-    return prayersFrom(state, now).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, dayKey(p.at)), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
+    return prayersFrom(state, now, PLAN_DAYS).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, dayKey(p.at)), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
 }
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
 /** Today's dhikr counts, adhkar progress and (only when the step tracker is on) the latest step reading, for the widget. */

@@ -26,6 +26,7 @@ const TIMED = (id) => id >= 1000000 && id < 4000000;
 /** Athan ids: prayer code (4-8) * 1e6 + yymmdd. */
 const ATHAN = (id) => id >= 4000000 && id < 9000000;
 const ISTIGHFAR = (id) => id >= 9000000 && id < 12000000;
+const ROTATION = (id) => id >= 12000000 && id < 13000000;
 let deepLinkHandler = null;
 const queuedLinks = [];
 function deliver(url) { if (typeof url !== 'string' || !url.startsWith('ayahflow://')) return; if (deepLinkHandler) deepLinkHandler(url); else queuedLinks.push(url); }
@@ -41,6 +42,13 @@ export const bridge = {
         reset: () => Smart.reset(),
         openSettings: () => Smart.openSettings(),
         steps: (days) => Smart.steps({ days }),
+        async scheduleRotation(list) {
+            const pending = (await LocalNotifications.getPending()).notifications.filter(n => ROTATION(Number(n.id)));
+            if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
+            if (!list.length) return;
+            if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
+            await LocalNotifications.schedule({ notifications: list.filter(n => ROTATION(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, ...ADHKAR_SOUND, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url } })) });
+        },
         async scheduleIstighfar(list) {
             const pending = (await LocalNotifications.getPending()).notifications.filter(n => ISTIGHFAR(Number(n.id)));
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
@@ -115,7 +123,7 @@ export const bridge = {
     async recordings() { const rows = await index(); return Promise.all(rows.map(async (r) => { const { data } = await Filesystem.readFile({ path: audioPath(r.id), directory: Directory.Data }); return { ...r, blob: data instanceof Blob ? data : blob64(data, r.mime) }; })); },
     async putRecording(r) { const { blob, ...meta } = r; await Filesystem.writeFile({ path: audioPath(r.id), directory: Directory.Data, data: await base64(blob), recursive: true }); const rows = await index(); await saveIndex([...rows.filter(x => x.id !== r.id), meta]); },
     async deleteRecording(id) { const rows = await index(); await Filesystem.deleteFile({ path: audioPath(id), directory: Directory.Data }); await saveIndex(rows.filter(x => x.id !== id)); },
-    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); await bridge.smart.scheduleIstighfar([]).catch(() => { }); await bridge.scheduleAthan([]).catch(() => { }); await bridge.deleteCustomAthan().catch(() => { }); await Filesystem.rmdir({ path: 'ayahflow/athan', directory: Directory.Data, recursive: true }).catch(() => { }); await bridge.setWidgetData(null).catch(() => { }); try {
+    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); await bridge.smart.scheduleIstighfar([]).catch(() => { }); await bridge.smart.scheduleRotation([]).catch(() => { }); await bridge.scheduleAthan([]).catch(() => { }); await bridge.deleteCustomAthan().catch(() => { }); await Filesystem.rmdir({ path: 'ayahflow/athan', directory: Directory.Data, recursive: true }).catch(() => { }); await bridge.setWidgetData(null).catch(() => { }); try {
         await Filesystem.rmdir({ path: 'ayahflow', directory: Directory.Data, recursive: true });
     }
     catch (e) {

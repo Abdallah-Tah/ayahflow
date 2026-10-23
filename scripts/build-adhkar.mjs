@@ -86,9 +86,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         for (const ref of c.also ?? []) also.push(source(ref, await get(ref)));
         counters.push({ id: c.id, title: c.title, steps, total: steps.reduce((n, s) => n + s.count, 0), evidence: c.evidence, source: source(c.countSource, h), also, ...(c.atLeast ? { atLeast: true } : {}), ...(c.perPrayer ? { perPrayer: true } : {}) });
     }
+    // Rotation: single phrases for interval reminders, each sliced verbatim from its cited hadith.
+    const rotation = [];
+    for (const r of spec.rotation ?? []) rotation.push({ id: r.id, text: slice((await get(r.source)).text, r.start, r.end), source: source(r.source, await get(r.source)) });
     await writeFile(path.join(root, 'content/adhkar/sources.json'), JSON.stringify({ dataset: spec.dataset, url: DATASET, hadiths: sources }, null, 1) + '\n');
-    await writeFile(path.join(root, 'content/adhkar/adhkar.json'), JSON.stringify({ dataset: spec.dataset, reviewStatus: 'awaiting-scholar-review', adhkar, prayer, counters }, null, 1) + '\n');
+    await writeFile(path.join(root, 'content/adhkar/adhkar.json'), JSON.stringify({ dataset: spec.dataset, reviewStatus: 'awaiting-scholar-review', adhkar, prayer, counters, rotation }, null, 1) + '\n');
     console.log(`Built ${adhkar.length} adhkar, ${prayer.length} prayer-surah entries and ${counters.length} counters from ${Object.keys(sources).length} cited hadiths.`);
     for (const a of adhkar) if (a.text) console.log(`${a.id.padEnd(18)} ${a.text}`);
+    for (const r of rotation) console.log(`${r.id.padEnd(24)} ${r.text}`);
     for (const c of counters) for (const s of c.steps) console.log(`${c.id.padEnd(18)} ×${String(s.count).padEnd(4)} ${s.text}`);
 }
