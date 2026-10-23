@@ -465,6 +465,17 @@ function counterTile(c: typeof COUNTERS[number]): string {
     const n = count(c.id), done = !c.perPrayer && n >= c.total;
     return `<button class="moment-tile ${done ? 'finished' : ''}" data-action="counter" data-counter="${c.id}"><span class="gold">${ic('tasbih', 22)}</span><span class="moment-name">${escapeHtml(c.title[state.locale])}</span><span class="tiny muted">${c.perPrayer ? `${num(Math.floor(n / c.total))} ${t('rounds')}` : `${num(n)} / ${target(c)}`}</span></button>`;
 }
+/** A ring of tasbih beads: one per count up to 33; longer targets fill the same beads proportionally. */
+function beads(done: number, total: number): string {
+    const n = Math.min(total, 33), on = total <= 33 ? done : Math.floor(done / total * n), step = 360 / Math.max(n, 1);
+    return `<svg class="beads" viewBox="0 0 200 200" aria-hidden="true">${Array.from({ length: n }, (_, i) => { const a = (i * step - 90) * Math.PI / 180; return `<circle class="bead ${i < on ? 'on' : i === on ? 'current' : ''}" cx="${(100 + 88 * Math.cos(a)).toFixed(2)}" cy="${(100 + 88 * Math.sin(a)).toFixed(2)}" r="${n > 20 ? 5 : 6.5}"/>`; }).join('')}</svg>`;
+}
+/** This counter's last 7 days, from the counts the user saved (no estimates). */
+function counterWeek(c: typeof COUNTERS[number]): string {
+    const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); const k = dayKey(d.getTime()); return { k, label: d.toLocaleDateString(state.locale, { weekday: 'narrow' }), n: k === dayKey() ? count(c.id) : countOn(state, c.id, k) }; });
+    const top = Math.max(c.total, ...days.map(d => d.n));
+    return `<section class="section"><h2 class="section-title mb16">${t('stepsWeek')}</h2><div class="step-bars short">${days.map(d => `<div class="step-bar ${d.k === dayKey() ? 'current' : ''} ${!c.perPrayer && d.n >= c.total ? 'met' : ''}"><span class="tiny muted">${d.n ? num(d.n) : '—'}</span><i style="height:${d.n / top * 72}%"></i><span class="tiny">${escapeHtml(d.label)}</span></div>`).join('')}</div></section>`;
+}
 function counterView(): string {
     const c = counter(counterId), n = count(c.id), pos = counterPosition(c, n), step = c.steps[pos.step]!;
     const roundDone = n > 0 && pos.inRound === 0, long = step.text.length > 40;
@@ -472,9 +483,11 @@ function counterView(): string {
     const list = c.steps.length > 1 ? `<ol class="count-steps">${c.steps.map((x, i) => `<li class="${i < pos.step || roundDone ? 'done' : i === pos.step ? 'current' : ''}"><span class="arabic" lang="ar" dir="rtl">${escapeHtml(x.text)}</span><span class="pill">×${num(x.count)}</span></li>`).join('')}</ol>` : '';
     const wording = c.steps.filter(x => x.source.ref !== c.source.ref).map(x => x.source).filter((x, i, a) => a.findIndex(y => y.ref === x.ref) === i);
     return `<p class="eyebrow mt12">${t('counters')}</p><h1 class="page-title">${escapeHtml(c.title[state.locale])}</h1>${chips}
-<section class="tap-zone">${roundDone ? `<span class="pill success">${ic('check', 12)} ${t('roundDone')}</span>` : ''}<button class="tap-counter" data-action="count-tap" style="--p:${pos.inRound / c.total * 100}%" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}"><span class="tap-inner"><span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(pos.inStep)}<small> / ${num(step.count)}</small></span></span></button>
-<p class="small muted" aria-live="polite">${t('todayCount')}: <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</p>
-<div class="row gap8">${actionButton('count-undo', `${ic('back', 15)} ${t('undo')}`, 'button secondary', n ? '' : 'disabled')}${actionButton('count-reset', `${ic('loop', 15)} ${t('resetCount')}`, 'button secondary', n ? '' : 'disabled')}</div></section>
+<section class="tap-zone"><div class="count-meta"><span class="pill ${roundDone ? 'success' : 'gold'}">${roundDone ? `${ic('check', 12)} ${t('roundDone')}` : c.steps.length > 1 ? `${num(pos.step + 1)} / ${num(c.steps.length)}` : `${t('round')} ${num(pos.rounds + 1)}`}</span><span class="tiny muted" aria-live="polite">${t('todayCount')} <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</span></div>
+<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}<span class="tap-inner"><span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+<p class="tiny muted">${t('tapAnywhere')}</p>
+<div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
+${counterWeek(c)}
 ${list}<div class="notice mt20">${ic('info', 18)}<p>${c.perPrayer ? t('perPrayerNote') : `${t('dailyTargetNote')} ${c.atLeast ? t('moreThan') + ' ' : ''}${num(c.total)}`}</p></div>${sourceLine(c.source, c.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}<p class="gentle">${t('ownCount')}</p>`;
 }
 /** Steps per day for the last 7 local days, oldest first (null where the device has no figure). */
