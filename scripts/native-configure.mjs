@@ -20,6 +20,8 @@ if (await exists(plist)) {
         ['NSMotionUsageDescription', 'AyahFlow checks recent motion to remind you of the riding dua when you travel by vehicle. Motion data stays on this device.'],
     ];
     for (const [key, text] of keys) if (!s.includes(`<key>${key}</key>`)) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, `<key>${key}</key><string>${text}</string>\n</dict>\n</plist>`);
+    // Background location: only used for a few minutes after leaving a saved place, to notice a car trip (SmartReminders.swift).
+    if (!s.includes('<key>UIBackgroundModes</key>')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>UIBackgroundModes</key><array><string>location</string></array>\n</dict>\n</plist>');
     if (!s.includes('AyahFlowSharedKeychain')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>AyahFlowSharedKeychain</key><string>$(AppIdentifierPrefix)com.buildwithabdallah.ayahflow.shared</string>\n</dict>\n</plist>');
     if (!s.includes('<string>ayahflow</string>')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>app.ayahflow.moment</string><key>CFBundleURLSchemes</key><array><string>ayahflow</string></array></dict></array>\n</dict>\n</plist>');
     await writeFile(plist, s);

@@ -211,3 +211,5 @@ dialog{width:calc(100% - 40px);max-width:390px;background:var(--panel);color:var
 .own-athan{margin-top:12px}.own-athan label.button{cursor:pointer}
 @media(max-width:360px){.prayer-day-name{font-size:28px}.prayer-day-time{font-size:23px}.day-labels b{font-size:11px}.day-labels span{font-size:10px}.reciter{flex-wrap:wrap}}
 .link-button{color:var(--soft);text-decoration:underline;font-size:inherit;padding:0;min-height:0}.reciter .pill{white-space:nowrap}
+.diag{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}.diag-row{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--line);font-size:13px}.diag-row:first-child{border-top:0}.diag-row .ok{color:var(--green)}.diag-row .bad{color:var(--warning)}.detection-detail{display:block}
+.always-card{border:1px solid rgb(var(--tint) / .6);border-radius:18px;padding:16px;background:rgb(var(--tint) / .08);margin-bottom:16px}.always-card h3{display:flex;align-items:center;gap:8px;font:18px var(--serif);color:var(--gold-bright);margin-bottom:8px}.always-card p{color:var(--text);margin-bottom:14px}

@@ -3,14 +3,14 @@
 import { RULES, ONCE_PER_DAY, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassages, type Moment, type DayWindows, type SmartEvent } from './adhkar.js';
 import { prayerTimes, dayWindows, type Times } from './prayer.js';
 import { dayKey, completedToday, PRAYERS, type AppState, type Detection, type PrayerName } from './engine.js';
-export interface SmartStatus { location: 'always' | 'whenInUse' | 'denied' | 'restricted' | 'prompt'; motion: 'granted' | 'denied' | 'restricted' | 'prompt' | 'unavailable'; monitoring: string[]; precise: boolean }
+export interface SmartStatus { location: 'always' | 'whenInUse' | 'denied' | 'restricted' | 'prompt'; motion: 'granted' | 'denied' | 'restricted' | 'prompt' | 'unavailable'; monitoring: string[]; precise: boolean; backgroundRefresh?: 'on' | 'off' | 'restricted'; lowPower?: boolean; vehicleWatch?: boolean; configSaved?: boolean; tripWatch?: boolean; backgroundLocation?: boolean }
 export interface SmartBridge {
     status(): Promise<SmartStatus>;
     currentPosition(): Promise<{ lat: number; lng: number; accuracy: number }>;
     requestAlways(): Promise<SmartStatus>;
     requestMotion(): Promise<SmartStatus>;
     configure(config: NativeConfig): Promise<SmartStatus>;
-    takeEvents(): Promise<{ event: SmartEvent; at: number; moments: Moment[] }[]>;
+    takeEvents(): Promise<{ event: Detection['event']; at: number; moments: Moment[]; detail?: string }[]>;
     simulate(event: SmartEvent): Promise<Moment[]>;
     reset(): Promise<void>;
     openSettings(): Promise<void>;
@@ -94,9 +94,9 @@ export function momentPreview(m: Moment): string | null {
     const text = e.text ?? quranPassages(e)[0]!.ayahs[0]!.text;
     return text.length > 140 ? text.slice(0, text.lastIndexOf(' ', 140)) + ' …' : text;
 }
-export function mergeDetections(existing: Detection[], events: { event: SmartEvent; at: number }[]): Detection[] {
+export function mergeDetections(existing: Detection[], events: { event: Detection['event']; at: number; detail?: string }[]): Detection[] {
     const seen = new Set(existing.map(d => `${d.event}@${d.at}`));
-    return [...existing, ...events.filter(e => !seen.has(`${e.event}@${e.at}`)).map(e => ({ event: e.event, at: e.at }))].sort((a, b) => a.at - b.at).slice(-50);
+    return [...existing, ...events.filter(e => !seen.has(`${e.event}@${e.at}`)).map(e => ({ event: e.event, at: e.at, ...(e.detail ? { detail: e.detail.slice(0, 160) } : {}) }))].sort((a, b) => a.at - b.at).slice(-50);
 }
 
 // ---- Athan and widget ---------------------------------------------------------------------------

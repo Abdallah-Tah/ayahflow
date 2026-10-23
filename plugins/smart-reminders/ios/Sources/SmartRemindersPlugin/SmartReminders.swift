@@ -29,7 +29,7 @@ private struct History: Codable {
     var lastDay: [String: String] = [:]
 }
 
-public struct LoggedEvent: Codable { let event: String; let at: Double; let moments: [String] }
+public struct LoggedEvent: Codable { let event: String; let at: Double; let moments: [String]; var detail: String? = nil }
 
 /// Owns CLLocationManager so region events are delivered even when iOS relaunches the app in the background
 /// without a scene (no web view, no bridge). Started from AppDelegate.didFinishLaunching.
@@ -42,6 +42,14 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     private var started = false
     private var positionWaiters: [(CLLocation?, String?) -> Void] = []
     private var authWaiters: [(CLAuthorizationStatus) -> Void] = []
+    /// Trip watch: short background location run after leaving a saved place, to notice vehicle travel.
+    private var tripUntil: Date?
+    private var fastFixes = 0
+    private var tripTask: UIBackgroundTaskIdentifier = .invalid
+    private var significantOn = false
+    private let lastWakeKey = "ayahflow.smart.lastwake"
+    private static let tripSeconds: TimeInterval = 240, vehicleSpeed: CLLocationSpeed = 6 // m/s ≈ 22 km/h
+    private var canRunInBackground: Bool { (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("location") ?? false }
 
     @objc public func start() {
         guard !started else { return }
@@ -79,10 +87,13 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
             region.notifyOnExit = true
             manager.startMonitoring(for: region) // Replaces any region with the same identifier.
         }
-        if (cfg?.vehicle ?? false) && manager.authorizationStatus == .authorizedAlways && CMMotionActivityManager.isActivityAvailable() {
+        // Significant-change wakes drive vehicle checks; speed is estimated from successive wakes, so motion data is optional.
+        if (cfg?.vehicle ?? false) && manager.authorizationStatus == .authorizedAlways && CLLocationManager.significantLocationChangeMonitoringAvailable() {
             manager.startMonitoringSignificantLocationChanges()
+            significantOn = true
         } else {
             manager.stopMonitoringSignificantLocationChanges()
+            significantOn = false
         }
     }
 
@@ -105,7 +116,15 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
             default: mot = "prompt"
             }
         }
-        return ["location": loc, "motion": mot, "monitoring": manager.monitoredRegions.map { $0.identifier }, "precise": manager.accuracyAuthorization == .fullAccuracy]
+        let refresh: String
+        switch UIApplication.shared.backgroundRefreshStatus {
+        case .available: refresh = "on"
+        case .denied: refresh = "off"
+        default: refresh = "restricted"
+        }
+        return ["location": loc, "motion": mot, "monitoring": manager.monitoredRegions.map { $0.identifier }, "precise": manager.accuracyAuthorization == .fullAccuracy,
+                "backgroundRefresh": refresh, "lowPower": ProcessInfo.processInfo.isLowPowerModeEnabled, "vehicleWatch": significantOn,
+                "configSaved": config != nil, "tripWatch": tripUntil != nil, "backgroundLocation": canRunInBackground]
     }
 
     func requestWhenInUse(_ done: @escaping (CLAuthorizationStatus) -> Void) {
@@ -161,16 +180,87 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
             waiters.forEach { $0(last, nil) }
             return
         }
-        // Significant-change wake: check recent motion for vehicle travel. Motion updates do not run while suspended,
-        // so this is a best-effort look back, not continuous detection.
-        guard config?.vehicle == true, CMMotionActivityManager.authorizationStatus() == .authorized else { return }
+        if let until = tripUntil { trip(locations, until: until); return }
+        // Significant-change wake (the app may have been relaunched in the background just for this).
+        guard config?.vehicle == true, let location = locations.last else { return }
+        let speed = estimatedSpeed(to: location)
+        vehicleCheck(reason: "WAKE", speed: speed, lookback: 6 * 60)
+    }
+
+    /// Average speed since the previous wake (m/s), or nil. Significant-change fixes rarely carry their own speed.
+    private func estimatedSpeed(to location: CLLocation) -> Double? {
+        defer { defaults.set([location.coordinate.latitude, location.coordinate.longitude, location.timestamp.timeIntervalSince1970], forKey: lastWakeKey) }
+        if location.speed >= 0, location.speedAccuracy >= 0, location.speedAccuracy < 5 { return location.speed }
+        guard let last = defaults.array(forKey: lastWakeKey) as? [Double], last.count == 3 else { return nil }
+        let seconds = location.timestamp.timeIntervalSince1970 - last[2]
+        guard seconds > 20, seconds < 20 * 60 else { return nil }
+        return location.distance(from: CLLocation(latitude: last[0], longitude: last[1])) / seconds
+    }
+
+    /// Vehicle if recent motion says automotive (when allowed) or the speed is clearly above walking or cycling pace.
+    private func vehicleCheck(reason: String, speed: Double?, lookback: TimeInterval, alsoEvents: [String] = []) {
         let task = UIApplication.shared.beginBackgroundTask(withName: "ayahflow.vehicle")
-        let now = Date()
-        motion.queryActivityStarting(from: now.addingTimeInterval(-6 * 60), to: now, to: .main) { [weak self] activities, _ in
-            let inVehicle = (activities ?? []).contains { $0.automotive && $0.confidence != .low }
-            if inVehicle { self?.handle(["ENTER_VEHICLE"]) }
+        let finish: (Bool, String) -> Void = { [weak self] inVehicle, why in
+            guard let self else { return }
+            self.log(reason, detail: why)
+            self.handle(alsoEvents + (inVehicle ? ["ENTER_VEHICLE"] : []))
             UIApplication.shared.endBackgroundTask(task)
         }
+        let fast = (speed ?? 0) >= SmartReminders.vehicleSpeed
+        let speedText = speed.map { String(format: "%.0f km/h", $0 * 3.6) } ?? "speed unknown"
+        guard CMMotionActivityManager.isActivityAvailable(), CMMotionActivityManager.authorizationStatus() == .authorized else {
+            finish(fast, "\(speedText) · motion not allowed"); return
+        }
+        let now = Date()
+        motion.queryActivityStarting(from: now.addingTimeInterval(-lookback), to: now, to: .main) { activities, _ in
+            let automotive = (activities ?? []).contains { $0.automotive && $0.confidence != .low }
+            finish(automotive || fast, "\(speedText) · \(automotive ? "automotive motion" : "no vehicle motion")")
+        }
+    }
+
+    // MARK: Trip watch
+    /// After leaving a saved place, watch location for a few minutes: sustained speed or automotive motion means a vehicle.
+    private func startTrip() {
+        guard config?.vehicle == true, manager.authorizationStatus == .authorizedAlways, canRunInBackground, tripUntil == nil else { return }
+        tripUntil = Date().addingTimeInterval(SmartReminders.tripSeconds)
+        fastFixes = 0
+        tripTask = UIApplication.shared.beginBackgroundTask(withName: "ayahflow.trip") { [weak self] in self?.stopTrip("expired") }
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = false
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        manager.distanceFilter = 25
+        manager.startUpdatingLocation()
+        log("TRIP_START", detail: "watching \(Int(SmartReminders.tripSeconds / 60)) min")
+        DispatchQueue.main.asyncAfter(deadline: .now() + SmartReminders.tripSeconds + 1) { [weak self] in self?.stopTrip("no vehicle detected") }
+    }
+
+    private func trip(_ locations: [CLLocation], until: Date) {
+        for l in locations where l.horizontalAccuracy >= 0 && l.horizontalAccuracy < 80 && l.speed >= SmartReminders.vehicleSpeed { fastFixes += 1 }
+        if fastFixes >= 2 {
+            let speed = locations.last.map { String(format: "%.0f km/h", max(0, $0.speed) * 3.6) } ?? ""
+            stopTrip("vehicle · \(speed)")
+            handle(["ENTER_VEHICLE"])
+        } else if Date() > until {
+            stopTrip("no vehicle detected")
+        }
+    }
+
+    private func stopTrip(_ why: String) {
+        guard tripUntil != nil else { return }
+        tripUntil = nil
+        manager.stopUpdatingLocation()
+        manager.allowsBackgroundLocationUpdates = false
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.distanceFilter = kCLDistanceFilterNone
+        log("TRIP_END", detail: why)
+        if tripTask != .invalid { UIApplication.shared.endBackgroundTask(tripTask); tripTask = .invalid }
+    }
+
+    private func log(_ event: String, detail: String) {
+        var entries = (defaults.data(forKey: logKey)).flatMap { try? JSONDecoder().decode([LoggedEvent].self, from: $0) } ?? []
+        entries.append(LoggedEvent(event: event, at: Date().timeIntervalSince1970 * 1000, moments: [], detail: detail))
+        defaults.set(try? JSONEncoder().encode(Array(entries.suffix(50))), forKey: logKey)
     }
 
     public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
@@ -185,15 +275,10 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     private func regionEvent(_ kind: String, _ id: String) {
         guard ["home", "work", "mosque"].contains(id) else { return }
         let event = "\(kind)_\(id.uppercased())"
-        // Leaving home by car: fold a recent vehicle detection into the same reminder.
-        guard event == "EXIT_HOME", config?.vehicle == true, CMMotionActivityManager.authorizationStatus() == .authorized else { handle([event]); return }
-        let task = UIApplication.shared.beginBackgroundTask(withName: "ayahflow.region")
-        let now = Date()
-        motion.queryActivityStarting(from: now.addingTimeInterval(-5 * 60), to: now, to: .main) { [weak self] activities, _ in
-            let inVehicle = (activities ?? []).contains { $0.automotive && $0.confidence != .low }
-            self?.handle(inVehicle ? [event, "ENTER_VEHICLE"] : [event])
-            UIApplication.shared.endBackgroundTask(task)
-        }
+        guard kind == "EXIT", config?.vehicle == true else { handle([event]); return }
+        // Leaving a saved place: include a vehicle already under way, then keep watching the next few minutes.
+        vehicleCheck(reason: "LEFT_CHECK", speed: nil, lookback: 5 * 60, alsoEvents: [event])
+        startTrip()
     }
 
     // MARK: Rules (same steps as src/adhkar.ts decide)
@@ -208,7 +293,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     /// Decides and posts at most one notification for events detected together. Public for the "test reminder" button.
     @discardableResult
     func handle(_ events: [String], at now: Double = Date().timeIntervalSince1970 * 1000) -> [String] {
-        guard let cfg = config else { return [] }
+        guard let cfg = config, !events.isEmpty else { return [] }
         var history = (defaults.data(forKey: historyKey)).flatMap { try? JSONDecoder().decode(History.self, from: $0) } ?? History()
         let day = SmartReminders.dayKey(now)
         let windows = cfg.windows.first { $0.day == day }
@@ -258,7 +343,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     func takeLog() -> [[String: Any]] {
         let log = (defaults.data(forKey: logKey)).flatMap { try? JSONDecoder().decode([LoggedEvent].self, from: $0) } ?? []
         defaults.removeObject(forKey: logKey)
-        return log.map { ["event": $0.event, "at": $0.at, "moments": $0.moments] }
+        return log.map { ["event": $0.event, "at": $0.at, "moments": $0.moments, "detail": $0.detail ?? ""] }
     }
 
     func reset() {

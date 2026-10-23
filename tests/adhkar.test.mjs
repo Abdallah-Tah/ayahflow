@@ -245,3 +245,11 @@ test('Bundled athan alerts are 44.1 kHz 16-bit PCM CAF files, 28 s, so iOS can p
         assert(Math.abs(seconds - 28) < 0.1, `${f}: ${seconds}s`);
     }
 });
+
+test('Detections keep a short reason from the phone (no coordinates) and validate it', () => {
+    const merged = mergeDetections([], [{ event: 'WAKE', at: 5, detail: '54 km/h · automotive motion' }, { event: 'TRIP_END', at: 6, detail: 'x'.repeat(400) }]);
+    assert.equal(merged[0].detail, '54 km/h · automotive motion'); assert.equal(merged[1].detail.length, 160);
+    const s = { ...initialState(), detections: merged };
+    assert.doesNotThrow(() => validateState(JSON.parse(JSON.stringify(s))));
+    assert.throws(() => validateState({ ...s, detections: [{ event: 'WAKE', at: 1, detail: 7 }] }), /detections/);
+});

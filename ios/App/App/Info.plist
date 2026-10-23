@@ -72,5 +72,6 @@
 <key>NSMotionUsageDescription</key><string>AyahFlow checks recent motion to remind you of the riding dua when you travel by vehicle. Motion data stays on this device.</string>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>app.ayahflow.moment</string><key>CFBundleURLSchemes</key><array><string>ayahflow</string></array></dict></array>
 <key>AyahFlowSharedKeychain</key><string>$(AppIdentifierPrefix)com.buildwithabdallah.ayahflow.shared</string>
+<key>UIBackgroundModes</key><array><string>location</string></array>
 </dict>
 </plist>

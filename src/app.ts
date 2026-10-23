@@ -27,6 +27,8 @@ let notificationState: string | null = null;
 /** Which athan is previewing in the app (reciter id), if any. */
 let previewing: string | null = null;
 let previewUrl = '';
+/** A reminder the user tried to turn on while iOS had not granted "Always" location; enabled once it is granted. */
+let pendingSmart: { location: boolean; vehicle: boolean } = { location: false, vehicle: false };
 /** Browser preview only: an imported recording lasts until the page closes. */
 let webCustomUrl: string | null = null;
 let libraryQuery = '';
@@ -286,8 +288,22 @@ function remindersView(): string {
     const prayer = `<section class="settings-section"><h2>${t('windowSpan')}</h2><div class="segment" role="group">${(['broad', 'narrow'] as const).map(x => `<button data-action="smart-span" data-span="${x}" class="${state.smart.span === x ? 'active' : ''}">${t(x === 'broad' ? 'spanBroad' : 'spanNarrow')}</button>`).join('')}</div><p class="tiny muted">${t('spanNote')}</p><label class="select-row mt12">${ic('globe', 16)}<span class="grow small">${t('prayerMethod')}</span><select id="smart-method" aria-label="${t('prayerMethod')}">${PRAYER_METHODS.map(m => `<option value="${m}" ${state.smart.method === m ? 'selected' : ''}>${m.replace(/([a-z])([A-Z])/g, '$1 $2')}</option>`).join('')}</select></label>${toggle('smart-hanafi', state.smart.hanafi, t('hanafiAsr'), '')}</section>`;
     const which = `<section class="settings-section"><h2>${t('whichMoments')}</h2><div class="chip-wrap">${MOMENTS.map(m => `<button class="range-chip ${state.smart.moments.includes(m) ? 'selected' : ''}" data-action="smart-moment" data-moment="${m}" aria-pressed="${state.smart.moments.includes(m)}">${ic(MOMENT_ICON[m], 14)} ${t('m_' + m)}</button>`).join('')}</div></section>`;
     const tests = `<section class="settings-section"><h2>${t('testReminder')}</h2><div class="chip-wrap">${(['EXIT_HOME', 'ENTER_HOME', 'ENTER_VEHICLE', 'ENTER_MOSQUE'] as SmartEvent[]).map(e => `<button class="range-chip" data-action="smart-test" data-event="${e}">${t('ev_' + e)}</button>`).join('')}</div></section>`;
-    const det = `<section class="settings-section"><div class="row between"><h2>${t('recentDetections')}</h2>${state.detections.length ? actionButton('detections-clear', t('clearHistory'), 'text-button') : ''}</div>${state.detections.length ? `<div class="stack">${[...state.detections].reverse().slice(0, 12).map(d => `<div class="detection"><span class="gold">${ic('radar', 15)}</span><span class="grow small">${t('ev_' + d.event)}</span><span class="tiny muted">${escapeHtml(new Date(d.at).toLocaleString(state.locale, { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}</span></div>`).join('')}</div>` : `<p class="empty">${t('noDetections')}</p>`}</section>`;
-    return `${head}${chips}<section class="settings-section"><h2>${t('places')}</h2><p class="small muted mb16">${t('placesNote')}</p><div class="stack">${places}</div></section><section class="settings-section">${toggle('smart-location', state.smart.location, t('locationReminders'), t('locationRemindersNote'))}${toggle('smart-vehicle', state.smart.vehicle, t('vehicleReminders'), t('vehicleRemindersNote'))}${toggle('smart-timed', state.smart.timed, t('timedReminders'), t('timedRemindersNote'))}${timed}</section>${prayer}${which}${tests}${det}${shortcuts}${limits}`;
+    const det = `<section class="settings-section"><div class="row between"><h2>${t('recentDetections')}</h2>${state.detections.length ? actionButton('detections-clear', t('clearHistory'), 'text-button') : ''}</div>${state.detections.length ? `<div class="stack">${[...state.detections].reverse().slice(0, 12).map(d => `<div class="detection"><span class="gold">${ic('radar', 15)}</span><span class="grow small">${t('ev_' + d.event)}${d.detail ? `<span class="tiny muted detection-detail">${escapeHtml(d.detail)}</span>` : ''}</span><span class="tiny muted">${escapeHtml(new Date(d.at).toLocaleString(state.locale, { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}</span></div>`).join('')}</div>` : `<p class="empty">${t('noDetections')}</p>`}</section>`;
+    const diag = (() => {
+        const st2 = smartStatus, rows: string[] = [], warn: string[] = [];
+        const anyOn = state.smart.location || state.smart.vehicle || state.smart.timed;
+        if (!anyOn) warn.push(t('diagNoneOn'));
+        if ((state.smart.location || state.smart.vehicle) && st2 && st2.location !== 'always') warn.push(t('diagNotAlways'));
+        if (st2?.backgroundRefresh && st2.backgroundRefresh !== 'on') warn.push(t('diagBackgroundRefreshOff'));
+        if (st2?.lowPower) warn.push(t('diagLowPower'));
+        if (st2?.backgroundRefresh) rows.push(`<div class="diag-row"><span>${t('diagBackgroundRefresh')}</span><span class="${st2.backgroundRefresh === 'on' ? 'ok' : 'bad'}">${t(st2.backgroundRefresh === 'on' ? 'diagOn' : 'diagOff')}</span></div>`);
+        rows.push(`<div class="diag-row"><span>${t('diagPlaces')}</span><span class="${st2?.monitoring?.length ? 'ok' : ''}">${st2?.monitoring?.length ? st2.monitoring.map(m => t('place_' + m)).join(', ') : t('diagNone')}</span></div>`);
+        if (st2?.vehicleWatch !== undefined) rows.push(`<div class="diag-row"><span>${t('diagVehicle')}</span><span class="${st2.vehicleWatch ? 'ok' : ''}">${t(st2.vehicleWatch ? 'diagOn' : 'diagOff')}</span></div>`);
+        if (st2?.configSaved !== undefined) rows.push(`<div class="diag-row"><span>${t('diagSaved')}</span><span class="${st2.configSaved ? 'ok' : 'bad'}">${t(st2.configSaved ? 'diagOn' : 'diagOff')}</span></div>`);
+        return `<section class="settings-section"><h2>${t('diagnostics')}</h2>${warn.map(w => `<div class="notice warning mb16">${ic('info', 18)}<p>${w}</p></div>`).join('')}<div class="diag">${rows.join('')}</div></section>`;
+    })();
+    const needAlwaysCard = (pendingSmart.location || pendingSmart.vehicle) && smartStatus && smartStatus.location !== 'always' ? `<div class="always-card"><h3>${ic('pin', 18)} ${t('alwaysTitle')}</h3><p class="small">${t('alwaysSteps')}</p>${actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'button primary full')}</div>` : '';
+    return `${head}${needAlwaysCard}${chips}${diag}<section class="settings-section"><h2>${t('places')}</h2><p class="small muted mb16">${t('placesNote')}</p><div class="stack">${places}</div></section><section class="settings-section">${toggle('smart-location', state.smart.location, t('locationReminders'), t('locationRemindersNote'))}${toggle('smart-vehicle', state.smart.vehicle, t('vehicleReminders'), t('vehicleRemindersNote'))}${toggle('smart-timed', state.smart.timed, t('timedReminders'), t('timedRemindersNote'))}${timed}</section>${prayer}${which}${tests}${det}${shortcuts}${limits}`;
 }
 const copyFor = (m: Moment) => ({ title: t('m_' + m), body: momentPreview(m) ?? t('generalReminder') });
 /** Pushes settings to the native engines, refreshes timed reminders and imports what was detected while closed. */
@@ -298,6 +314,14 @@ async function syncSmart(): Promise<void> {
         const events = await bridge.takeEvents();
         if (events.length) await commit({ ...state, detections: mergeDetections(state.detections, events) });
         smartStatus = await bridge.configure(nativeConfig(state, copyFor));
+        if ((pendingSmart.location || pendingSmart.vehicle) && smartStatus.location === 'always') {
+            const enable = { ...pendingSmart };
+            pendingSmart = { location: false, vehicle: false };
+            if (enable.vehicle && smartStatus.motion !== 'granted') smartStatus = await bridge.requestMotion();
+            await commit({ ...state, smart: { ...state.smart, location: state.smart.location || (enable.location && !!(state.places.home || state.places.work || state.places.mosque)), vehicle: state.smart.vehicle || (enable.vehicle && smartStatus.motion === 'granted') } });
+            smartStatus = await bridge.configure(nativeConfig(state, copyFor));
+            toast(t('enabledAfterSettings'));
+        }
         notificationState = await bridge.notificationPermission(false);
         if (notificationState === 'granted') {
             await bridge.scheduleTimed(timedReminders(state, copyFor));
@@ -305,7 +329,7 @@ async function syncSmart(): Promise<void> {
         }
         await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }));
     }
-    catch (e) { console.error('AyahFlow reminders sync failed', e instanceof Error ? e.message : e); }
+    catch (e) { console.error('AyahFlow reminders sync failed', e instanceof Error ? e.message : e); if (state.smart.location || state.smart.vehicle || state.smart.timed || state.athan.enabled) toast(t('reminderSyncFailed')); }
 }
 const platform = (): string => (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() ?? 'web';
 /** Each reminder asks for its permission only when the user turns it on, and stays off if it is refused. */
@@ -323,7 +347,7 @@ async function changeSmart(el: HTMLInputElement): Promise<void> {
     if (el.id === 'smart-timed') smart.timed = el.checked;
     if (el.id === 'smart-location') {
         if (el.checked && !(state.places.home || state.places.work || state.places.mosque)) { toast(t('needHome')); el.checked = false; return; }
-        if (el.checked && bridge) { smartStatus = await bridge.requestAlways(); if (smartStatus.location !== 'always') { toast(t('needAlways')); el.checked = false; render(); return; } }
+        if (el.checked && bridge) { smartStatus = await bridge.requestAlways(); if (smartStatus.location !== 'always') { pendingSmart.location = true; el.checked = false; render(); return; } }
         smart.location = el.checked;
     }
     if (el.id === 'smart-vehicle') {
@@ -331,7 +355,7 @@ async function changeSmart(el: HTMLInputElement): Promise<void> {
             smartStatus = await bridge.requestMotion();
             if (smartStatus.motion !== 'granted') { toast(t('needMotion')); el.checked = false; render(); return; }
             // iOS checks motion when significant location changes wake the app, which needs "Always" location.
-            if (platform() === 'ios' && smartStatus.location !== 'always') { smartStatus = await bridge.requestAlways(); if (smartStatus.location !== 'always') { toast(t('needAlways')); el.checked = false; render(); return; } }
+            if (platform() === 'ios' && smartStatus.location !== 'always') { smartStatus = await bridge.requestAlways(); if (smartStatus.location !== 'always') { pendingSmart.vehicle = true; el.checked = false; render(); return; } }
         }
         smart.vehicle = el.checked;
     }
@@ -405,7 +429,7 @@ function render(): void { applyTheme(); document.documentElement.lang = state.lo
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
-    history.pushState(null, '', `#${target}`); render(); window.scrollTo(0, 0); document.querySelector<HTMLElement>('#main')?.focus({ preventScroll: true }); }
+    history.pushState(null, '', `#${target}`); render(); if (target === 'reminders') void syncSmart().then(() => { if (view === 'reminders') { const y = window.scrollY; render(); window.scrollTo(0, y); } }); window.scrollTo(0, 0); document.querySelector<HTMLElement>('#main')?.focus({ preventScroll: true }); }
 async function launch(mode: Mode | 'mixed', kind: 'daily' | 'practice' = 'practice', only?: QueueItem[]): Promise<void> { if (state.session) {
     await navigate('session');
     toast(t('resume'));
