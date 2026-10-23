@@ -470,6 +470,12 @@ function beads(done: number, total: number): string {
     const n = Math.min(total, 33), on = total <= 33 ? done : Math.floor(done / total * n), step = 360 / Math.max(n, 1);
     return `<svg class="beads" viewBox="0 0 200 200" aria-hidden="true">${Array.from({ length: n }, (_, i) => { const a = (i * step - 90) * Math.PI / 180; return `<circle class="bead ${i < on ? 'on' : i === on ? 'current' : ''}" cx="${(100 + 88 * Math.cos(a)).toFixed(2)}" cy="${(100 + 88 * Math.sin(a)).toFixed(2)}" r="${n > 20 ? 5 : 6.5}"/>`; }).join('')}</svg>`;
 }
+/** Istighfar heart: dark, filling with red from the bottom as the count nears the target. A visual only. */
+function heart(p: number): string {
+    const h = 92 * Math.max(0, Math.min(1, p));
+    return `<svg class="heart ${p >= 1 ? 'full' : ''}" viewBox="0 0 100 92" aria-hidden="true"><defs><clipPath id="heart-fill"><rect x="0" y="${(92 - h).toFixed(2)}" width="100" height="${h.toFixed(2)}"/></clipPath><linearGradient id="heart-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2475b"/><stop offset="1" stop-color="#8e1a2b"/></linearGradient></defs><path class="heart-base" d="${HEART}"/><path d="${HEART}" fill="url(#heart-red)" clip-path="url(#heart-fill)"/></svg>`;
+}
+const HEART = 'M50 88C22 68 4 52 4 30 4 15 15 4 29 4c9 0 16 5 21 12C55 9 62 4 71 4c14 0 25 11 25 26 0 22-18 38-46 58Z';
 /** This counter's last 7 days, from the counts the user saved (no estimates). */
 function counterWeek(c: typeof COUNTERS[number]): string {
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); const k = dayKey(d.getTime()); return { k, label: d.toLocaleDateString(state.locale, { weekday: 'narrow' }), n: k === dayKey() ? count(c.id) : countOn(state, c.id, k) }; });
@@ -484,7 +490,7 @@ function counterView(): string {
     const wording = c.steps.filter(x => x.source.ref !== c.source.ref).map(x => x.source).filter((x, i, a) => a.findIndex(y => y.ref === x.ref) === i);
     return `<p class="eyebrow mt12">${t('counters')}</p><h1 class="page-title">${escapeHtml(c.title[state.locale])}</h1>${chips}
 <section class="tap-zone"><div class="count-meta"><span class="pill ${roundDone ? 'success' : 'gold'}">${roundDone ? `${ic('check', 12)} ${t('roundDone')}` : c.steps.length > 1 ? `${num(pos.step + 1)} / ${num(c.steps.length)}` : `${t('round')} ${num(pos.rounds + 1)}`}</span><span class="tiny muted" aria-live="polite">${t('todayCount')} <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</span></div>
-<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}<span class="tap-inner"><span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') ? heart(roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner"><span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
 <p class="tiny muted">${t('tapAnywhere')}</p>
 <div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
 ${counterWeek(c)}

@@ -229,3 +229,4 @@ dialog{width:calc(100% - 40px);max-width:390px;background:var(--panel);color:var
 .beads{position:absolute;inset:0;width:100%;height:100%}.bead{fill:var(--track);transition:fill .15s}.bead.on{fill:var(--gold)}.bead.current{fill:none;stroke:var(--gold-bright);stroke-width:1.6}.reduced-motion .bead{transition:none}
 .tap-inner{gap:4px;padding:0 44px}.tap-number{font-size:58px;margin-top:6px}.tap-of{font-size:12px;color:var(--muted)}
 .step-bars.short{height:120px}
+.heart{position:absolute;width:58%;left:21%;top:23%;filter:drop-shadow(0 6px 18px rgb(0 0 0 / .25))}.heart path{transition:none}.heart-base{fill:#2b2422;stroke:rgb(var(--tint) / .25);stroke-width:1}.heart.full{filter:drop-shadow(0 0 22px rgb(226 71 91 / .45))}.heart~.tap-inner .tap-phrase{color:#f6e7c8;text-shadow:0 1px 6px rgb(0 0 0 / .6)}.heart~.tap-inner .tap-number,.heart~.tap-inner .tap-of{color:#fff;text-shadow:0 1px 8px rgb(0 0 0 / .65)}
