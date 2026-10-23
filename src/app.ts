@@ -316,7 +316,7 @@ function remindersView(): string {
         return `<section class="settings-section"><h2>${t('diagnostics')}</h2>${warn.map(w => `<div class="notice warning mb16">${ic('info', 18)}<p>${w}</p></div>`).join('')}<div class="diag">${rows.join('')}</div></section>`;
     })();
     const needAlwaysCard = (pendingSmart.location || pendingSmart.vehicle) && smartStatus && smartStatus.location !== 'always' ? `<div class="always-card"><h3>${ic('pin', 18)} ${t('alwaysTitle')}</h3><p class="small">${t('alwaysSteps')}</p>${actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'button primary full')}</div>` : '';
-    return `${head}${needAlwaysCard}${chips}${diag}<section class="settings-section"><h2>${t('places')}</h2><p class="small muted mb16">${t('placesNote')}</p><div class="stack">${places}</div></section><section class="settings-section">${toggle('smart-location', state.smart.location, t('locationReminders'), t('locationRemindersNote'))}${toggle('smart-vehicle', state.smart.vehicle, t('vehicleReminders'), t('vehicleRemindersNote'))}${toggle('smart-timed', state.smart.timed, t('timedReminders'), t('timedRemindersNote'))}${timed}</section>${prayer}${which}${tests}${det}${shortcuts}${limits}`;
+    return `${head}${chips}${diag}<section class="settings-section"><h2>${t('places')}</h2><p class="small muted mb16">${t('placesNote')}</p><div class="stack">${places}</div></section><section class="settings-section">${toggle('smart-location', state.smart.location, t('locationReminders'), t('locationRemindersNote'))}${needAlwaysCard}${toggle('smart-vehicle', state.smart.vehicle, t('vehicleReminders'), t('vehicleRemindersNote'))}${toggle('smart-timed', state.smart.timed, t('timedReminders'), t('timedRemindersNote'))}${timed}</section>${prayer}${which}${tests}${det}${shortcuts}${limits}`;
 }
 const copyFor = (m: Moment) => ({ title: t('m_' + m), body: momentPreview(m) ?? t('generalReminder') });
 /** Pushes settings to the native engines, refreshes timed reminders and imports what was detected while closed. */
@@ -1072,8 +1072,10 @@ async function handleAction(el: HTMLElement): Promise<void> {
                 return;
             try {
                 const pos = await bridge.currentPosition();
-                await commit({ ...state, places: { ...state.places, [kind]: { lat: pos.lat, lng: pos.lng, radius: state.places[kind]?.radius ?? 150 } } });
-                toast(t('placeSaved'));
+                // Saving Home also picks the calculation method usually used there, so athan times match local mosques.
+                const hint = kind === 'home' ? suggestedMethod(pos) : null, method = hint?.method ?? state.smart.method;
+                await commit({ ...state, places: { ...state.places, [kind]: { lat: pos.lat, lng: pos.lng, radius: state.places[kind]?.radius ?? 150 } }, smart: { ...state.smart, method } });
+                toast(hint ? `${t('placeSaved')} ${t('methodChanged').replace('{method}', METHOD_LABEL[method])}` : t('placeSaved'));
             }
             catch { toast(t('locationError')); }
             await syncSmart();
