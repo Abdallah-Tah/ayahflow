@@ -1,6 +1,6 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, type RuleId } from './data.js';
 import { COUNTERS, ROTATION, ROTATION_GROUPS, counter, counterPosition, type DhikrCounter, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
-import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, suggestedMethod, istighfarReminders, rotationReminders, ROTATION_MAX, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
+import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, ROTATION_MAX, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
@@ -111,7 +111,7 @@ function homeView(): string {
     const estimated = planSession(state, 'mixed', Date.now(), 2026);
     const newCount = estimated.filter(v => v.reason === 'new').length;
     return `${dateLine()}<section class="hero"><p class="eyebrow">${t('personalPlan')}</p><h1>${t('greeting')}<br><em>${t('heroLine')}</em></h1><p>${t('heroSub')}</p>${archArt()}</section>
-<section class="today-card"><div class="row between"><div class="row"><span class="round-icon">${ic('sun', 24)}</span><h2>${t('daily')}</h2></div><span class="gold">${ic('spark', 18)}</span></div><p class="description">${t('adaptive')}</p><div class="plan-tags"><span class="pill">${ic('clock', 13)} ${num(state.goal)} ${t('minutes')} · ${t('estimated')}</span><span class="pill">${num(due)} ${t('due')}</span><span class="pill">${num(newCount)} ${t('newCards')}</span></div>${primary(state.session ? 'resume' : 'daily', state.session ? t('resume') : t('start'))}</section>${prayerDay()}${nowCard()}${dailyPulse()}
+<section class="today-card"><div class="row between"><div class="row"><span class="round-icon">${ic('sun', 24)}</span><h2>${t('daily')}</h2></div><span class="gold">${ic('spark', 18)}</span></div><p class="description">${t('adaptive')}</p><div class="plan-tags"><span class="pill">${ic('clock', 13)} ${num(state.goal)} ${t('minutes')} · ${t('estimated')}</span><span class="pill">${num(due)} ${t('due')}</span><span class="pill">${num(newCount)} ${t('newCards')}</span></div>${primary(state.session ? 'resume' : 'daily', state.session ? t('resume') : t('start'))}</section>${prayerDay()}${nowCard()}${dailyPulse()}${ayahCard()}
 <section class="section"><div class="row between"><h2 class="section-title">${t('yourPath')}</h2>${actionButton('nav', t('all') + ' ' + ic('chevron', 13), 'text-button', 'data-view="practice"')}</div><div class="feature-grid"><button class="feature-card" data-action="start-mode" data-mode="next">${ic('book', 25)}<h3>${t('memorize')}</h3><p>${t('memorizeSub')}</p></button><button class="feature-card" data-action="nav" data-view="tajweed">${ic('wave', 25)}<h3>${t('tajweed')}</h3><p>${t('tajweedSub')}</p></button></div><button class="feature-wide row" data-action="nav" data-view="recite"><span class="gold">${ic('mic', 25)}</span><span class="grow"><h3>${t('recite')}</h3><p>${t('reciteSub')}</p></span><span class="gold arrow-icon">${ic('chevron', 17)}</span></button><button class="feature-wide row" data-action="start-mode" data-mode="locate"><span class="gold">${ic('pin', 25)}</span><span class="grow"><h3>${t('locate')}</h3><p>${t('locateDesc')}</p></span>${chevronEnd()}</button></section>
 <section class="section week-card"><div class="row between" style="margin-bottom:0"><div><span class="small">${num(streak(state.days))} ${t('dayStreak')}</span><p class="tiny muted">${t('week')}</p></div><div class="small gold">${num(state.xp)} <span class="tiny">${t('practicePoints')}</span></div></div>${weekMarkup()}</section><p class="gentle">${t('gentle')}</p>`;
 }
@@ -614,6 +614,11 @@ async function refreshSteps(force = false): Promise<void> {
     void pushWidget();
     if (view === 'today' || view === 'steps') { const y = window.scrollY; render(); window.scrollTo(0, y); }
 }
+/** Today's ayah (the same one the widgets show), with a link to read it in its surah. */
+function ayahCard(): string {
+    const a = ayahOfDay(dayKey()), c = chapter(a.surah);
+    return `<section class="ayah-day"><div class="row between"><span class="eyebrow">${t('ayahOfDay')}</span><span class="tiny muted">${escapeHtml(state.locale === 'ar' ? c.ar : c.name)} <bdi>${ayahRef(a)}</bdi></span></div><p class="arabic ayah-day-text" lang="ar" dir="rtl">${Array.from({ length: a.to - a.ayah + 1 }, (_, k) => `${escapeHtml(verse(a.surah, a.ayah + k))} ${marker(a.ayah + k)}`).join(' ')}</p>${actionButton('read-ayah', `${ic('book', 15)} ${t('readInContext')}`, 'text-button', `data-surah="${a.surah}" data-ayah="${a.ayah}"`)}</section>`;
+}
 function dailyPulse(): string {
     const c = counter('istighfar'), n = count(c.id);
     const istighfar = `<button class="pulse-card" data-action="counter" data-counter="${c.id}">${ring(n / c.total * 100, ic('tasbih', 20))}<span class="grow"><span class="eyebrow">${escapeHtml(c.title[state.locale])}</span><strong>${num(n)} <span class="tiny muted">/ ${target(c)}</span></strong></span></button>`;
@@ -723,6 +728,15 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await commit({ ...state, readPosition: { surah: readerSurah, ayah: 1 } });
             await navigate('reader');
             break;
+        case 'read-ayah': {
+            const s = Number(d.surah), n = Number(d.ayah);
+            verse(s, n);
+            readerSurah = s;
+            await commit({ ...state, readPosition: { surah: s, ayah: n } });
+            await navigate('reader');
+            document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' });
+            break;
+        }
         case 'read-last':
             readerSurah = state.readPosition.surah;
             await navigate('reader');
@@ -1445,7 +1459,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });

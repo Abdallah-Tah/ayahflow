@@ -61,3 +61,7 @@ The lesson assessment is a knowledge quiz. It does not listen to the user's perf
 Done for the text itself (Tanzil Uthmani 1.1, Hafs). Still required: choose and document the recitation convention for audio and annotations. Preserve the canonical strings and required notices. Version the source, importer, normalization-for-comparison policy, annotation spans and reviewer sign-offs. Validate chapter counts, numbering, duplicates and audio boundaries. Resolve text/audio/font discrepancies through review, not an AI-generated correction.
 
 Add review samples on iOS and Android at large text sizes; verify joined Arabic glyphs, stacked marks and RTL reading order. Do not remove the draft labels until the corresponding content version has genuine approval.
+
+## Du'a of the day (Lock Screen and widgets)
+
+`src/duas.ts` lists Quranic supplications by reference only (surah, first and last ayah), following the widely published "Rabbana" and "Rabbi" du'as; a du'a spanning several ayahs is kept together (e.g. 20:25–28, 40:8–9). The Arabic is read from the Tanzil corpus unchanged. A fixed hash of the local date picks one per day, so every device shows the same one; nothing is ranked, interpreted or translated (no licensed translation is bundled). `tests/adhkar.test.mjs` checks every reference exists and addresses رَبَّنَا or رَبِّ. Review status: the selection awaits scholar review.

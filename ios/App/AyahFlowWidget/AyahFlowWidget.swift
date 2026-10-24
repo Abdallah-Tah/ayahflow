@@ -18,6 +18,10 @@ struct SharedTimeline: Decodable {
     let labels: [String: String]
     /// Today's dhikr counts, adhkar progress and the latest step reading (src/smart.ts WidgetDaily).
     let daily: Daily?
+    /** The next days' Quranic du'as (src/smart.ts dailyAyahs): the Arabic is the corpus text as it is. */
+    let ayahs: [Ayah]?
+
+    struct Ayah: Decodable { let day: String; let surah: Int; let ayah: Int; let to: Int; let ref: String; let text: String; let name: String; let nameAr: String }
 
     struct Daily: Decodable {
         struct Counter: Decodable { let id: String; let label: String; let n: Int; let total: Int; let atLeast: Bool; let perPrayer: Bool }
@@ -56,15 +60,17 @@ struct PrayerEntry: TimelineEntry {
     /// Today's dhikr and steps, or nil when the app has not shared any for today (counts start again at midnight).
     var daily: SharedTimeline.Daily? = nil
     var page: WidgetPage = .prayer
+    /// Today's du'a from the Quran, if the app has shared it.
+    var ayah: SharedTimeline.Ayah? = nil
 }
 
 /// The pages of the medium widget. The chosen page is kept in the widget extension's own defaults.
 enum WidgetPage: Int, CaseIterable {
-    case prayer, dhikr, steps
+    case prayer, dhikr, steps, ayah
     static var current: WidgetPage { WidgetPage(rawValue: UserDefaults.standard.integer(forKey: "widgetPage")) ?? .prayer }
-    var symbol: String { switch self { case .prayer: return "moon.stars"; case .dhikr: return "circle.dotted"; case .steps: return "figure.walk" } }
+    var symbol: String { switch self { case .prayer: return "moon.stars"; case .dhikr: return "circle.dotted"; case .steps: return "figure.walk"; case .ayah: return "book" } }
     func label(_ labels: [String: String]) -> String {
-        switch self { case .prayer: return labels["prayerTab"] ?? "Prayer"; case .dhikr: return labels["dhikrTab"] ?? "Dhikr"; case .steps: return labels["stepsTab"] ?? "Steps" }
+        switch self { case .prayer: return labels["prayerTab"] ?? "Prayer"; case .dhikr: return labels["dhikrTab"] ?? "Dhikr"; case .steps: return labels["stepsTab"] ?? "Steps"; case .ayah: return labels["ayahTab"] ?? "Du'a" }
     }
 }
 
@@ -95,7 +101,7 @@ struct Provider: TimelineProvider {
         let now = Date(), at = { (h: Double) in now.addingTimeInterval(h * 3600).timeIntervalSince1970 * 1000 }
         let today: [SharedTimeline.Prayer] = [.init(key: "fajr", label: "Fajr", at: at(-8)), .init(key: "dhuhr", label: "Dhuhr", at: at(-2)), .init(key: "asr", label: "Asr", at: at(1.4)), .init(key: "maghrib", label: "Maghrib", at: at(4)), .init(key: "isha", label: "Isha", at: at(5.3))]
         let daily = SharedTimeline.Daily(day: dayKey(now), counters: [.init(id: "istighfar", label: "Istighfar", n: 64, total: 100, atLeast: false, perPrayer: false), .init(id: "istighfar-tawbah", label: "Istighfar and tawbah", n: 20, total: 70, atLeast: true, perPrayer: false), .init(id: "tasbih-prayer", label: "Tasbih after prayer", n: 200, total: 100, atLeast: false, perPrayer: true)], adhkar: [.init(key: "morning", label: "Morning adhkar", done: 4, total: 5), .init(key: "evening", label: "Evening adhkar", done: 0, total: 5)], steps: .init(today: 5840, goal: 8000, at: now.timeIntervalSince1970 * 1000))
-        return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current, daily: daily, page: .current)
+        return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current, daily: daily, page: .current, ayah: .init(day: dayKey(now), surah: 20, ayah: 114, to: 114, ref: "20:114", text: "رَّبِّ زِدْنِى عِلْمًا", name: "Taa-Haa", nameAr: "طه"))
     }
 
     func placeholder(in context: Context) -> PrayerEntry { Provider.sample() }
@@ -121,7 +127,8 @@ struct Provider: TimelineProvider {
     private func entry(at date: Date, _ data: SharedTimeline?) -> PrayerEntry {
         let locale = data?.locale.map { Locale(identifier: $0) } ?? .current
         let daily = data?.daily.flatMap { $0.day == dayKey(date) ? $0 : nil }
-        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current) }
+        let ayah = data?.ayahs?.first { $0.day == dayKey(date) }
+        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current, ayah: ayah) }
         guard let data, !data.prayers.isEmpty else { return empty(.noData) }
         let ms = date.timeIntervalSince1970 * 1000
         guard let index = data.prayers.firstIndex(where: { $0.at > ms }) else { return empty(.stale) }
@@ -133,7 +140,7 @@ struct Provider: TimelineProvider {
         let inside = { (w: [Double]?) in w.map { $0.count == 2 && ms >= $0[0] && ms < $0[1] } ?? false }
         let moment: (key: String, label: String)? = data.windows.contains { inside($0.morning) } ? (key: "morning", label: data.labels["morning"] ?? "Morning adhkar")
             : data.windows.contains { inside($0.evening) } ? (key: "evening", label: data.labels["evening"] ?? "Evening adhkar") : nil
-        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current)
+        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah)
     }
 }
 
@@ -185,7 +192,7 @@ struct PrayerWidgetView: View {
     }
 
     @ViewBuilder var content: some View {
-        if family == .systemMedium && entry.page != .prayer { paged(entry.page == .dhikr ? AnyView(dhikrPage) : AnyView(stepsPage)) }
+        if family == .systemMedium && entry.page != .prayer { paged(entry.page == .dhikr ? AnyView(dhikrPage) : entry.page == .steps ? AnyView(stepsPage) : AnyView(AyahBody(entry: entry, compact: true))) }
         else if entry.state != .ready || entry.next == nil {
             VStack(alignment: .leading, spacing: 6) {
                 Text("AyahFlow").font(.system(.headline, design: .serif)).foregroundColor(Palette.gold)
@@ -539,10 +546,78 @@ struct StepsWidget: Widget {
     }
 }
 
+/// The du'a of the day: Arabic exactly as in the corpus, surah name and reference. Tapping opens it in the reader.
+struct AyahBody: View {
+    @Environment(\.widgetFamily) var family
+    let entry: PrayerEntry
+    var compact = false
+    var body: some View {
+        if let a = entry.ayah {
+            Link(destination: URL(string: "ayahflow://ayah/\(a.surah):\(a.ayah)")!) {
+                VStack(spacing: compact ? 4 : 8) {
+                    if !compact {
+                        Text((entry.labels["ayahTab"] ?? "Du'a from the Quran").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    Text(a.text)
+                        .font(.system(size: family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22))
+                        .foregroundColor(Palette.text).multilineTextAlignment(.center).lineSpacing(6)
+                        .minimumScaleFactor(0.35).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    HStack(spacing: 6) {
+                        Text(a.nameAr).foregroundColor(Palette.goldBright)
+                        Circle().fill(Palette.line).frame(width: 3, height: 3)
+                        Text(a.ref).foregroundColor(Palette.muted).monospacedDigit()
+                    }.font(.system(size: 11, weight: .medium)).lineLimit(1)
+                }
+            }
+        } else {
+            Text(entry.labels["ayahEmpty"] ?? "Open AyahFlow to load the du'a of the day.").font(.caption).foregroundColor(Palette.muted)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+struct AyahWidgetView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: PrayerEntry
+    var body: some View {
+        Group {
+            if #available(iOSApplicationExtension 16.0, *), family == .accessoryRectangular {
+                if let a = entry.ayah {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(a.text).font(.system(size: 15)).lineLimit(3).minimumScaleFactor(0.5).multilineTextAlignment(.trailing)
+                        Text("\(a.nameAr) · \(a.ref)").font(.system(size: 10, weight: .semibold)).widgetAccentable()
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                } else { Text(entry.labels["ayahEmpty"] ?? "Open AyahFlow").font(.caption2) }
+            } else if #available(iOSApplicationExtension 16.0, *), family == .accessoryInline {
+                Text(entry.ayah.map { "\($0.text)" } ?? "AyahFlow")
+            } else {
+                AyahBody(entry: entry)
+            }
+        }
+        .widgetURL(URL(string: entry.ayah.map { "ayahflow://ayah/\($0.surah):\($0.ayah)" } ?? "ayahflow://adhkar"))
+        .modifier(WidgetBackground())
+    }
+}
+
+struct AyahWidget: Widget {
+    var families: [WidgetFamily] {
+        if #available(iOSApplicationExtension 16.0, *) { return [.accessoryRectangular, .accessoryInline, .systemSmall, .systemMedium, .systemLarge] }
+        return [.systemSmall, .systemMedium, .systemLarge]
+    }
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "AyahFlowAyah", provider: Provider()) { AyahWidgetView(entry: $0) }
+            .configurationDisplayName("Du'a from the Quran")
+            .description("A Quranic du'a each day, in Arabic, on your Lock Screen or Home Screen. Tap to read it in its surah.")
+            .supportedFamilies(families)
+    }
+}
+
 @main
 struct AyahFlowWidgets: WidgetBundle {
     var body: some Widget {
         NextPrayerWidget()
+        AyahWidget()
         IstighfarWidget()
         StepsWidget()
     }

@@ -413,3 +413,21 @@ test('Method suggestion follows the saved place, offline, and is only a hint', a
     assert.equal(Math.round((uq.isha - uq.maghrib) / 60000), 90);
     assert(na.fajr - uq.fajr > 15 * 60000); assert(uq.asr - na.asr > 35 * 60000);
 });
+
+test('Du’a of the day: real references that address رَبَّنَا / رَبِّ, verbatim text, the same for a given day', async () => {
+    const { QURANIC_DUAS } = await import('../www/js/duas.js');
+    const { ayahOfDay, dailyAyahs, ayahRef, widgetData } = await import('../www/js/smart.js');
+    for (const [s, from, to] of QURANIC_DUAS) {
+        assert(to >= from && to - from <= 3, `${s}:${from}`);
+        const k = Array.from({ length: to - from + 1 }, (_, i) => key(verse(s, from + i))).join(' ');
+        assert(/ربنا|(^|\s)رب\s/.test(k), `${s}:${from} does not address ربنا / رب`);
+    }
+    assert.equal(new Set(QURANIC_DUAS.map(d => d.join(':'))).size, QURANIC_DUAS.length);
+    assert.deepEqual(ayahOfDay('2026-10-23'), ayahOfDay('2026-10-23'));
+    const week = dailyAyahs(new Date(2026, 9, 23).getTime(), 14);
+    assert.equal(week.length, 14); assert.equal(week[0].day, '2026-10-23');
+    assert(new Set(week.map(w => w.ref)).size > 5); // it changes from day to day
+    for (const w of week) assert.equal(w.text, Array.from({ length: w.to - w.ayah + 1 }, (_, i) => verse(w.surah, w.ayah + i)).join(' '));
+    assert.equal(ayahRef({ surah: 20, ayah: 25, to: 28 }), '20:25–28'); assert.equal(ayahRef({ surah: 2, ayah: 201, to: 201 }), '2:201');
+    assert.equal(widgetData(initialState(), k2 => k2, Date.now()).ayahs.length, 14); // shown even without a saved place
+});

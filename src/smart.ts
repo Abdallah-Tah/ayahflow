@@ -2,6 +2,8 @@
  * Decisions are local; places never leave the device; a reminder is never counted as a recitation. */
 import { RULES, ONCE_PER_DAY, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassages, type Moment, type DayWindows, type SmartEvent } from './adhkar.js';
 import { prayerTimes, dayWindows, type Times } from './prayer.js';
+import { chapter, verse } from './data.js';
+import { QURANIC_DUAS } from './duas.js';
 import { dayKey, completedToday, PRAYERS, type AppState, type Detection, type PrayerName, type PrayerMethod } from './engine.js';
 export interface SmartStatus { location: 'always' | 'whenInUse' | 'denied' | 'restricted' | 'prompt'; motion: 'granted' | 'denied' | 'restricted' | 'prompt' | 'unavailable'; monitoring: string[]; precise: boolean; backgroundRefresh?: 'on' | 'off' | 'restricted'; lowPower?: boolean; vehicleWatch?: boolean; configSaved?: boolean; tripWatch?: boolean; backgroundLocation?: boolean }
 export interface SmartBridge {
@@ -92,6 +94,26 @@ export function istighfarReminders(state: AppState, today: number, target: numbe
     return out;
 }
 export function timedId(moment: Moment, day: string): number { return CODE[moment]! * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
+// ---- Ayah of the day (a Quranic du'a) ----------------------------------------------------------
+/** One Quranic du'a per local day, the same on every device: a fixed hash of the date picks from QURANIC_DUAS. */
+export function ayahOfDay(day: string): { surah: number; ayah: number; to: number } {
+    let h = 2166136261;
+    for (let i = 0; i < day.length; i++) h = Math.imul(h ^ day.charCodeAt(i), 16777619);
+    const [surah, ayah, to] = QURANIC_DUAS[(h >>> 0) % QURANIC_DUAS.length]!;
+    return { surah, ayah, to };
+}
+/** "2:201" or "20:25–28". */
+export const ayahRef = (a: { surah: number; ayah: number; to: number }) => `${a.surah}:${a.ayah}${a.to > a.ayah ? `–${a.to}` : ''}`;
+/** The next `days` du'as with their text (each ayah verbatim, joined by a space), for the widget, so it changes at midnight
+ * without the app. */
+export function dailyAyahs(now = Date.now(), days = 14): { day: string; surah: number; ayah: number; to: number; ref: string; text: string; name: string; nameAr: string }[] {
+    return Array.from({ length: days }, (_, i) => {
+        const d = new Date(now); d.setDate(d.getDate() + i);
+        const day = dayKey(d.getTime()), a = ayahOfDay(day), c = chapter(a.surah);
+        const text = Array.from({ length: a.to - a.ayah + 1 }, (_, k) => verse(a.surah, a.ayah + k)).join(' ');
+        return { day, ...a, ref: ayahRef(a), text, name: c.name, nameAr: c.ar };
+    });
+}
 /** The calculation method most mosques use in a region, from rough country boxes (no network, no place names). A hint
  * only: local mosques may follow another method. Smaller regions are checked before larger ones that overlap them. */
 const METHOD_REGIONS: { region: string; method: PrayerMethod; lat: [number, number]; lng: [number, number] }[] = [
@@ -209,14 +231,15 @@ export function athanSchedule(state: AppState, label: (p: PrayerName, at: number
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
 /** Today's dhikr counts, adhkar progress and (only when the step tracker is on) the latest step reading, for the widget. */
 export interface WidgetDaily { day: string; counters: { id: string; label: string; n: number; total: number; atLeast: boolean; perPrayer: boolean }[]; adhkar: { key: Moment; label: string; done: number; total: number }[]; steps: { today: number; goal: number; at: number } | null }
-export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string>; daily: WidgetDaily | null }
+export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string>; daily: WidgetDaily | null; ayahs: ReturnType<typeof dailyAyahs> }
 export function widgetData(state: AppState, label: (key: string) => string, now = Date.now(), extra: Record<string, string> = {}, daily: WidgetDaily | null = null): WidgetData {
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() + i); return d; });
     return {
         v: 1, updatedAt: now, rtl: state.locale === 'ar', locale: state.locale,
         prayers: prayersFrom(state, now).map(p => ({ key: p.prayer, label: label('p_' + p.prayer), at: p.at })),
         windows: days.map(d => { const w = windowsFor(state, d); return { morning: w.morning, evening: w.evening }; }),
-        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), stepsTab: label('steps'), rounds: label('rounds'), stepsOff: label('widgetStepsOff'), toGo: label('toGo'), goalReached: label('goalReached'), updated: label('widgetUpdated'), ...extra },
+        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), stepsTab: label('steps'), rounds: label('rounds'), stepsOff: label('widgetStepsOff'), toGo: label('toGo'), goalReached: label('goalReached'), updated: label('widgetUpdated'), ayahTab: label('ayahOfDay'), ayahEmpty: label('ayahWidgetEmpty'), ...extra },
         daily,
+        ayahs: dailyAyahs(now),
     };
 }
