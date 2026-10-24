@@ -547,9 +547,9 @@ struct StepsWidget: Widget {
 }
 
 extension Font {
-    /// Quran text in the bundled Scheherazade New (UIAppFonts), the same font as the reader: the system font misplaces
+    /// Quran text in the bundled AyahFlow Quran font (Scheherazade New, adapted; UIAppFonts), the same font as the reader: the system font misplaces
     /// Mushaf marks such as the small waw and madd. Falls back to the system font only if the file is missing.
-    static func quran(_ size: CGFloat) -> Font { .custom("Scheherazade New", size: size) }
+    static func quran(_ size: CGFloat) -> Font { .custom("AyahFlow Quran", size: size) }
 }
 
 /// The du'a of the day: Arabic exactly as in the corpus, surah name and reference. Tapping opens it in the reader.

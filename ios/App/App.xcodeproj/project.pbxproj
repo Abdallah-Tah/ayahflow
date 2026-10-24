@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
-		4EB86494D48A2A00048EB98D /* ScheherazadeNew-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5DEA255583ED34A1AD0F03C2 /* ScheherazadeNew-Regular.ttf */; };
+		4EB86494D48A2A00048EB98D /* AyahFlowQuran-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5DEA255583ED34A1AD0F03C2 /* AyahFlowQuran-Regular.ttf */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
@@ -60,7 +60,7 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		5692F7129A852E6C3A00AF49 /* AyahFlowWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = AyahFlowWidget.entitlements; sourceTree = "<group>"; };
 		5B00CD773EBA531D9BAF74BB /* AyahFlowWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AyahFlowWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		5DEA255583ED34A1AD0F03C2 /* ScheherazadeNew-Regular.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "ScheherazadeNew-Regular.ttf"; sourceTree = "<group>"; };
+		5DEA255583ED34A1AD0F03C2 /* AyahFlowQuran-Regular.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "AyahFlowQuran-Regular.ttf"; sourceTree = "<group>"; };
 		6C23CA0EB3847EA0B43AB520 /* App.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		9232DA89295053ADB23E9E75 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -147,7 +147,7 @@
 				ABBA3C591D98622D8FE3D04D /* AyahFlowWidget.swift */,
 				9232DA89295053ADB23E9E75 /* Info.plist */,
 				5692F7129A852E6C3A00AF49 /* AyahFlowWidget.entitlements */,
-				5DEA255583ED34A1AD0F03C2 /* ScheherazadeNew-Regular.ttf */,
+				5DEA255583ED34A1AD0F03C2 /* AyahFlowQuran-Regular.ttf */,
 				DE091FA3FB16C84E1025A7E1 /* OFL-ScheherazadeNew.txt */,
 			);
 			name = AyahFlowWidget;
@@ -260,7 +260,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4EB86494D48A2A00048EB98D /* ScheherazadeNew-Regular.ttf in Resources */,
+				4EB86494D48A2A00048EB98D /* AyahFlowQuran-Regular.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

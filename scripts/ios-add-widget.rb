@@ -45,11 +45,11 @@ else
   embed.add_file_reference(widget.product_reference, true).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
   puts "Added #{name} target"
 end
-# The Quran font (Scheherazade New, SIL OFL; the same file the web reader bundles) so widget Arabic never falls back
+# The Quran font (AyahFlow Quran, adapted from Scheherazade New, SIL OFL; the same file the web reader bundles) so widget Arabic never falls back
 # to a system font that misplaces the Mushaf marks. Listed under UIAppFonts in AyahFlowWidget/Info.plist.
 widget = project.targets.find { |t| t.name == name }
 group = project.main_group[name]
-font = group.files.find { |f| f.path == 'ScheherazadeNew-Regular.ttf' } || group.new_file('ScheherazadeNew-Regular.ttf')
+font = group.files.find { |f| f.path == 'AyahFlowQuran-Regular.ttf' } || group.new_file('AyahFlowQuran-Regular.ttf')
 widget.add_resources([font]) unless widget.resources_build_phase.files_references.include?(font)
 group.new_file('OFL-ScheherazadeNew.txt') unless group.files.any? { |f| f.path == 'OFL-ScheherazadeNew.txt' }
 project.save

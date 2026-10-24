@@ -192,19 +192,31 @@ test('Recited words line up one-to-one with the bundled recogniser corpus (when 
     }
 });
 
-test('Quran text uses the bundled Scheherazade New font (system fonts misplace Mushaf marks), web and widget alike', async () => {
+test('Quran text uses the bundled AyahFlow Quran font (Scheherazade New, adapted), web and widget alike', async () => {
     const { readFile } = await import('node:fs/promises');
     const { createHash } = await import('node:crypto');
     const css = await readFile('public/style.css', 'utf8');
-    assert.match(css, /@font-face\{font-family:'AyahFlow Quran';src:url\('\.\/fonts\/ScheherazadeNew-Regular\.ttf'\)/);
+    assert.match(css, /@font-face\{font-family:'AyahFlow Quran';src:url\('\.\/fonts\/AyahFlowQuran-Regular\.ttf'\)/);
     assert.match(css, /--arabic:'AyahFlow Quran',/); // first in the stack, before any system font
-    const web = await readFile('public/fonts/ScheherazadeNew-Regular.ttf'), widget = await readFile('ios/App/AyahFlowWidget/ScheherazadeNew-Regular.ttf');
+    const web = await readFile('public/fonts/AyahFlowQuran-Regular.ttf'), widget = await readFile('ios/App/AyahFlowWidget/AyahFlowQuran-Regular.ttf');
     const sha = b => createHash('sha256').update(b).digest('hex');
     assert.equal(sha(web), sha(widget));
+    // The reviewed build of scripts/build-quran-font.py (yā' drawn with dots, checked over all 6236 ayahs); a change needs the same review.
+    const notices = await readFile('docs/THIRD-PARTY-NOTICES.md', 'utf8');
+    assert(notices.includes(sha(web)), 'font hash must match docs/THIRD-PARTY-NOTICES.md');
+    assert(notices.includes(sha(await readFile('content/fonts/ScheherazadeNew-Regular.ttf'))), 'upstream font must be the documented, unmodified file');
+    // OFL: renamed away from the Reserved Font Names in the family name.
+    const utf16 = s => Buffer.from(s.split('').flatMap(c => [0, c.charCodeAt(0)]));
+    assert(web.includes(utf16('AyahFlow Quran')));
     assert.match(await readFile('public/fonts/OFL-ScheherazadeNew.txt', 'utf8'), /SIL Open Font License, Version 1\.1/);
-    assert.match(await readFile('ios/App/AyahFlowWidget/Info.plist', 'utf8'), /<key>UIAppFonts<\/key>\s*<array><string>ScheherazadeNew-Regular\.ttf<\/string>/);
+    assert.match(await readFile('ios/App/AyahFlowWidget/Info.plist', 'utf8'), /<key>UIAppFonts<\/key>\s*<array><string>AyahFlowQuran-Regular\.ttf<\/string>/);
     const swift = await readFile('ios/App/AyahFlowWidget/AyahFlowWidget.swift', 'utf8');
+    assert.match(swift, /\.custom\("AyahFlow Quran", size: size\)/);
     assert(!/Text\(a\.text\)\s*\.font\(\.system/.test(swift), 'widget du\'a must not use the system font');
+});
+test('Final yā\' is fixed in the font, never in the text: Tanzil keeps U+0649 in 26:169', () => {
+    assert.equal(verse(26, 169).match(/\u0649/g)?.length, 2);
+    assert(!verse(26, 169).includes('\u0646\u0650\u064A '));
 });
 test('iOS plays recitation with the Ring/Silent switch on silent (playback audio session set at launch)', async () => {
     const { readFile } = await import('node:fs/promises');
