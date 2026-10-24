@@ -1,6 +1,10 @@
 # Third-party and content notices
 
-The application code, interface artwork and launcher icon in this delivery were authored for this prototype. No proprietary font files or paid template assets are included. The interface requests device/system fonts by name.
+The application code, interface artwork and launcher icon in this delivery were authored for this prototype. No proprietary font files or paid template assets are included. Interface text uses device/system fonts by name.
+
+## Quran font
+
+Quran text in the reader and the widgets uses **Scheherazade New 4.500** (Regular only) by SIL Global, licensed under the SIL Open Font License 1.1 (`public/fonts/OFL-ScheherazadeNew.txt`, also beside the widget copy). Downloaded from the official release (github.com/silnrsi/font-scheherazade, v4.500, archive SHA-512 checked against the published SHA512SUMS) and bundled unmodified; "Scheherazade" and "SIL" are Reserved Font Names, so a modified copy must be renamed. It replaced the system fallback (Geeza Pro on iPhone), which misplaced Mushaf marks such as the small waw and madd (e.g. 26:170). The KFGQPC Uthmanic Hafs font was not used: its licence forbids reproduction without the King Fahd Complex's written approval.
 
 Quran chapter references, audio-provider references and the required review/rights limitations are documented in `CONTENT-PROVENANCE.md`. Modern translations and tafsir are linked externally, not bundled. No reference audio files are included. Accessibility of a source URL is not a grant of every kind of redistribution right.
 

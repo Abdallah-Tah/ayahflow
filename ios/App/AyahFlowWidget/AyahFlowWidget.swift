@@ -546,6 +546,12 @@ struct StepsWidget: Widget {
     }
 }
 
+extension Font {
+    /// Quran text in the bundled Scheherazade New (UIAppFonts), the same font as the reader: the system font misplaces
+    /// Mushaf marks such as the small waw and madd. Falls back to the system font only if the file is missing.
+    static func quran(_ size: CGFloat) -> Font { .custom("Scheherazade New", size: size) }
+}
+
 /// The du'a of the day: Arabic exactly as in the corpus, surah name and reference. Tapping opens it in the reader.
 struct AyahBody: View {
     @Environment(\.widgetFamily) var family
@@ -560,7 +566,7 @@ struct AyahBody: View {
                         Spacer(minLength: 0)
                     }
                     Text(a.text)
-                        .font(.system(size: family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22))
+                        .font(.quran(family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22))
                         .foregroundColor(Palette.text).multilineTextAlignment(.center).lineSpacing(6)
                         .minimumScaleFactor(0.35).frame(maxWidth: .infinity, maxHeight: .infinity)
                     HStack(spacing: 6) {
@@ -587,7 +593,7 @@ struct AyahWidgetView: View {
                     // Like a Lock Screen quote: "📖 Surah Name, ref" on top, the whole du'a under it (never cut).
                     VStack(alignment: .leading, spacing: 2) {
                         Label(surahRef(a), systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
-                        Text(a.text).font(.system(size: 17)).lineLimit(3).minimumScaleFactor(0.55).multilineTextAlignment(.trailing)
+                        Text(a.text).font(.quran(18)).lineLimit(3).minimumScaleFactor(0.55).multilineTextAlignment(.trailing)
                             .environment(\.layoutDirection, .rightToLeft).frame(maxWidth: .infinity, alignment: .trailing)
                     }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else { Text(entry.labels["ayahEmpty"] ?? "Open AyahFlow").font(.caption2) }

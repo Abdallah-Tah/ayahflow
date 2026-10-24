@@ -50,13 +50,14 @@ else
 const data = await readFile('src/data.ts', 'utf8');
 await writeFile('www/content-manifest.json', JSON.stringify({ version: 'tanzil-uthmani-1.1', source: quran.source, licence: quran.licence, url: quran.url, textSha256: quran.sha256, chapters: quran.surahs.length, ayahCount: quran.surahs.reduce((n, s) => n + s.verses.length, 0), teacherReview: 'pending', lessonsSha256: createHash('sha256').update(data).digest('hex'), note: 'Checksums detect source changes; they are not religious or editorial certification.' }, null, 2));
 const jsFiles = (await readdir('www/js')).filter(f => f.endsWith('.js'));
-const assets = ['./', './index.html', './style.css', './assets/icon.svg', './assets/icon-180.png', './assets/icon-192.png', './assets/icon-512.png', './manifest.webmanifest', './content-manifest.json', ...jsFiles.map(f => './js/' + f)];
+const assets = ['./', './index.html', './style.css', './assets/icon.svg', './assets/icon-180.png', './assets/icon-192.png', './assets/icon-512.png', './fonts/ScheherazadeNew-Regular.ttf', './manifest.webmanifest', './content-manifest.json', ...jsFiles.map(f => './js/' + f)];
 const tag = createHash('sha256').update(await readFile('www/js/app.js')).update(await readFile('www/style.css')).update(data).digest('hex').slice(0, 12);
 await writeFile('www/sw.js', `const CACHE='ayahflow-${tag}',ASSETS=${JSON.stringify(assets)};
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting();});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('ayahflow-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin)return;e.respondWith(fetch(e.request).catch(()=>caches.match(e.request).then(r=>r||new Response('Offline: this resource is not cached.',{status:503}))));});\n`);
-const style = await readFile('www/style.css', 'utf8'), icon = await readFile('www/assets/icon.svg', 'utf8'), iconURL = 'data:image/svg+xml;base64,' + Buffer.from(icon).toString('base64');
+const quranFont = 'data:font/ttf;base64,' + (await readFile('www/fonts/ScheherazadeNew-Regular.ttf')).toString('base64');
+const style = (await readFile('www/style.css', 'utf8')).replace('./fonts/ScheherazadeNew-Regular.ttf', quranFont), icon = await readFile('www/assets/icon.svg', 'utf8'), iconURL = 'data:image/svg+xml;base64,' + Buffer.from(icon).toString('base64');
 const imports = {};
 for (const file of jsFiles) {
     let content = await readFile('www/js/' + file, 'utf8');

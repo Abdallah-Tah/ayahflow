@@ -191,3 +191,18 @@ test('Recited words line up one-to-one with the bundled recogniser corpus (when 
         });
     }
 });
+
+test('Quran text uses the bundled Scheherazade New font (system fonts misplace Mushaf marks), web and widget alike', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const { createHash } = await import('node:crypto');
+    const css = await readFile('public/style.css', 'utf8');
+    assert.match(css, /@font-face\{font-family:'AyahFlow Quran';src:url\('\.\/fonts\/ScheherazadeNew-Regular\.ttf'\)/);
+    assert.match(css, /--arabic:'AyahFlow Quran',/); // first in the stack, before any system font
+    const web = await readFile('public/fonts/ScheherazadeNew-Regular.ttf'), widget = await readFile('ios/App/AyahFlowWidget/ScheherazadeNew-Regular.ttf');
+    const sha = b => createHash('sha256').update(b).digest('hex');
+    assert.equal(sha(web), sha(widget));
+    assert.match(await readFile('public/fonts/OFL-ScheherazadeNew.txt', 'utf8'), /SIL Open Font License, Version 1\.1/);
+    assert.match(await readFile('ios/App/AyahFlowWidget/Info.plist', 'utf8'), /<key>UIAppFonts<\/key>\s*<array><string>ScheherazadeNew-Regular\.ttf<\/string>/);
+    const swift = await readFile('ios/App/AyahFlowWidget/AyahFlowWidget.swift', 'utf8');
+    assert(!/Text\(a\.text\)\s*\.font\(\.system/.test(swift), 'widget du\'a must not use the system font');
+});

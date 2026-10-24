@@ -12,6 +12,8 @@
 	<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>AyahFlowSharedKeychain</key><string>$(AppIdentifierPrefix)com.buildwithabdallah.ayahflow.shared</string>
+	<key>UIAppFonts</key>
+	<array><string>ScheherazadeNew-Regular.ttf</string></array>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>

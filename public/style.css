@@ -1,3 +1,6 @@
+/* Quran text: Scheherazade New 4.500 by SIL (SIL OFL 1.1, fonts/OFL-ScheherazadeNew.txt), bundled so the Mushaf marks
+ * (small waw, madd, superscript alef…) never fall back to a system font that misplaces them. */
+@font-face{font-family:'AyahFlow Quran';src:url('./fonts/ScheherazadeNew-Regular.ttf') format('truetype');font-display:block}
 /* AyahFlow — charcoal and gold, set like an illuminated mushaf.
    Every colour is a token. Dark is the approved default palette; light ("vellum") is the same family.
    Tint colours use `rgb(var(--tint) / alpha)` (no color-mix) so older WebViews render them. */
@@ -8,7 +11,7 @@
 --card-fill:linear-gradient(145deg,#1e231b,#171b16);--hero-fill:linear-gradient(130deg,#282c20,#1a1f17);--hero-line:#62593d;--nav-bg:rgb(20 24 19 / .93);--shadow:0 4px 30px #0007;--glow:0 0 40px rgb(217 187 121 / .06);
 --ikhfa:#bea1d4;--ikhfa-mark:#d1b1e8;--ghunnah:#d9bb79;--ghunnah-mark:#efd69f;--qalqalah:#e3a996;--qalqalah-mark:#eebcac;--madd:#92b3cc;--madd-mark:#acd0eb;
 --ar:1;--radius:18px;--safe-bottom:env(safe-area-inset-bottom,0px);
---arabic:'Amiri Quran','Amiri','Noto Naskh Arabic','Geeza Pro','Traditional Arabic',serif;
+--arabic:'AyahFlow Quran','Amiri Quran','Amiri','Noto Naskh Arabic','Geeza Pro','Traditional Arabic',serif;
 --serif:'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
 --ui:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
 html[data-theme=light]{color-scheme:light;
