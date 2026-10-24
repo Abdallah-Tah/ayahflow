@@ -206,3 +206,9 @@ test('Quran text uses the bundled Scheherazade New font (system fonts misplace M
     const swift = await readFile('ios/App/AyahFlowWidget/AyahFlowWidget.swift', 'utf8');
     assert(!/Text\(a\.text\)\s*\.font\(\.system/.test(swift), 'widget du\'a must not use the system font');
 });
+test('iOS plays recitation with the Ring/Silent switch on silent (playback audio session set at launch)', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const app = await readFile('ios/App/App/AppDelegate.swift', 'utf8');
+    assert.match(app, /import AVFoundation/);
+    assert.match(app, /AVAudioSession\.sharedInstance\(\)\.setCategory\(\.playback/);
+});

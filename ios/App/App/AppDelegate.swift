@@ -1,4 +1,5 @@
 import UIKit
+import AVFoundation
 import Capacitor
 import SmartRemindersPlugin
 
@@ -11,6 +12,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Own the location manager from launch: iOS relaunches AyahFlow in the background (without a scene or
         // web view) to deliver geofence and significant-change events for smart adhkar reminders.
         SmartReminders.shared.start()
+        // Recitation and athan previews are media the user starts: play them like a media app, even with the
+        // Ring/Silent switch on silent (the default SoloAmbient category mutes the web view). Nothing plays until a tap.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
         return true
     }
 
