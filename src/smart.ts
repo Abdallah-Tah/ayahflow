@@ -95,11 +95,17 @@ export function istighfarReminders(state: AppState, today: number, target: numbe
 }
 export function timedId(moment: Moment, day: string): number { return CODE[moment]! * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
 // ---- Ayah of the day (a Quranic du'a) ----------------------------------------------------------
-/** One Quranic du'a per local day, the same on every device: a fixed hash of the date picks from QURANIC_DUAS. */
+/** Longest du'a (in letters, marks ignored) that stays legible whole on the Lock Screen: the text is never cut, so
+ * longer ones (2:286, 60:4, 46:15…) are left out of the daily pick rather than shown in part. */
+export const DUA_MAX_LETTERS = 100;
+const letters = (s: string) => s.replace(/[^\u0621-\u064A\u0671]/g, '').length;
+let duaPool: (readonly [number, number, number])[] | null = null;
+const dailyDuas = () => duaPool ??= QURANIC_DUAS.filter(([s, a, b]) => { let n = 0; for (let i = a; i <= b; i++) n += letters(verse(s, i)); return n <= DUA_MAX_LETTERS; });
+/** One Quranic du'a per local day, the same on every device: a fixed hash of the date picks from the du'as that fit. */
 export function ayahOfDay(day: string): { surah: number; ayah: number; to: number } {
     let h = 2166136261;
     for (let i = 0; i < day.length; i++) h = Math.imul(h ^ day.charCodeAt(i), 16777619);
-    const [surah, ayah, to] = QURANIC_DUAS[(h >>> 0) % QURANIC_DUAS.length]!;
+    const pool = dailyDuas(), [surah, ayah, to] = pool[(h >>> 0) % pool.length]!;
     return { surah, ayah, to };
 }
 /** "2:201" or "20:25–28". */
@@ -238,7 +244,7 @@ export function widgetData(state: AppState, label: (key: string) => string, now 
         v: 1, updatedAt: now, rtl: state.locale === 'ar', locale: state.locale,
         prayers: prayersFrom(state, now).map(p => ({ key: p.prayer, label: label('p_' + p.prayer), at: p.at })),
         windows: days.map(d => { const w = windowsFor(state, d); return { morning: w.morning, evening: w.evening }; }),
-        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), stepsTab: label('steps'), rounds: label('rounds'), stepsOff: label('widgetStepsOff'), toGo: label('toGo'), goalReached: label('goalReached'), updated: label('widgetUpdated'), ayahTab: label('ayahOfDay'), ayahEmpty: label('ayahWidgetEmpty'), ...extra },
+        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), stepsTab: label('steps'), rounds: label('rounds'), stepsOff: label('widgetStepsOff'), toGo: label('toGo'), goalReached: label('goalReached'), updated: label('widgetUpdated'), ayahTab: label('ayahOfDay'), surahRef: label('surahRef'), ayahEmpty: label('ayahWidgetEmpty'), ...extra },
         daily,
         ayahs: dailyAyahs(now),
     };

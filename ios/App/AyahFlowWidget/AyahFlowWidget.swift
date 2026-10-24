@@ -101,7 +101,7 @@ struct Provider: TimelineProvider {
         let now = Date(), at = { (h: Double) in now.addingTimeInterval(h * 3600).timeIntervalSince1970 * 1000 }
         let today: [SharedTimeline.Prayer] = [.init(key: "fajr", label: "Fajr", at: at(-8)), .init(key: "dhuhr", label: "Dhuhr", at: at(-2)), .init(key: "asr", label: "Asr", at: at(1.4)), .init(key: "maghrib", label: "Maghrib", at: at(4)), .init(key: "isha", label: "Isha", at: at(5.3))]
         let daily = SharedTimeline.Daily(day: dayKey(now), counters: [.init(id: "istighfar", label: "Istighfar", n: 64, total: 100, atLeast: false, perPrayer: false), .init(id: "istighfar-tawbah", label: "Istighfar and tawbah", n: 20, total: 70, atLeast: true, perPrayer: false), .init(id: "tasbih-prayer", label: "Tasbih after prayer", n: 200, total: 100, atLeast: false, perPrayer: true)], adhkar: [.init(key: "morning", label: "Morning adhkar", done: 4, total: 5), .init(key: "evening", label: "Evening adhkar", done: 0, total: 5)], steps: .init(today: 5840, goal: 8000, at: now.timeIntervalSince1970 * 1000))
-        return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current, daily: daily, page: .current, ayah: .init(day: dayKey(now), surah: 20, ayah: 114, to: 114, ref: "20:114", text: "رَّبِّ زِدْنِى عِلْمًا", name: "Taa-Haa", nameAr: "طه"))
+        return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current, daily: daily, page: .current, ayah: .init(day: dayKey(now), surah: 37, ayah: 100, to: 100, ref: "37:100", text: "رَبِّ هَبْ لِى مِنَ ٱلصَّـٰلِحِينَ", name: "As-Saaffaat", nameAr: "الصافات"))
     }
 
     func placeholder(in context: Context) -> PrayerEntry { Provider.sample() }
@@ -584,19 +584,25 @@ struct AyahWidgetView: View {
         Group {
             if #available(iOSApplicationExtension 16.0, *), family == .accessoryRectangular {
                 if let a = entry.ayah {
-                    VStack(alignment: .trailing, spacing: 1) {
-                        Text(a.text).font(.system(size: 15)).lineLimit(3).minimumScaleFactor(0.5).multilineTextAlignment(.trailing)
-                        Text("\(a.nameAr) · \(a.ref)").font(.system(size: 10, weight: .semibold)).widgetAccentable()
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    // Like a Lock Screen quote: "📖 Surah Name, ref" on top, the whole du'a under it (never cut).
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(surahRef(a), systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
+                        Text(a.text).font(.system(size: 17)).lineLimit(3).minimumScaleFactor(0.55).multilineTextAlignment(.trailing)
+                            .environment(\.layoutDirection, .rightToLeft).frame(maxWidth: .infinity, alignment: .trailing)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else { Text(entry.labels["ayahEmpty"] ?? "Open AyahFlow").font(.caption2) }
             } else if #available(iOSApplicationExtension 16.0, *), family == .accessoryInline {
-                Text(entry.ayah.map { "\($0.text)" } ?? "AyahFlow")
+                // One line above the clock is too short for a du'a, so it names it instead of cutting it.
+                if let a = entry.ayah { Label(surahRef(a), systemImage: "book.closed.fill") } else { Text("AyahFlow") }
             } else {
                 AyahBody(entry: entry)
             }
         }
         .widgetURL(URL(string: entry.ayah.map { "ayahflow://ayah/\($0.surah):\($0.ayah)" } ?? "ayahflow://adhkar"))
         .modifier(WidgetBackground())
+    }
+    func surahRef(_ a: SharedTimeline.Ayah) -> String {
+        (entry.labels["surahRef"] ?? "Surah {name}, {ref}").replacingOccurrences(of: "{name}", with: entry.rtl ? a.nameAr : a.name).replacingOccurrences(of: "{ref}", with: a.ref)
     }
 }
 

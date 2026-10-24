@@ -430,4 +430,9 @@ test('Du’a of the day: real references that address رَبَّنَا / رَب�
     for (const w of week) assert.equal(w.text, Array.from({ length: w.to - w.ayah + 1 }, (_, i) => verse(w.surah, w.ayah + i)).join(' '));
     assert.equal(ayahRef({ surah: 20, ayah: 25, to: 28 }), '20:25–28'); assert.equal(ayahRef({ surah: 2, ayah: 201, to: 201 }), '2:201');
     assert.equal(widgetData(initialState(), k2 => k2, Date.now()).ayahs.length, 14); // shown even without a saved place
+    // Lock Screen: the whole du'a must fit, so long ones are never picked (and never cut).
+    const { DUA_MAX_LETTERS } = await import('../www/js/smart.js');
+    const year = dailyAyahs(new Date(2026, 0, 1).getTime(), 366);
+    for (const w of year) assert(w.text.replace(/[^\u0621-\u064A\u0671]/g, '').length <= DUA_MAX_LETTERS, w.ref);
+    assert(!year.some(w => w.ref === '2:286')); assert(new Set(year.map(w => w.ref)).size > 40);
 });
