@@ -1,6 +1,9 @@
 """Derive the AyahFlow Quran font from Scheherazade New 4.500 (SIL OFL 1.1).
-Only change: a ccmp lookup, first in order, draws the sukun U+0652 with the font's own U+06E1 glyph (the open
-"jazm" shape the Madinah Mushaf prints, e.g. يَعۡمَلُونَ), so Tanzil's encoding looks like the printed page.
+Two changes, both ccmp lookups run before any other, so Tanzil's encoding is drawn like the King Fahd Complex
+(KFGQPC) digital Hafs text that Quran.com shows:
+- U+0649 is drawn with the dots of U+064A where it stands for yā' (it carries a vowel/shadda/sukun, takes maddah
+  first, or follows a kasra): نَجِّنِي, while alif maqsura (هُدًى, عَلَىٰ) stays dotless;
+- the sukun U+0652 is drawn with the font's own U+06E1 glyph, the open "jazm" shape (يَعۡمَلُونَ).
 The text is never changed. Renamed because "Scheherazade" is a Reserved Font Name.
 Usage (fontTools 4.55.3): python3 scripts/build-quran-font.py content/fonts/ScheherazadeNew-Regular.ttf public/fonts/AyahFlowQuran-Regular.ttf
 then copy the output to ios/App/AyahFlowWidget/. Deterministic: the same input gives the same bytes."""
@@ -9,16 +12,31 @@ from fontTools.ttLib import TTFont
 from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
 src, out = sys.argv[1], sys.argv[2]
 f = TTFont(src, recalcTimestamp=False)
-fea = """languagesystem DFLT dflt;
+gdef = f['GDEF'].table.GlyphClassDef.classDefs
+marks = sorted(g for g, c in gdef.items() if c == 3)
+skip = ' '.join(marks + ['uni0640'])
+harakat = 'uni064B uni064C uni064D uni064E uni064F uni0650 uni0651 uni0652 uni06E1'
+rules = ['sub uni0649\' lookup AM_YEH uni0653;']
+for n in range(3):
+    rules.append('sub uni0649\' lookup AM_YEH ' + '@SKIP ' * n + '@HARAKA;')
+for n in range(9):
+    rules.append('sub uni0650 ' + '@SKIP ' * n + 'uni0649\' lookup AM_YEH;')
+fea = f"""languagesystem DFLT dflt;
 languagesystem arab dflt;
-lookup SUKUN_JAZM { sub uni0652 by uni06E1; } SUKUN_JAZM;
-feature ccmp { lookup SUKUN_JAZM; } ccmp;
+@SKIP = [{skip}];
+@HARAKA = [{harakat}];
+lookup AM_YEH {{ sub uni0649 by uni064A; }} AM_YEH;
+lookup AM_CTX {{
+  {chr(10).join(rules)}
+}} AM_CTX;
+lookup SUKUN_JAZM {{ sub uni0652 by uni06E1; }} SUKUN_JAZM;
+feature ccmp {{ lookup AM_CTX; lookup SUKUN_JAZM; }} ccmp;
 """
 tmp = TTFont(src)
 del tmp['GSUB']
 addOpenTypeFeaturesFromString(tmp, fea)
-new = tmp['GSUB'].table.LookupList.Lookup  # [SUKUN_JAZM]
-assert len(new) == 1
+new = tmp['GSUB'].table.LookupList.Lookup  # [AM_YEH, AM_CTX, SUKUN_JAZM]
+assert len(new) == 3
 g = f['GSUB'].table
 k = len(new)
 def shift(lk):
@@ -41,14 +59,14 @@ g.LookupList.LookupCount = len(g.LookupList.Lookup)
 for fr in g.FeatureList.FeatureRecord:
     fr.Feature.LookupListIndex = [i + k for i in fr.Feature.LookupListIndex]
     if fr.FeatureTag == 'ccmp':
-        fr.Feature.LookupListIndex.insert(0, 0)
+        fr.Feature.LookupListIndex[0:0] = [1, 2]
     fr.Feature.LookupCount = len(fr.Feature.LookupListIndex)
 assert any(fr.FeatureTag == 'ccmp' for fr in g.FeatureList.FeatureRecord)
 # Rename (OFL: a Modified Version may not use the Reserved Font Names "Scheherazade" or "SIL").
 name = f['name']
 fam, ps = 'AyahFlow Quran', 'AyahFlowQuran-Regular'
 desc = ('AyahFlow Quran is a Modified Version of Scheherazade New 4.500 by SIL Global, under the SIL Open Font License 1.1. '
-        'Change: the sukun U+0652 is drawn with the U+06E1 (Uthmani jazm) glyph (ccmp).')
+        'Changes (ccmp): U+0649 is drawn as yeh where it stands for ya; the sukun U+0652 is drawn with the U+06E1 (jazm) glyph.')
 for rec in list(name.names):
     if rec.nameID in (16, 17, 18, 21, 22): name.removeNames(nameID=rec.nameID)
 for pid, eid, lid in {(r.platformID, r.platEncID, r.langID) for r in name.names}:

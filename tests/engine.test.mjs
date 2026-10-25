@@ -196,12 +196,13 @@ test('Quran text uses the bundled AyahFlow Quran font (Scheherazade New, adapted
     const { readFile } = await import('node:fs/promises');
     const { createHash } = await import('node:crypto');
     const css = await readFile('public/style.css', 'utf8');
-    assert.match(css, /@font-face\{font-family:'AyahFlow Quran';src:url\('\.\/fonts\/AyahFlowQuran-Regular\.ttf'\)/);
     assert.match(css, /--arabic:'AyahFlow Quran',/); // first in the stack, before any system font
     const web = await readFile('public/fonts/AyahFlowQuran-Regular.ttf'), widget = await readFile('ios/App/AyahFlowWidget/AyahFlowQuran-Regular.ttf');
     const sha = b => createHash('sha256').update(b).digest('hex');
     assert.equal(sha(web), sha(widget));
-    // The reviewed build of scripts/build-quran-font.py (sukun drawn as the Mushaf jazm, checked over all 6236 ayahs); a change needs the same review.
+    // The URL carries the font's hash, so a changed font is never served from a web view cache.
+    assert(css.includes(`@font-face{font-family:'AyahFlow Quran';src:url('./fonts/AyahFlowQuran-Regular.ttf?v=${sha(web).slice(0, 12)}')`), 'font URL must carry the current font hash');
+    // The reviewed build of scripts/build-quran-font.py (yā' dotted and sukun drawn as the jazm, checked over all 6236 ayahs); a change needs the same review.
     const notices = await readFile('docs/THIRD-PARTY-NOTICES.md', 'utf8');
     assert(notices.includes(sha(web)), 'font hash must match docs/THIRD-PARTY-NOTICES.md');
     assert(notices.includes(sha(await readFile('content/fonts/ScheherazadeNew-Regular.ttf'))), 'upstream font must be the documented, unmodified file');
