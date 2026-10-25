@@ -26,6 +26,8 @@ export interface Surah {
 export const QURAN_SOURCE = { name: QURAN.source, licence: QURAN.licence, url: QURAN.url, sha256: QURAN.sha256 } as const;
 /** First ayah of each juz, [surah, ayah]. */
 export const JUZ_STARTS: readonly (readonly [number, number])[] = QURAN.juz;
+/** First ayah of each ruku' (the traditional thematic sections in Tanzil's metadata), [surah, ayah]. */
+export const RUKU_STARTS: readonly (readonly [number, number])[] = QURAN.ruku;
 export function juzOf(surah: number, ayah: number): number { let j = 1; JUZ_STARTS.forEach(([s, a], i) => { if (s < surah || (s === surah && a <= ayah)) j = i + 1; }); return j; }
 let global = 1;
 export const SURAH_DATA: readonly Surah[] = QURAN.surahs.map(s => { const surah: Surah = { id: s.id, name: s.name, ar: s.ar, en: s.en, type: s.type, count: s.verses.length, juz: 0, firstGlobal: global, bismillah: s.bismillah, verses: s.verses, source: `https://tanzil.net/#${s.id}:1` }; global += s.verses.length; return surah; });

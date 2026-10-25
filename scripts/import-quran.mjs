@@ -27,8 +27,9 @@ export async function importQuran() {
     const notice = xml.match(/<!--([\s\S]*?)-->/)[1].trim();
     const meta = [...metaXml.matchAll(/<sura [^>]*\/>/g)].map(m => attrs(m[0]));
     const juz = [...metaXml.matchAll(/<juz [^>]*\/>/g)].map(m => { const a = attrs(m[0]); return [Number(a.sura), Number(a.aya)]; });
+    const ruku = [...metaXml.matchAll(/<ruku [^>]*\/>/g)].map(m => { const a = attrs(m[0]); return [Number(a.sura), Number(a.aya)]; });
     const blocks = [...xml.matchAll(/<sura ([^>]*)>([\s\S]*?)<\/sura>/g)];
-    if (blocks.length !== 114 || meta.length !== 114 || juz.length !== 30) throw new Error('Unexpected Tanzil structure');
+    if (blocks.length !== 114 || meta.length !== 114 || juz.length !== 30 || ruku.length !== 556) throw new Error('Unexpected Tanzil structure');
     let global = 0;
     const surahs = blocks.map((b, i) => {
         const head = attrs(b[1]), m = meta[i], id = Number(head.index);
@@ -40,7 +41,7 @@ export async function importQuran() {
         return { id, ar: head.name, name: m.tname, en: m.ename, type: m.type === 'Medinan' ? 'medinan' : 'meccan', bismillah: ayahs[0].bismillah ?? null, verses: ayahs.map(a => a.text) };
     });
     if (global !== 6236) throw new Error(`Expected 6236 ayahs, got ${global}`);
-    return { source: 'Tanzil Quran Text (Uthmani, Version 1.1)', licence: 'CC BY 3.0', url: 'https://tanzil.net', sha256: QURAN_FILES.text.sha256, notice, juz, surahs };
+    return { source: 'Tanzil Quran Text (Uthmani, Version 1.1)', licence: 'CC BY 3.0', url: 'https://tanzil.net', sha256: QURAN_FILES.text.sha256, notice, juz, ruku, surahs };
 }
 export async function writeQuranModule(outfile) {
     const q = await importQuran();

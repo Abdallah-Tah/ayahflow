@@ -219,28 +219,30 @@ export function mergeDetections(existing: Detection[], events: { event: Detectio
 const PRAYER_CODE: Record<PrayerName, number> = { fajr: 4, dhuhr: 5, asr: 6, maghrib: 7, isha: 8 };
 /** Stable athan notification id per prayer and day (codes 4-8; adhkar reminders use 1-3). */
 export function athanId(prayer: PrayerName, day: string): number { return PRAYER_CODE[prayer] * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
-export interface PrayerAt { prayer: PrayerName; at: number }
-/** Prayer times from the saved place for `days` days starting today, in order. Empty without a saved place. */
+/** `day` is the local day the prayer belongs to (an Isha after midnight belongs to the day before). */
+export interface PrayerAt { prayer: PrayerName; at: number; day: string }
+/** Prayer times from the saved place for `days` days starting today, in order, led by any of yesterday's that are
+ * still to come (at high latitudes in summer, Isha can fall after midnight). Empty without a saved place. */
 export function prayersFrom(state: AppState, now = Date.now(), days = 7): PrayerAt[] {
     const out: PrayerAt[] = [];
-    for (let i = 0; i < days; i++) {
+    for (let i = -1; i < days; i++) {
         const d = new Date(now); d.setDate(d.getDate() + i);
         const t = timesFor(state, d);
-        if (t) for (const p of PRAYERS) out.push({ prayer: p, at: t[p] });
+        if (t) for (const p of PRAYERS) if (i >= 0 || t[p] > now) out.push({ prayer: p, at: t[p], day: dayKey(d.getTime()) });
     }
     return out;
 }
 export function nextPrayer(state: AppState, now = Date.now()): PrayerAt | null { return prayersFrom(state, now, 2).find(p => p.at > now) ?? null; }
 /** The day the Today card shows: the day of the next prayer, so the big time and the timeline always agree. After Isha
  * that is tomorrow's schedule (as the usual prayer apps do), flagged so the card can say so. */
-export function prayerDayView(state: AppState, now = Date.now()): { next: PrayerAt; times: Times; tomorrow: boolean } | null {
+export function prayerDayView(state: AppState, now = Date.now()): { next: PrayerAt; times: Times; tomorrow: boolean; day: string } | null {
     const next = nextPrayer(state, now);
     if (!next) return null;
     // The same day offsets prayersFrom uses, so this holds even when the place's time zone differs from the device's.
-    for (let i = 0; i < 2; i++) {
+    for (let i = -1; i < 2; i++) {
         const d = new Date(now); d.setDate(d.getDate() + i);
         const times = timesFor(state, d);
-        if (times && PRAYERS.some(p => times[p] === next.at)) return { next, times, tomorrow: i > 0 };
+        if (times && PRAYERS.some(p => times[p] === next.at)) return { next, times, tomorrow: i > 0, day: dayKey(d.getTime()) };
     }
     return null;
 }
@@ -254,7 +256,7 @@ export function athanSchedule(state: AppState, label: (p: PrayerName, at: number
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
 /** Today's dhikr counts, adhkar progress and (only when the step tracker is on) the latest step reading, for the widget. */
 export interface WidgetDaily { day: string; counters: { id: string; label: string; n: number; total: number; atLeast: boolean; perPrayer: boolean }[]; adhkar: { key: Moment; label: string; done: number; total: number }[]; steps: { today: number; goal: number; at: number } | null }
-export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string>; daily: WidgetDaily | null; ayahs: ReturnType<typeof dailyAyahs>; worship?: WidgetWorship }
+export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number; day: string }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string>; daily: WidgetDaily | null; ayahs: ReturnType<typeof dailyAyahs>; worship?: WidgetWorship }
 /** Prayers the user confirmed (today and yesterday, so midnight does not blank them) and the Ayah of the Moment for the
  * next half-hour slots, so the widget can follow without the app (within the system's refresh limits). */
 export interface WidgetWorship { salah: { day: string; kept: PrayerName[] }[]; moments: { at: number; surah: number; ayah: number; ref: string; text: string; name: string; nameAr: string }[] }
@@ -262,9 +264,9 @@ export function widgetData(state: AppState, label: (key: string) => string, now 
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() + i); return d; });
     return {
         v: 1, updatedAt: now, rtl: state.locale === 'ar', locale: state.locale,
-        prayers: prayersFrom(state, now).map(p => ({ key: p.prayer, label: label('p_' + p.prayer), at: p.at })),
+        prayers: prayersFrom(state, now).map(p => ({ key: p.prayer, label: label('p_' + p.prayer), at: p.at, day: p.day })),
         windows: days.map(d => { const w = windowsFor(state, d); return { morning: w.morning, evening: w.evening }; }),
-        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), stepsTab: label('steps'), rounds: label('rounds'), stepsOff: label('widgetStepsOff'), toGo: label('toGo'), goalReached: label('goalReached'), updated: label('widgetUpdated'), ayahTab: label('ayahOfDay'), surahRef: label('surahRef'), ayahEmpty: label('ayahWidgetEmpty'), momentTab: label('ayahMoment'), prayed: label('widgetPrayed'), ...extra },
+        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), stepsTab: label('steps'), rounds: label('rounds'), stepsOff: label('widgetStepsOff'), toGo: label('toGo'), goalReached: label('goalReached'), updated: label('widgetUpdated'), ayahTab: label('ayahOfDay'), surahRef: label('surahRef'), ayahEmpty: label('ayahWidgetEmpty'), momentTab: label('ayahMoment'), prayed: label('widgetPrayed'), readAyah: label('readInContext'), ...extra },
         daily,
         ayahs: dailyAyahs(now),
         ...(worship ? { worship } : {}),

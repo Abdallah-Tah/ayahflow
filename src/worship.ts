@@ -1,6 +1,6 @@
 /** Daily worship, pure: the Ayah of the Moment rotation, short recitation suggestions, prayer progress and the gentle
  * check-in reminders. No DOM, storage or native calls. Quran text is always read from the Tanzil corpus (data.ts). */
-import { SURAH_DATA, chapter, verse } from './data.js';
+import { RUKU_STARTS, chapter, verse } from './data.js';
 import { dayKey, rng, shuffle, salahStatus, tasbihOn, PRAYERS, type AppState, type PrayerName, type SalahStatus } from './engine.js';
 import { counter, TASBIH_VARIANTS } from './adhkar.js';
 import { timesFor, SALAH_MAX } from './smart.js';
@@ -13,11 +13,13 @@ export const SLOT_MINUTES = 30;
 export const MOMENT_MIN_LETTERS = 12, MOMENT_MAX_LETTERS = 260;
 const letters = (s: string) => s.replace(/[^ء-يٱ]/g, '').length;
 let pool: (readonly [number, number])[] | null = null;
-/** Every eligible ayah once, in a fixed shuffled order, so consecutive slots never repeat until the pool is used up
- * (about 100 days). The order is the same on every device, so the app and the widget agree. */
+/** The ayahs that open a ruku' section (Tanzil's metadata), so the card never starts in the middle of a passage, each
+ * once in a fixed shuffled order: no repeat until the pool is used up (517 ayahs, about 10 days). The order is the same
+ * on every device, so the app and the widget agree. A mechanical choice, not an editorial selection; the whole Quran
+ * stays one tap away (previous/next and the reader). */
 export function momentPool(): readonly (readonly [number, number])[] {
     if (!pool) {
-        const all = SURAH_DATA.flatMap(s => s.verses.flatMap((v, i) => { const n = letters(v); return n >= MOMENT_MIN_LETTERS && n <= MOMENT_MAX_LETTERS ? [[s.id, i + 1] as const] : []; }));
+        const all = RUKU_STARTS.filter(([s, a]) => { const n = letters(verse(s, a)); return n >= MOMENT_MIN_LETTERS && n <= MOMENT_MAX_LETTERS; });
         pool = shuffle(all, rng(0x41594148));
     }
     return pool;
@@ -71,6 +73,14 @@ export function recitation(id: string): { id: string; surah: number; from: numbe
 // ---- Prayer progress -----------------------------------------------------------------------------
 /** Prayers counted as confirmed: prayed on time ('done') or made up later ('madeUp'). */
 const kept = (s: SalahStatus | null) => s === 'done' || s === 'madeUp';
+/** The day whose prayers are current: before today's Fajr at the saved place it is still yesterday, so an Isha prayed
+ * after midnight is noted on its own day. Without a saved place, the calendar day. */
+export function salahDay(state: AppState, now = Date.now()): string {
+    const t = timesFor(state, new Date(now));
+    if (!t || now >= t.fajr) return dayKey(now);
+    const d = new Date(now); d.setDate(d.getDate() - 1);
+    return dayKey(d.getTime());
+}
 export function daySummary(state: AppState, day: string): { done: number; missed: number; madeUp: number; open: number; statuses: Record<PrayerName, SalahStatus | null> } {
     const statuses = Object.fromEntries(PRAYERS.map(p => [p, salahStatus(state, day, p)])) as Record<PrayerName, SalahStatus | null>;
     const v = Object.values(statuses);

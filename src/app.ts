@@ -7,7 +7,7 @@ import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
-import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders } from './worship.js';
+import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
 type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations';
 let state: AppState = initialState();
@@ -446,17 +446,6 @@ function bannerSub(): string { return previewing ? reciterName(previewing) : t(o
 const reciterName = (id: string) => id === 'custom' ? state.athan.custom?.name ?? t('kindOwn') : id.startsWith('online-') ? online(id.slice(7))?.name[state.locale] ?? id : recording(id)?.name[state.locale] ?? id;
 /** Download in progress (online id), so its button shows progress. */
 let downloadingAthan: string | null = null;
-/** Today's prayers on one line at their real times, with "now" and the next prayer called out. */
-function prayerDay(): string {
-    const now = Date.now(), day = prayerDayView(state, now);
-    if (!day) return `<button class="prayer-day empty" data-action="nav" data-view="reminders"><span class="now-orb">${ic('mosque', 22)}</span><span class="grow small">${t('setupPrayer')}</span>${chevronEnd()}</button>`;
-    const { times, next, tomorrow } = day;
-    // Evenly spaced stops (one per label column, centres at 10/30/50/70/90 %); "now" sits proportionally inside its gap.
-    const stops = PRAYERS.map(p => times[p]);
-    const pos = (at: number) => { if (at <= stops[0]!) return 10; if (at >= stops[4]!) return 90; const i = stops.findIndex((x, k) => at >= x && at < stops[k + 1]!); return 10 + 20 * (i + (at - stops[i]!) / (stops[i + 1]! - stops[i]!)); };
-    const status = state.athan.enabled ? `${ic('bell', 13)} ${escapeHtml(state.athan.sound === 'chime' ? t('soundChime') : reciterName(next.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter))}` : `${ic('bell', 13)} ${t('athanOffShort')}`;
-    return `<button class="prayer-day" data-action="nav" data-view="prayer"><div class="row between"><span class="eyebrow">${t('nextPrayer')}${tomorrow ? ` · ${t('tomorrow')}` : ''}</span><span class="athan-chip ${state.athan.enabled ? 'on' : ''}">${status}</span></div><div class="prayer-day-main"><span class="grow"><strong class="prayer-day-name">${t('p_' + next.prayer)}</strong><span class="small gold" data-countdown="${next.at}">${countdown(next.at, now)}</span></span><span class="prayer-day-time">${clock(next.at)}</span></div><div class="day-line" aria-hidden="true"><span class="day-fill" style="width:${pos(now) - 10}%"></span>${PRAYERS.map(p => `<span class="day-mark ${times[p] <= now ? 'past' : ''} ${next.at === times[p] ? 'next' : ''}" style="inset-inline-start:${pos(times[p])}%"></span>`).join('')}<span class="day-now" style="inset-inline-start:${pos(now)}%"></span></div><div class="day-labels">${PRAYERS.map(p => `<span class="${next.at === times[p] ? 'next' : ''} ${times[p] <= now ? 'past' : ''}"><b>${t('p_' + p)}</b>${clock(times[p])}</span>`).join('')}</div></button>`;
-}
 function onlineCard(r: typeof ONLINE_RECORDINGS[number]): string {
     const id = `online-${r.id}`, have = state.athan.downloads.includes(r.id), playing = previewing === id && audioState === 'playing';
     const active = r.fajrOnly ? state.athan.fajrReciter === id : state.athan.reciter === id;
@@ -710,22 +699,22 @@ function canConfirm(day: string, prayer: PrayerName, now = Date.now()): boolean 
 function nextPrayerWidget(): string {
     const now = Date.now(), day = prayerDayView(state, now);
     if (!day) return `<button class="prayer-day empty" data-action="nav" data-view="reminders"><span class="now-orb">${ic('mosque', 22)}</span><span class="grow small">${t('setupPrayer')}</span>${chevronEnd()}</button>`;
-    const { times, next, tomorrow } = day, today = dayKey(now), shown = tomorrow ? dayKey(next.at) : today;
+    const { times, next, tomorrow } = day, shown = day.day;
     const stops = PRAYERS.map(p => times[p]);
     const pos = (at: number) => { if (at <= stops[0]!) return 10; if (at >= stops[4]!) return 90; const i = stops.findIndex((x, k) => at >= x && at < stops[k + 1]!); return 10 + 20 * (i + (at - stops[i]!) / (stops[i + 1]! - stops[i]!)); };
     const status = state.athan.enabled ? `${ic('bell', 13)} ${escapeHtml(state.athan.sound === 'chime' ? t('soundChime') : reciterName(next.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter))}` : `${ic('bell', 13)} ${t('athanOffShort')}`;
     return `<section class="prayer-day widget" aria-labelledby="w-next"><div class="row between"><span class="eyebrow" id="w-next">${t('nextPrayer')}${tomorrow ? ` · ${t('tomorrow')}` : ''}</span><span class="athan-chip ${state.athan.enabled ? 'on' : ''}">${status}</span></div><div class="prayer-day-main"><span class="grow"><strong class="prayer-day-name">${t('p_' + next.prayer)}</strong><span class="small gold" data-countdown="${next.at}" aria-live="off">${countdown(next.at, now)}</span></span><span class="prayer-day-time">${clock(next.at)}</span></div><div class="day-line" aria-hidden="true"><span class="day-fill" style="width:${pos(now) - 10}%"></span>${PRAYERS.map(p => `<span class="day-mark ${times[p] <= now ? 'past' : ''} ${next.at === times[p] ? 'next' : ''}" style="inset-inline-start:${pos(times[p])}%"></span>`).join('')}<span class="day-now" style="inset-inline-start:${pos(now)}%"></span></div><div class="day-labels">${PRAYERS.map(p => { const s = salahStatus(state, shown, p); return `<span class="${next.at === times[p] ? 'next' : ''} ${times[p] <= now ? 'past' : ''} ${s ? 'st-' + s : ''}"><b>${t('p_' + p)}</b>${clock(times[p])}${s ? `<i class="st-dot" aria-label="${statusLabel(s)}">${statusIcon(s)}</i>` : ''}</span>`; }).join('')}</div><button class="text-button widget-link" data-action="nav" data-view="prayer">${ic('clock', 14)} ${t('allPrayers')} ${chevronEnd()}</button></section>`;
 }
 /** Widget 2: one-tap confirmation of today's prayers and the day's progress. */
-function trackerWidget(day = dayKey(), full = false): string {
+function trackerWidget(day = salahDay(state), full = false): string {
     const s = daySummary(state, day), kept = s.done + s.madeUp, times = dayTimes(day), now = Date.now();
     const chips = PRAYERS.map(p => {
         const st = s.statuses[p], ok = canConfirm(day, p, now), label = `${t('p_' + p)}: ${statusLabel(st)}`;
         return `<button class="salah-chip ${st ? 'st-' + st : ''}" data-action="salah-tap" data-prayer="${p}" data-day="${day}" aria-label="${label}${!ok ? ` · ${t('notYetTime')}` : ''}" ${ok || st ? '' : 'disabled'}><span class="salah-mark" aria-hidden="true">${st ? statusIcon(st) : ''}</span><span class="salah-name">${t('p_' + p)}</span><span class="tiny muted">${st ? statusLabel(st) : times ? clock(times[p]) : t('tapToConfirm')}</span></button>`;
     }).join('');
-    const after = justPrayed && justPrayed.day === day && day === dayKey() && salahStatus(state, day, justPrayed.prayer) === 'done' && !anyTasbihDone(state, day, justPrayed.prayer)
+    const after = justPrayed && justPrayed.day === day && day === salahDay(state) && salahStatus(state, day, justPrayed.prayer) === 'done' && !anyTasbihDone(state, day, justPrayed.prayer)
         ? `<button class="feature-wide row tasbih-offer" data-action="tasbih-start" data-prayer="${justPrayed.prayer}" data-day="${day}"><span class="gold">${ic('tasbih', 22)}</span><span class="grow"><h3>${t('tasbihAfter').replace('{prayer}', t('p_' + justPrayed.prayer))}</h3><p>${t('tasbihAfterSub')}</p></span>${chevronEnd()}</button>` : '';
-    return `<section class="widget tracker" aria-labelledby="w-track-${day}"><div class="row between"><span class="eyebrow" id="w-track-${day}">${day === dayKey() ? t('todaysPrayers') : escapeHtml(new Date(`${day}T12:00:00`).toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span class="tiny ${kept === 5 ? 'success-text' : 'muted'}" aria-live="polite">${t('ofFive').replace('{n}', num(kept))}</span></div><div class="meter" aria-hidden="true"><span style="width:${kept / 5 * 100}%"></span></div><div class="salah-row">${chips}</div>${after}${full ? `<p class="tiny muted mt12">${t('trackerNote')}</p>` : ''}</section>`;
+    return `<section class="widget tracker" aria-labelledby="w-track-${day}"><div class="row between"><span class="eyebrow" id="w-track-${day}">${day === dayKey() ? t('todaysPrayers') : escapeHtml(new Date(`${day}T12:00:00`).toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span class="tiny ${kept === 5 ? 'success-text' : 'muted'}" aria-live="polite">${t('ofFive').replace('{n}', num(kept)).replace('{total}', num(5))}</span></div><div class="meter" aria-hidden="true"><span style="width:${kept / 5 * 100}%"></span></div><div class="salah-row">${chips}</div>${after}${full ? `<p class="tiny muted mt12">${t('trackerNote')}</p>` : ''}</section>`;
 }
 /** The dhikr shown on Home: the first favourite, else the last one used, else glorification. */
 function quickDhikrId(): string {
@@ -788,7 +777,7 @@ function historyCalendar(): string {
     const lead = (first.getDay() + 6) % 7, today = dayKey();
     const cells = Array.from({ length: lead }, () => '<span></span>').join('') + Array.from({ length: days }, (_, i) => {
         const day = dayKey(new Date(first.getFullYear(), first.getMonth(), i + 1, 12).getTime()), s = daySummary(state, day), kept = s.done + s.madeUp, future = day > today;
-        return `<button class="cal-day ${day === today ? 'today' : ''} ${day === historyDay ? 'selected' : ''} ${kept === 5 ? 'full' : kept ? 'some' : ''}" data-action="history-day" data-day="${day}" ${future ? 'disabled' : ''} aria-label="${escapeHtml(new Date(`${day}T12:00:00`).toLocaleDateString(state.locale, { day: 'numeric', month: 'long' }))}: ${t('ofFive').replace('{n}', num(kept))}"><span>${num(i + 1)}</span><i style="--k:${kept / 5}"></i></button>`;
+        return `<button class="cal-day ${day === today ? 'today' : ''} ${day === historyDay ? 'selected' : ''} ${kept === 5 ? 'full' : kept ? 'some' : ''}" data-action="history-day" data-day="${day}" ${future ? 'disabled' : ''} aria-label="${escapeHtml(new Date(`${day}T12:00:00`).toLocaleDateString(state.locale, { day: 'numeric', month: 'long' }))}: ${t('ofFive').replace('{n}', num(kept)).replace('{total}', num(5))}"><span>${num(i + 1)}</span><i style="--k:${kept / 5}"></i></button>`;
     }).join('');
     const week = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(state.locale, { weekday: 'narrow' }));
     return `<section class="section widget"><div class="row between"><button class="icon-button" data-action="history-month" data-step="-1" aria-label="${t('previousMonth')}"><span class="arrow-icon">${ic('prev', 18)}</span></button><h2 class="section-title">${escapeHtml(first.toLocaleDateString(state.locale, { month: 'long', year: 'numeric' }))}</h2><button class="icon-button" data-action="history-month" data-step="1" aria-label="${t('nextMonth')}" ${historyMonth >= 0 ? 'disabled' : ''}><span class="arrow-icon">${ic('next', 18)}</span></button></div><div class="cal-grid" role="group">${week.map(w => `<span class="cal-head">${escapeHtml(w)}</span>`).join('')}${cells}</div><p class="tiny muted mt12">${t('calendarNote')}</p></section>${historyDay ? trackerWidget(historyDay, true) : ''}`;
@@ -796,7 +785,7 @@ function historyCalendar(): string {
 function insightsSection(): string {
     const week = salahWeek(state), streakDays = salahStreak(state), ins = salahInsights(state), top = Math.max(5, ...week.map(d => d.kept));
     const bars = `<div class="step-bars short">${week.map(d => `<div class="step-bar ${d.day === dayKey() ? 'current' : ''} ${d.kept === 5 ? 'met' : ''}"><span class="tiny muted">${d.kept ? num(d.kept) : '—'}</span><i style="height:${d.kept / top * 72}%"></i><span class="tiny">${escapeHtml(new Date(`${d.day}T12:00:00`).toLocaleDateString(state.locale, { weekday: 'narrow' }))}</span></div>`).join('')}</div>`;
-    const lines = [streakDays ? t('salahStreak').replace('{n}', num(streakDays)) : t('salahStreakNone'), ins.best && ins.confirmed >= 10 ? t('bestPrayer').replace('{prayer}', t('p_' + ins.best)).replace('{n}', num(ins.perPrayer[ins.best])) : '', ins.recordedDays ? t('recordedDays').replace('{n}', num(ins.confirmed)).replace('{d}', num(ins.recordedDays)) : ''].filter(Boolean);
+    const lines = [streakDays ? t('salahStreak').replace('{n}', num(streakDays)) : t('salahStreakNone'), ins.best && ins.confirmed >= 10 ? t('bestPrayer').replace('{prayer}', t('p_' + ins.best)).replace('{n}', num(ins.perPrayer[ins.best])).replaceAll('{days}', num(30)) : '', ins.recordedDays ? t('recordedDays').replace('{n}', num(ins.confirmed)).replace('{d}', num(ins.recordedDays)).replace('{days}', num(30)) : ''].filter(Boolean);
     return `<section class="section"><h2 class="section-title mb16">${t('thisWeek')}</h2>${bars}<ul class="insights">${lines.map(l => `<li>${ic('leaf', 14)} ${l}</li>`).join('')}</ul></section>`;
 }
 function salahSettings(): string {
@@ -810,10 +799,10 @@ function prayersView(): string {
     const head = `<p class="eyebrow mt12">${t('prayers')}</p><h1 class="page-title">${t('salahTitle')}</h1>${prayerTabs()}`;
     if (prayerTab === 'times') return `${head}${prayerView()}`;
     if (prayerTab === 'history') return `${head}${historyCalendar()}${insightsSection()}`;
-    return `${head}${prayerPlace(state) ? nextPrayerWidget() : ''}${trackerWidget(dayKey(), true)}${tasbihTiles()}${insightsSection()}${salahSettings()}<p class="gentle">${t('salahPrivate')}</p>`;
+    return `${head}${prayerPlace(state) ? nextPrayerWidget() : ''}${trackerWidget(salahDay(state), true)}${tasbihTiles()}${insightsSection()}${salahSettings()}<p class="gentle">${t('salahPrivate')}</p>`;
 }
 function tasbihTiles(): string {
-    const day = dayKey(), id = state.worship.prefs.tasbihVariant;
+    const day = salahDay(state), id = state.worship.prefs.tasbihVariant;
     return `<section class="section"><h2 class="section-title mb16">${t('guidedTasbih')}</h2><div class="tasbih-tiles">${PRAYERS.map(p => { const n = tasbihCount(day, p, id), total = counter(id).total; return `<button class="tasbih-tile ${n >= total ? 'finished' : ''}" data-action="tasbih-start" data-prayer="${p}" data-day="${day}">${ring(n / total * 100, n >= total ? ic('check', 16) : `<span class="tiny">${num(n)}</span>`)}<span class="tiny">${t('p_' + p)}</span></button>`; }).join('')}</div></section>`;
 }
 // Guided tasbih ------------------------------------------------------------------------------------
@@ -1320,7 +1309,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
         case 'tasbih-start': {
             const prayer = d.prayer as PrayerName;
             if (!PRAYERS.includes(prayer)) return;
-            tasbihPrayer = prayer; tasbihDay = d.day && /^\d{4}-\d{2}-\d{2}$/.test(d.day) ? d.day : dayKey(); tasbihPaused = false;
+            tasbihPrayer = prayer; tasbihDay = d.day && /^\d{4}-\d{2}-\d{2}$/.test(d.day) ? d.day : salahDay(state); tasbihPaused = false;
             await navigate('tasbih');
             break;
         }
@@ -1904,7 +1893,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = dayKey(); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });

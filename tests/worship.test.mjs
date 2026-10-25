@@ -3,7 +3,7 @@ process.env.TZ = 'Asia/Riyadh';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { verse, chapter, translation, SURAH_DATA } from '../www/js/data.js';
+import { verse, chapter, translation, SURAH_DATA, RUKU_STARTS } from '../www/js/data.js';
 import { LIBRARY, COUNTERS, TASBIH_VARIANTS, counterPosition } from '../www/js/adhkar.js';
 import { initialState, validateState, setSalah, salahStatus, setTasbih, tasbihOn, setCount, countOn, lifetimeCount, toggleFavorite, markRecent, setTarget, noteQuranOpen, addCounter, removeCounter, MAX_COUNTS, STATE_VERSION, dayKey } from '../www/js/engine.js';
 import { slotOf, slotRange, ayahOfMoment, momentPool, upcomingMoments, MOMENT_MIN_LETTERS, MOMENT_MAX_LETTERS, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, salahReminders, salahReminderId, SALAH_MAX, tasbihDone } from '../www/js/worship.js';
@@ -142,11 +142,15 @@ test('Ayah of the Moment: a new ayah each local half hour, stable within it, who
     assert.equal(start, at(25, 12, 30)); assert.equal(end, at(25, 13, 0));
     assert.deepEqual(ayahOfMoment(slotOf(at(25, 12, 1))), ayahOfMoment(slotOf(at(25, 12, 28))));
     const seen = new Set();
-    for (let i = 0; i < 2000; i++) { const a = ayahOfMoment(1000 + i); seen.add(`${a.surah}:${a.ayah}`); }
-    assert.equal(seen.size, 2000, 'no ayah repeats within 2000 slots (about six weeks)');
+    for (let i = 0; i < 517; i++) { const a = ayahOfMoment(1000 + i); seen.add(`${a.surah}:${a.ayah}`); }
+    assert.equal(seen.size, 517, 'no ayah repeats until the pool is used up (517 half hours, about ten days)');
     const letters = (s) => s.replace(/[^ء-يٱ]/g, '').length;
     for (const [s, a] of momentPool()) { const n = letters(verse(s, a)); assert.ok(n >= MOMENT_MIN_LETTERS && n <= MOMENT_MAX_LETTERS); }
-    assert.ok(momentPool().length > 4000);
+    assert.equal(momentPool().length, 517);
+    const starts = new Set(RUKU_STARTS.map(([s, a]) => `${s}:${a}`));
+    assert.equal(RUKU_STARTS.length, 556);
+    for (const [s, a] of momentPool()) assert.ok(starts.has(`${s}:${a}`), 'every ayah of the moment opens a ruku\' section');
+    assert.ok(starts.has('2:1') && starts.has('2:8') && starts.has('114:1'));
     const next = upcomingMoments(at(25, 12, 10), 48);
     assert.equal(next.length, 48); assert.equal(next[0].at, at(25, 12, 0)); assert.equal(next[1].at, at(25, 12, 30));
     for (const m of next) assert.equal(m.text, verse(m.surah, m.ayah), 'widget text is the corpus string');

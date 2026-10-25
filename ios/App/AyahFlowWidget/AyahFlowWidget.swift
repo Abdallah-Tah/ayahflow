@@ -7,7 +7,8 @@ import AppIntents
 
 /// Timeline precomputed by the app (src/smart.ts widgetData) and shared through the keychain. No coordinates.
 struct SharedTimeline: Decodable {
-    struct Prayer: Decodable { let key: String; let label: String; let at: Double }
+    /// `day` is the local day the prayer belongs to (an Isha after midnight belongs to the day before); older data has none.
+    struct Prayer: Decodable { let key: String; let label: String; let at: Double; var day: String? = nil }
     struct Window: Decodable { let morning: [Double]?; let evening: [Double]? }
     let v: Int
     let updatedAt: Double
@@ -71,7 +72,7 @@ struct PrayerEntry: TimelineEntry {
     var page: WidgetPage = .prayer
     /// Today's du'a from the Quran, if the app has shared it.
     var ayah: SharedTimeline.Ayah? = nil
-    /// Today's prayers the user confirmed in the app (their own note; nothing is inferred).
+    /// The shown day's prayers the user confirmed in the app (their own note; nothing is inferred).
     var kept: Set<String> = []
     /// The Ayah of the Moment for this entry's half hour.
     var momentAyah: SharedTimeline.Worship.Moment? = nil
@@ -151,11 +152,14 @@ struct Provider: TimelineProvider {
         let dayStart = Calendar.current.startOfDay(for: date)
         let since = index > 0 ? data.prayers[index - 1].date : dayStart
         let dayEnd = dayStart.addingTimeInterval(86400)
-        let today = data.prayers.filter { $0.date >= dayStart && $0.date < dayEnd }
+        // The day shown: today, or yesterday while its Isha is still to come after midnight (high latitudes in summer).
+        let shownDay = next.day.map { $0 < dayKey(date) ? $0 : dayKey(date) } ?? dayKey(date)
+        let today = data.prayers.contains { $0.day != nil } ? data.prayers.filter { $0.day == shownDay } : data.prayers.filter { $0.date >= dayStart && $0.date < dayEnd }
+        let keptShown = Set(data.worship?.salah.first { $0.day == shownDay }?.kept ?? [])
         let inside = { (w: [Double]?) in w.map { $0.count == 2 && ms >= $0[0] && ms < $0[1] } ?? false }
         let moment: (key: String, label: String)? = data.windows.contains { inside($0.morning) } ? (key: "morning", label: data.labels["morning"] ?? "Morning adhkar")
             : data.windows.contains { inside($0.evening) } ? (key: "evening", label: data.labels["evening"] ?? "Evening adhkar") : nil
-        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah, kept: kept, momentAyah: momentAyah)
+        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah, kept: keptShown, momentAyah: momentAyah)
     }
 }
 
@@ -284,7 +288,7 @@ struct PrayerWidgetView: View {
                 HStack(spacing: 8) {
                     Rectangle().fill(isNext ? Palette.gold : (past ? Palette.gold.opacity(0.5) : Palette.line)).frame(width: 6, height: 6).rotationEffect(.degrees(45))
                     Text(p.label).foregroundColor(isNext ? Palette.gold : Palette.text)
-                    if entry.kept.contains(p.key) && dayKey(p.date) == dayKey(entry.date) {
+                    if entry.kept.contains(p.key) && (p.day ?? dayKey(p.date)) == (entry.today.first?.day ?? dayKey(entry.date)) {
                         Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundColor(Palette.green).accessibilityLabel(entry.labels["prayed"] ?? "prayed")
                     }
                     Spacer(minLength: 4)
@@ -592,6 +596,31 @@ extension Font {
     static func quran(_ size: CGFloat) -> Font { .custom("AyahFlow Quran", size: size) }
 }
 
+/// An ayah at the largest of three readable sizes that fits the widget; when even the smallest does not, a pointer to
+/// read it in the app instead. The Quran text is never cut off or shrunk below legibility (iOS 15 keeps scaling it).
+struct FittedAyah: View {
+    let text: String
+    let size: CGFloat
+    let caption: String
+    var trailing = false
+    var body: some View {
+        if #available(iOSApplicationExtension 16.0, *) {
+            ViewThatFits(in: .vertical) {
+                line(size)
+                line(size * 0.82)
+                line(size * 0.68)
+                Label(caption, systemImage: "book").font(.caption).foregroundColor(Palette.muted).multilineTextAlignment(.center)
+            }
+        } else {
+            line(size).minimumScaleFactor(0.35)
+        }
+    }
+    private func line(_ s: CGFloat) -> some View {
+        Text(text).font(.quran(s)).multilineTextAlignment(trailing ? .trailing : .center).lineSpacing(s * 0.25)
+            .fixedSize(horizontal: false, vertical: true).environment(\.layoutDirection, .rightToLeft)
+    }
+}
+
 /// The du'a of the day: Arabic exactly as in the corpus, surah name and reference. Tapping opens it in the reader.
 struct AyahBody: View {
     @Environment(\.widgetFamily) var family
@@ -605,10 +634,8 @@ struct AyahBody: View {
                         Text((entry.labels["ayahTab"] ?? "Du'a from the Quran").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold).lineLimit(1)
                         Spacer(minLength: 0)
                     }
-                    Text(a.text)
-                        .font(.quran(family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22))
-                        .foregroundColor(Palette.text).multilineTextAlignment(.center).lineSpacing(6)
-                        .minimumScaleFactor(0.35).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    FittedAyah(text: a.text, size: family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22, caption: entry.labels["readAyah"] ?? "Read it in its surah")
+                        .foregroundColor(Palette.text).frame(maxWidth: .infinity, maxHeight: .infinity)
                     HStack(spacing: 6) {
                         Text(a.nameAr).foregroundColor(Palette.goldBright)
                         Circle().fill(Palette.line).frame(width: 3, height: 3)
@@ -633,8 +660,8 @@ struct AyahWidgetView: View {
                     // Like a Lock Screen quote: "📖 Surah Name, ref" on top, the whole du'a under it (never cut).
                     VStack(alignment: .leading, spacing: 2) {
                         Label(surahRef(a), systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
-                        Text(a.text).font(.quran(18)).lineLimit(3).minimumScaleFactor(0.55).multilineTextAlignment(.trailing)
-                            .environment(\.layoutDirection, .rightToLeft).frame(maxWidth: .infinity, alignment: .trailing)
+                        FittedAyah(text: a.text, size: 18, caption: entry.labels["readAyah"] ?? "Read it in its surah", trailing: true)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else { Text(entry.labels["ayahEmpty"] ?? "Open AyahFlow").font(.caption2) }
             } else if #available(iOSApplicationExtension 16.0, *), family == .accessoryInline {
@@ -674,16 +701,14 @@ struct MomentWidgetView: View {
                 if #available(iOSApplicationExtension 16.0, *), family == .accessoryRectangular {
                     VStack(alignment: .leading, spacing: 2) {
                         Label("\(entry.rtl ? a.nameAr : a.name) \(a.ref)", systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
-                        Text(a.text).font(.quran(18)).lineLimit(3).minimumScaleFactor(0.5).multilineTextAlignment(.trailing)
-                            .environment(\.layoutDirection, .rightToLeft).frame(maxWidth: .infinity, alignment: .trailing)
+                        FittedAyah(text: a.text, size: 18, caption: entry.labels["readAyah"] ?? "Read it in its surah", trailing: true)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
                     VStack(spacing: 8) {
                         Text((entry.labels["momentTab"] ?? "Ayah of the moment").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold).lineLimit(1)
-                        Text(a.text)
-                            .font(.quran(family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22))
-                            .foregroundColor(Palette.text).multilineTextAlignment(.center).lineSpacing(6)
-                            .minimumScaleFactor(0.3).frame(maxWidth: .infinity, maxHeight: .infinity)
+                        FittedAyah(text: a.text, size: family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22, caption: entry.labels["readAyah"] ?? "Read it in its surah")
+                            .foregroundColor(Palette.text).frame(maxWidth: .infinity, maxHeight: .infinity)
                         HStack(spacing: 6) {
                             Text(a.nameAr).foregroundColor(Palette.goldBright)
                             Circle().fill(Palette.line).frame(width: 3, height: 3)
