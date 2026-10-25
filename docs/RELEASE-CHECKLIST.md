@@ -42,23 +42,29 @@ not stand in for native, simulator or device results, and nothing here is a stor
   salah records, dhikr counts and XP present (read from the app's own data container, local copy then deleted).
 - [x] Lock Screen rectangular Du'a widget showed only the reference before c40ea6f (user screenshot). The fix is
   measured on the Mac (48/58 du'as and 390/517 moment ayahs fit whole); **not yet confirmed on the phone**.
-- [ ] Everything below in section 5.
+- [x] User-reported pass, 2026-10-25, build 170a765 (reported in chat; no screenshots, so not screenshot-verified):
+  - Prayer widget: the requested check covered small/medium/large and Lock Screen, light and dark, next prayer,
+    countdown, Hijri and Gregorian dates, and the Arabic text.
+  - Prayer confirmation: the widget checkmark appears after marking a prayer in the app.
+  - Ayah of the Moment rotation: the widget changed between half hours (the over-a-day check is still open, see section 5).
+  - Dhikr persistence: counts kept after force-quit and relaunch.
+  - Athan notification: fired as expected.
+- [ ] The rest of section 5.
 
 ## 5. Not yet done (needs a person with the phone, or later work)
 
 Widgets (iPhone, after 170a765):
-- [ ] Prayer widget small/medium/large and Lock Screen: next prayer, countdown, Hijri and Gregorian dates, light and dark.
-- [ ] Checkmarks update after marking a prayer in the app; before Fajr the previous day's prayers are shown.
-- [ ] Ayah of the Moment widget changes without opening the app for more than a day (the extension now computes it; WidgetKit
-  decides when it redraws, so a change can come a little after the half hour).
-- [ ] Arabic text in each size, in light and dark appearance; the reference shown instead when a verse does not fit.
+- [ ] Before Fajr the widget shows the previous day's prayers and checkmarks (not part of the user-reported check).
+- [ ] Ayah of the Moment widget keeps changing for more than a day without opening the app. Pending: the build was
+  installed on 2026-10-25 around 17:20, so check on 2026-10-26 after 17:20 at the earliest (the extension computes the
+  rotation; WidgetKit decides when it redraws, so a change can come a little after the half hour).
 - [ ] A widget write failure is shown on the Prayers page (simulate only if a safe way exists; otherwise review Console logs,
   subsystem `com.buildwithabdallah.ayahflow`, category `widget`).
 
 App on the iPhone:
-- [ ] Dhikr counters and guided tasbih: counts survive force-quit and relaunch; no double counting.
-- [ ] Athan and reminders: each prayer fires once, at the right minute, with the chosen sound; nothing duplicated after
-  reopening the app; behaviour after a time-zone change and the next DST change.
+- [ ] Guided tasbih progress after force-quit, and no double counting (dhikr counts themselves: user-reported pass above).
+- [ ] Athan over several days: every enabled prayer fires once, nothing duplicated after reopening the app; behaviour
+  after a time-zone change and the next DST change (a single Athan: user-reported pass above).
 - [ ] Offline use (airplane mode): prayer times, Quran, adhkar and widgets.
 
 Native compilation and device testing (carried over):
