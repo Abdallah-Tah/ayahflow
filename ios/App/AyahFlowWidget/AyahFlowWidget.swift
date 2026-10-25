@@ -596,28 +596,59 @@ extension Font {
     static func quran(_ size: CGFloat) -> Font { .custom("AyahFlow Quran", size: size) }
 }
 
-/// An ayah at the largest of three readable sizes that fits the widget; when even the smallest does not, a pointer to
-/// read it in the app instead. The Quran text is never cut off or shrunk below legibility (iOS 15 keeps scaling it).
+/// An ayah at the largest size that fits the widget, stepping down to about 11 pt (sizes measured against every du'a and
+/// Ayah of the Moment with this font: all fit the large widget, nearly all the medium); when even the smallest does not
+/// fit, a pointer to read it in the app. The Quran text is never cut off (iOS 15 keeps scaling it).
 struct FittedAyah: View {
     let text: String
-    let size: CGFloat
+    /// Largest first; exactly six (repeat the last to use fewer).
+    let sizes: [CGFloat]
     let caption: String
-    var trailing = false
     var body: some View {
         if #available(iOSApplicationExtension 16.0, *) {
             ViewThatFits(in: .vertical) {
-                line(size)
-                line(size * 0.82)
-                line(size * 0.68)
+                line(sizes[0]); line(sizes[1]); line(sizes[2]); line(sizes[3]); line(sizes[4]); line(sizes[5])
                 Label(caption, systemImage: "book").font(.caption).foregroundColor(Palette.muted).multilineTextAlignment(.center)
             }
         } else {
-            line(size).minimumScaleFactor(0.35)
+            line(sizes[0]).minimumScaleFactor(0.35)
+        }
+    }
+    static func sizes(_ family: WidgetFamily) -> [CGFloat] {
+        switch family {
+        case .systemLarge: return [30, 26, 22, 19, 16, 14]
+        case .systemSmall: return [19, 16, 14, 12.5, 11, 11]
+        default: return [22, 19, 16.5, 14, 12.5, 11]
         }
     }
     private func line(_ s: CGFloat) -> some View {
-        Text(text).font(.quran(s)).multilineTextAlignment(trailing ? .trailing : .center).lineSpacing(s * 0.25)
+        Text(text).font(.quran(s)).multilineTextAlignment(.center).lineSpacing(s * 0.12)
             .fixedSize(horizontal: false, vertical: true).environment(\.layoutDirection, .rightToLeft)
+    }
+}
+
+/// The Lock Screen rectangle (about 160×72 pt): the reference line with the ayah under it at 13–10 pt; if it does not
+/// fit, the ayah alone filling the rectangle at 15–10 pt; only then the reference and "Read it in its surah". Sizes were
+/// measured against every du'a and Ayah of the Moment with this font; the text is never cut off.
+@available(iOSApplicationExtension 16.0, *)
+struct LockScreenAyah: View {
+    let text: String
+    let title: String
+    let caption: String
+    var body: some View {
+        ViewThatFits(in: .vertical) {
+            titled(13); titled(11.5); titled(10)
+            line(15); line(13); line(11.5); line(10)
+            VStack(alignment: .leading, spacing: 2) { header; Label(caption, systemImage: "book").font(.system(size: 13)) }
+        }
+    }
+    private var header: some View {
+        Label(title, systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
+    }
+    private func titled(_ s: CGFloat) -> some View { VStack(alignment: .leading, spacing: 1) { header; line(s) } }
+    private func line(_ s: CGFloat) -> some View {
+        Text(text).font(.quran(s)).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
+            .environment(\.layoutDirection, .rightToLeft).frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
@@ -634,7 +665,7 @@ struct AyahBody: View {
                         Text((entry.labels["ayahTab"] ?? "Du'a from the Quran").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold).lineLimit(1)
                         Spacer(minLength: 0)
                     }
-                    FittedAyah(text: a.text, size: family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22, caption: entry.labels["readAyah"] ?? "Read it in its surah")
+                    FittedAyah(text: a.text, sizes: FittedAyah.sizes(family), caption: entry.labels["readAyah"] ?? "Read it in its surah")
                         .foregroundColor(Palette.text).frame(maxWidth: .infinity, maxHeight: .infinity)
                     HStack(spacing: 6) {
                         Text(a.nameAr).foregroundColor(Palette.goldBright)
@@ -658,11 +689,8 @@ struct AyahWidgetView: View {
             if #available(iOSApplicationExtension 16.0, *), family == .accessoryRectangular {
                 if let a = entry.ayah {
                     // Like a Lock Screen quote: "📖 Surah Name, ref" on top, the whole du'a under it (never cut).
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label(surahRef(a), systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
-                        FittedAyah(text: a.text, size: 18, caption: entry.labels["readAyah"] ?? "Read it in its surah", trailing: true)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    LockScreenAyah(text: a.text, title: surahRef(a), caption: entry.labels["readAyah"] ?? "Read it in its surah")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else { Text(entry.labels["ayahEmpty"] ?? "Open AyahFlow").font(.caption2) }
             } else if #available(iOSApplicationExtension 16.0, *), family == .accessoryInline {
                 // One line above the clock is too short for a du'a, so it names it instead of cutting it.
@@ -699,15 +727,12 @@ struct MomentWidgetView: View {
         Group {
             if let a = entry.momentAyah {
                 if #available(iOSApplicationExtension 16.0, *), family == .accessoryRectangular {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label("\(entry.rtl ? a.nameAr : a.name) \(a.ref)", systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
-                        FittedAyah(text: a.text, size: 18, caption: entry.labels["readAyah"] ?? "Read it in its surah", trailing: true)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    LockScreenAyah(text: a.text, title: "\(entry.rtl ? a.nameAr : a.name) \(a.ref)", caption: entry.labels["readAyah"] ?? "Read it in its surah")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
                     VStack(spacing: 8) {
                         Text((entry.labels["momentTab"] ?? "Ayah of the moment").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold).lineLimit(1)
-                        FittedAyah(text: a.text, size: family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22, caption: entry.labels["readAyah"] ?? "Read it in its surah")
+                        FittedAyah(text: a.text, sizes: FittedAyah.sizes(family), caption: entry.labels["readAyah"] ?? "Read it in its surah")
                             .foregroundColor(Palette.text).frame(maxWidth: .infinity, maxHeight: .infinity)
                         HStack(spacing: 6) {
                             Text(a.nameAr).foregroundColor(Palette.goldBright)
