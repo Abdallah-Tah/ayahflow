@@ -3,7 +3,9 @@ Two changes, both ccmp lookups run before any other, so Tanzil's encoding is dra
 (KFGQPC) digital Hafs text that Quran.com shows:
 - U+0649 is drawn with the dots of U+064A where it stands for yā' (it carries a vowel/shadda/sukun, takes maddah
   first, or follows a kasra): نَجِّنِي, while alif maqsura (هُدًى, عَلَىٰ) stays dotless;
-- the sukun U+0652 is drawn with the font's own U+06E1 glyph, the open "jazm" shape (يَعۡمَلُونَ).
+- the sukun U+0652 is drawn with the font's own U+06E1 glyph, the open "jazm" shape (يَعۡمَلُونَ);
+- shadda with kasra/kasratan is not merged into one mark above the letter: the kasra stays below (رَبِّ, not a
+  stroke under the shadda that reads like a fatha).
 The text is never changed. Renamed because "Scheherazade" is a Reserved Font Name.
 Usage (fontTools 4.55.3): python3 scripts/build-quran-font.py content/fonts/ScheherazadeNew-Regular.ttf public/fonts/AyahFlowQuran-Regular.ttf
 then copy the output to ios/App/AyahFlowWidget/. Deterministic: the same input gives the same bytes."""
@@ -32,6 +34,17 @@ lookup AM_CTX {{
 lookup SUKUN_JAZM {{ sub uni0652 by uni06E1; }} SUKUN_JAZM;
 feature ccmp {{ lookup AM_CTX; lookup SUKUN_JAZM; }} ccmp;
 """
+# Drop the shadda + kasra/kasratan ligatures (glyphs uni06510650, uni0651064D) so the kasra is drawn below the letter.
+dropped = 0
+for lk in f['GSUB'].table.LookupList.Lookup:
+    for st in lk.SubTable:
+        t = st.ExtSubTable if lk.LookupType == 7 else st
+        ligs = getattr(t, 'ligatures', None)
+        if ligs and 'uni0651' in ligs:
+            keep = [l for l in ligs['uni0651'] if l.LigGlyph not in ('uni06510650', 'uni0651064D')]
+            dropped += len(ligs['uni0651']) - len(keep)
+            ligs['uni0651'] = keep
+assert dropped == 4, dropped
 tmp = TTFont(src)
 del tmp['GSUB']
 addOpenTypeFeaturesFromString(tmp, fea)
@@ -66,7 +79,7 @@ assert any(fr.FeatureTag == 'ccmp' for fr in g.FeatureList.FeatureRecord)
 name = f['name']
 fam, ps = 'AyahFlow Quran', 'AyahFlowQuran-Regular'
 desc = ('AyahFlow Quran is a Modified Version of Scheherazade New 4.500 by SIL Global, under the SIL Open Font License 1.1. '
-        'Changes (ccmp): U+0649 is drawn as yeh where it stands for ya; the sukun U+0652 is drawn with the U+06E1 (jazm) glyph.')
+        'Changes: U+0649 is drawn as yeh where it stands for ya; the sukun U+0652 is drawn with the U+06E1 (jazm) glyph; shadda+kasra is not ligated, so kasra stays below.')
 for rec in list(name.names):
     if rec.nameID in (16, 17, 18, 21, 22): name.removeNames(nameID=rec.nameID)
 for pid, eid, lid in {(r.platformID, r.platEncID, r.langID) for r in name.names}:

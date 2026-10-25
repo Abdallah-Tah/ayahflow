@@ -50,7 +50,7 @@ else
 const data = await readFile('src/data.ts', 'utf8');
 await writeFile('www/content-manifest.json', JSON.stringify({ version: 'tanzil-uthmani-1.1', source: quran.source, licence: quran.licence, url: quran.url, textSha256: quran.sha256, chapters: quran.surahs.length, ayahCount: quran.surahs.reduce((n, s) => n + s.verses.length, 0), teacherReview: 'pending', lessonsSha256: createHash('sha256').update(data).digest('hex'), note: 'Checksums detect source changes; they are not religious or editorial certification.' }, null, 2));
 const jsFiles = (await readdir('www/js')).filter(f => f.endsWith('.js'));
-const assets = ['./', './index.html', './style.css', './assets/icon.svg', './assets/icon-180.png', './assets/icon-192.png', './assets/icon-512.png', './fonts/AyahFlowQuran-Regular.ttf?v=129f4de377f2', './manifest.webmanifest', './content-manifest.json', ...jsFiles.map(f => './js/' + f)];
+const assets = ['./', './index.html', './style.css', './assets/icon.svg', './assets/icon-180.png', './assets/icon-192.png', './assets/icon-512.png', './fonts/AyahFlowQuran-Regular.ttf?v=a43b41ba9777', './manifest.webmanifest', './content-manifest.json', ...jsFiles.map(f => './js/' + f)];
 const tag = createHash('sha256').update(await readFile('www/js/app.js')).update(await readFile('www/style.css')).update(data).digest('hex').slice(0, 12);
 await writeFile('www/sw.js', `const CACHE='ayahflow-${tag}',ASSETS=${JSON.stringify(assets)};
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting();});

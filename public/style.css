@@ -1,8 +1,8 @@
 /* Quran text: AyahFlow Quran, a Modified Version of Scheherazade New 4.500 by SIL (SIL OFL 1.1, fonts/OFL-ScheherazadeNew.txt;
  * scripts/build-quran-font.py). Bundled so the Mushaf marks (small waw, madd, superscript alef…) never fall back to a system
- * font that misplaces them; it also draws yā' with its dots and the sukun
- * as the open jazm, like the KFGQPC digital Hafs text. */
-@font-face{font-family:'AyahFlow Quran';src:url('./fonts/AyahFlowQuran-Regular.ttf?v=129f4de377f2') format('truetype');font-display:block}
+ * font that misplaces them; it also draws yā' with its dots, the sukun
+ * as the open jazm and the kasra below a shadda, like the KFGQPC digital Hafs text. */
+@font-face{font-family:'AyahFlow Quran';src:url('./fonts/AyahFlowQuran-Regular.ttf?v=a43b41ba9777') format('truetype');font-display:block}
 /* AyahFlow — charcoal and gold, set like an illuminated mushaf.
    Every colour is a token. Dark is the approved default palette; light ("vellum") is the same family.
    Tint colours use `rgb(var(--tint) / alpha)` (no color-mix) so older WebViews render them. */
