@@ -7,6 +7,7 @@ import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
+import { placeCard, setPlaceRadius } from './places.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
 type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations';
@@ -290,7 +291,7 @@ function remindersView(): string {
     if (!bridge) return `${head}<div class="notice">${ic('info', 18)}<p>${t('nativeOnlyAuto')}</p></div>${shortcuts}${limits}`;
     const st = smartStatus;
     const chips = `<div class="perm-row"><span class="perm ${st?.location === 'always' ? 'ok' : ''}">${ic('pin', 13)} ${t('permLocation')}: ${permLabel(st?.location)}</span><span class="perm ${st?.motion === 'granted' ? 'ok' : ''}">${ic('car', 13)} ${t('permMotion')}: ${permLabel(st?.motion)}</span><span class="perm ${notificationState === 'granted' ? 'ok' : ''}">${ic('bell', 13)} ${t('permNotifications')}: ${permLabel(notificationState)}</span></div>${actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'text-button')}`;
-    const places = (['home', 'work', 'mosque'] as PlaceKind[]).map(k => { const p = state.places[k]; return `<div class="place-row"><span class="round-icon">${ic(k === 'home' ? 'home' : k === 'work' ? 'briefcase' : 'mosque', 20)}</span><div class="grow"><strong>${t('place_' + k)}</strong><p class="tiny muted">${p ? `${t('radius')} · ${num(p.radius)} m` : t('notSet')}</p>${p ? `<div class="segment compact mt12" role="group" aria-label="${t('radius')}">${[100, 150, 200, 300, 500].map(r => `<button data-action="place-radius" data-place="${k}" data-radius="${r}" class="${p.radius === r ? 'active' : ''}">${num(r)} m</button>`).join('')}</div>` : ''}</div><div class="place-actions">${actionButton('place-set', `${ic('pin', 15)} ${t(p ? 'updateHere' : 'setHere')}`, 'button subtle', `data-place="${k}"`)}${p ? actionButton('place-remove', t('removePlace'), 'text-button danger-text', `data-place="${k}"`) : ''}</div></div>`; }).join('');
+    const places = (['home', 'work', 'mosque'] as PlaceKind[]).map(k => placeCard(k, state.places[k], state.locale)).join('');
     const toggle = (id: string, on: boolean, label: string, note: string) => `<label class="setting-row"><span><strong>${label}</strong><p>${note}</p></span><input type="checkbox" id="${id}" ${on ? 'checked' : ''} aria-label="${label}"></label>`;
     const timed = state.smart.timed ? `<div class="sub-settings">${prayerPlace(state) ? '' : `<p class="tiny warning-text mb16">${t('timedNoPlace')}</p>`}<label class="select-row">${ic('clock', 16)}<span class="grow small">${t('sleepTime')}</span><input id="smart-sleep" type="time" value="${state.smart.sleepTime ?? ''}" aria-label="${t('sleepTime')}"></label></div>` : '';
     const prayer = `<section class="settings-section"><h2>${t('windowSpan')}</h2><div class="segment" role="group">${(['broad', 'narrow'] as const).map(x => `<button data-action="smart-span" data-span="${x}" class="${state.smart.span === x ? 'active' : ''}">${t(x === 'broad' ? 'spanBroad' : 'spanNarrow')}</button>`).join('')}</div><p class="tiny muted">${t('spanNote')}</p><label class="select-row mt12">${ic('globe', 16)}<span class="grow small">${t('prayerMethod')}</span><select id="smart-method" aria-label="${t('prayerMethod')}">${methodOptions()}</select></label>${toggle('smart-hanafi', state.smart.hanafi, t('hanafiAsr'), '')}</section>`;
@@ -1547,10 +1548,10 @@ async function handleAction(el: HTMLElement): Promise<void> {
             break;
         }
         case 'place-radius': {
-            const kind = d.place as PlaceKind, p = state.places[kind];
-            if (!p)
+            const next = setPlaceRadius(state, d.place as PlaceKind, Number(d.radius));
+            if (next === state)
                 return;
-            await commit({ ...state, places: { ...state.places, [kind]: { ...p, radius: Number(d.radius) } } });
+            await commit(next);
             await syncSmart();
             render();
             break;
