@@ -201,7 +201,7 @@ test('Quran text uses the bundled AyahFlow Quran font (Scheherazade New, adapted
     const web = await readFile('public/fonts/AyahFlowQuran-Regular.ttf'), widget = await readFile('ios/App/AyahFlowWidget/AyahFlowQuran-Regular.ttf');
     const sha = b => createHash('sha256').update(b).digest('hex');
     assert.equal(sha(web), sha(widget));
-    // The reviewed build of scripts/build-quran-font.py (yā' drawn with dots, checked over all 6236 ayahs); a change needs the same review.
+    // The reviewed build of scripts/build-quran-font.py (sukun drawn as the Mushaf jazm, checked over all 6236 ayahs); a change needs the same review.
     const notices = await readFile('docs/THIRD-PARTY-NOTICES.md', 'utf8');
     assert(notices.includes(sha(web)), 'font hash must match docs/THIRD-PARTY-NOTICES.md');
     assert(notices.includes(sha(await readFile('content/fonts/ScheherazadeNew-Regular.ttf'))), 'upstream font must be the documented, unmodified file');
@@ -214,9 +214,10 @@ test('Quran text uses the bundled AyahFlow Quran font (Scheherazade New, adapted
     assert.match(swift, /\.custom\("AyahFlow Quran", size: size\)/);
     assert(!/Text\(a\.text\)\s*\.font\(\.system/.test(swift), 'widget du\'a must not use the system font');
 });
-test('Final yā\' is fixed in the font, never in the text: Tanzil keeps U+0649 in 26:169', () => {
+test('Mushaf shapes come from the font, never from editing the text: Tanzil keeps U+0652 sukun and U+0649 in 26:169', () => {
+    assert.equal(verse(26, 169).match(/\u0652/g)?.length, 2);
     assert.equal(verse(26, 169).match(/\u0649/g)?.length, 2);
-    assert(!verse(26, 169).includes('\u0646\u0650\u064A '));
+    assert(!/\u06E1/.test(verse(26, 169)));
 });
 test('iOS plays recitation with the Ring/Silent switch on silent (playback audio session set at launch)', async () => {
     const { readFile } = await import('node:fs/promises');
