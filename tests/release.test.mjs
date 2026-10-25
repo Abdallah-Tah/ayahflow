@@ -123,8 +123,9 @@ test('High latitude: an Isha after midnight is still the next prayer, belongs to
     const w = widgetData(s, (k) => k, now);
     assert.deepEqual(w.prayers[0], { key: 'isha', label: 'p_isha', at: isha, day: '2026-06-21' });
     assert.equal(w.prayers.filter(p => p.day === '2026-06-22').length, 5);
-    // Near the solstice this method's high-latitude rule puts Isha and the next Fajr in the same minute.
-    assert.ok(w.prayers.every((p, i) => i === 0 || p.at > w.prayers[i - 1].at - 2 * 60000));
+    // Near the solstice this method's high-latitude rule puts Isha in the same minute as, or just after, the next Fajr:
+    // the list stays in time order.
+    assert.ok(w.prayers.every((p, i) => i === 0 || p.at >= w.prayers[i - 1].at));
     // Normal latitudes: nothing from yesterday once its Isha has passed.
     zone('Asia/Riyadh');
     const mk = place(21.4225, 39.8262, 'UmmAlQura');

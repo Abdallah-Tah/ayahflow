@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import os
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
@@ -12,22 +13,33 @@ enum SharedWidgetStore {
     /// "<TeamID>.com.buildwithabdallah.ayahflow.shared", from Info.plist key AyahFlowSharedKeychain ($(AppIdentifierPrefix)…).
     static var group: String? { Bundle.main.object(forInfoDictionaryKey: "AyahFlowSharedKeychain") as? String }
 
+    /// Writes (or with nil, removes) the shared timeline. An existing item is updated in place, so the widget's last good
+    /// copy stays until its replacement is committed; it is never deleted first. Failures are logged with their OSStatus
+    /// (Console: subsystem com.buildwithabdallah.ayahflow, category widget) and returned for the caller to report.
     static func save(_ data: Data?) -> OSStatus {
-        guard let group else { return errSecMissingEntitlement }
+        guard let group else { log.error("Widget store: no AyahFlowSharedKeychain in Info.plist"); return errSecMissingEntitlement }
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account, kSecAttrAccessGroup as String: group]
-        SecItemDelete(query as CFDictionary)
-        var status = errSecSuccess
+        var status: OSStatus
         if let data {
-            var add = query
-            add[kSecValueData as String] = data
-            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            status = SecItemAdd(add as CFDictionary, nil)
+            let values: [String: Any] = [kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock]
+            status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
+            if status == errSecItemNotFound { status = SecItemAdd(query.merging(values) { $1 } as CFDictionary, nil) }
+        } else {
+            status = SecItemDelete(query as CFDictionary)
+            if status == errSecItemNotFound { status = errSecSuccess }
         }
-        #if canImport(WidgetKit)
-        if #available(iOS 14.0, *) { WidgetCenter.shared.reloadAllTimelines() }
-        #endif
+        if status == errSecSuccess {
+            #if canImport(WidgetKit)
+            if #available(iOS 14.0, *) { WidgetCenter.shared.reloadAllTimelines() }
+            #endif
+        } else {
+            log.error("Widget store \(data == nil ? "delete" : "write", privacy: .public) failed: OSStatus \(status, privacy: .public) \(message(status), privacy: .public) (\(data?.count ?? 0, privacy: .public) bytes)")
+        }
         return status
     }
+
+    static func message(_ status: OSStatus) -> String { (SecCopyErrorMessageString(status, nil) as String?) ?? "" }
+    private static let log = Logger(subsystem: "com.buildwithabdallah.ayahflow", category: "widget")
 }
 
 /// Copies every bundled ≤30 s athan alert (public/sounds/athan-<id>-alert.caf) into Library/Sounds as

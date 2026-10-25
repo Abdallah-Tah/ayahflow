@@ -7,7 +7,7 @@ import { timesFor, SALAH_MAX } from './smart.js';
 export { SALAH_MAX };
 
 // ---- Ayah of the Moment --------------------------------------------------------------------------
-/** A new ayah every half hour of local time (slots start at :00 and :30). */
+/** A new ayah every 30 elapsed minutes; slots start at :00 and :30 local time, also across daylight saving changes. */
 export const SLOT_MINUTES = 30;
 /** Ayahs shown whole on one card: long ones and stand-alone opening letters (e.g. الٓمٓ) are left out. */
 export const MOMENT_MIN_LETTERS = 12, MOMENT_MAX_LETTERS = 260;
@@ -24,16 +24,24 @@ export function momentPool(): readonly (readonly [number, number])[] {
     }
     return pool;
 }
-/** Local half-hour slot number of a time: whole local days since 2000-01-01 × 48 + half hours since local midnight. */
-export function slotOf(at: number): number {
-    const d = new Date(at), days = Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2000, 0, 1)) / 86400000);
-    return days * (1440 / SLOT_MINUTES) + Math.floor((d.getHours() * 60 + d.getMinutes()) / SLOT_MINUTES);
+const SLOT_MS = SLOT_MINUTES * 60000, SLOT_EPOCH = Date.UTC(2000, 0, 1);
+/** The device time zone's standard-time offset (ms east of UTC) in the year of `at`: the smaller of its January and
+ * July offsets. Daylight saving shifts are whole half hours, so slots counted on this fixed offset still start at :00 and
+ * :30 on the wall clock all year, while each one lasts exactly 30 elapsed minutes. */
+export function standardOffset(at: number): number {
+    const y = new Date(at).getFullYear();
+    return -Math.max(new Date(y, 0, 1).getTimezoneOffset(), new Date(y, 6, 1).getTimezoneOffset()) * 60000;
 }
-/** When a slot starts and ends (local time). */
+/** Half-hour slot number of a time, counted in elapsed time from 2000-01-01 00:00 standard local time. Unlike wall-clock
+ * arithmetic this never skips a slot when clocks go forward or repeats one when they go back. The widget extension
+ * (AyahFlowWidget.swift, MomentClock) computes the same number. */
+export function slotOf(at: number): number { return Math.floor((at + standardOffset(at) - SLOT_EPOCH) / SLOT_MS); }
+/** When a slot starts and ends: always exactly 30 minutes apart, in order. */
 export function slotRange(slot: number): [number, number] {
-    const perDay = 1440 / SLOT_MINUTES, day = Math.floor(slot / perDay), within = slot - day * perDay;
-    const base = new Date(2000, 0, 1 + day), start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, within * SLOT_MINUTES).getTime();
-    return [start, start + SLOT_MINUTES * 60000];
+    const local = SLOT_EPOCH + slot * SLOT_MS;
+    let start = local - standardOffset(local);
+    start = local - standardOffset(start);
+    return [start, start + SLOT_MS];
 }
 export function ayahOfMoment(slot: number): { surah: number; ayah: number } {
     const p = momentPool(), [surah, ayah] = p[((slot % p.length) + p.length) % p.length]!;

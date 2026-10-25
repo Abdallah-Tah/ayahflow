@@ -1,9 +1,12 @@
 import WidgetKit
 import SwiftUI
 import Security
+import os
 #if canImport(AppIntents)
 import AppIntents
 #endif
+
+private let log = Logger(subsystem: "com.buildwithabdallah.ayahflow.widget", category: "timeline")
 
 /// Timeline precomputed by the app (src/smart.ts widgetData) and shared through the keychain. No coordinates.
 struct SharedTimeline: Decodable {
@@ -14,7 +17,7 @@ struct SharedTimeline: Decodable {
     let updatedAt: Double
     let rtl: Bool
     let locale: String?
-    let prayers: [Prayer]
+    private(set) var prayers: [Prayer]
     let windows: [Window]
     let labels: [String: String]
     /// Today's dhikr counts, adhkar progress and the latest step reading (src/smart.ts WidgetDaily).
@@ -47,8 +50,21 @@ struct SharedTimeline: Decodable {
         guard let group = Bundle.main.object(forInfoDictionaryKey: "AyahFlowSharedKeychain") as? String else { return nil }
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "app.ayahflow.widget", kSecAttrAccount as String: "timeline", kSecAttrAccessGroup as String: group, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-        return try? JSONDecoder().decode(SharedTimeline.self, from: data)
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess, let data = item as? Data else {
+            // Not found just means the app has not shared anything yet; anything else is worth seeing in Console.
+            if status != errSecItemNotFound { log.error("Widget timeline read failed: OSStatus \(status, privacy: .public)") }
+            return nil
+        }
+        do {
+            var timeline = try JSONDecoder().decode(SharedTimeline.self, from: data)
+            // In time order, whatever the app version that wrote it (an Isha after midnight can come after the next Fajr).
+            timeline.prayers.sort { $0.at < $1.at }
+            return timeline
+        } catch {
+            log.error("Widget timeline could not be decoded (\(data.count, privacy: .public) bytes): \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 }
 
@@ -131,7 +147,7 @@ struct Provider: TimelineProvider {
         var dates = [now]
         if let data {
             let nowMs = now.timeIntervalSince1970 * 1000, horizon = nowMs + 26 * 3600 * 1000
-            let midnight = Calendar.current.startOfDay(for: now).addingTimeInterval(86400).timeIntervalSince1970 * 1000
+            let midnight = nextDay(Calendar.current.startOfDay(for: now)).timeIntervalSince1970 * 1000
             let bounds = data.prayers.map { $0.at } + data.windows.flatMap { ($0.morning ?? []) + ($0.evening ?? []) } + [midnight]
             dates += Set(bounds.filter { $0 > nowMs && $0 < horizon }).sorted().map { Date(timeIntervalSince1970: $0 / 1000 + 1) }
         }
@@ -143,15 +159,14 @@ struct Provider: TimelineProvider {
         let daily = data?.daily.flatMap { $0.day == dayKey(date) ? $0 : nil }
         let ayah = data?.ayahs?.first { $0.day == dayKey(date) }
         let kept = Set(data?.worship?.salah.first { $0.day == dayKey(date) }?.kept ?? [])
-        let momentAyah = data?.worship?.moments.last { $0.at <= date.timeIntervalSince1970 * 1000 + 1000 }
-        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current, ayah: ayah, kept: kept, momentAyah: momentAyah) }
+        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current, ayah: ayah, kept: kept) }
         guard let data, !data.prayers.isEmpty else { return empty(.noData) }
         let ms = date.timeIntervalSince1970 * 1000
         guard let index = data.prayers.firstIndex(where: { $0.at > ms }) else { return empty(.stale) }
         let next = data.prayers[index]
         let dayStart = Calendar.current.startOfDay(for: date)
         let since = index > 0 ? data.prayers[index - 1].date : dayStart
-        let dayEnd = dayStart.addingTimeInterval(86400)
+        let dayEnd = nextDay(dayStart)
         // The day shown: today, or yesterday while its Isha is still to come after midnight (high latitudes in summer).
         let shownDay = next.day.map { $0 < dayKey(date) ? $0 : dayKey(date) } ?? dayKey(date)
         let today = data.prayers.contains { $0.day != nil } ? data.prayers.filter { $0.day == shownDay } : data.prayers.filter { $0.date >= dayStart && $0.date < dayEnd }
@@ -159,28 +174,78 @@ struct Provider: TimelineProvider {
         let inside = { (w: [Double]?) in w.map { $0.count == 2 && ms >= $0[0] && ms < $0[1] } ?? false }
         let moment: (key: String, label: String)? = data.windows.contains { inside($0.morning) } ? (key: "morning", label: data.labels["morning"] ?? "Morning adhkar")
             : data.windows.contains { inside($0.evening) } ? (key: "evening", label: data.labels["evening"] ?? "Evening adhkar") : nil
-        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah, kept: keptShown, momentAyah: momentAyah)
+        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah, kept: keptShown)
     }
 }
 
-/// The Ayah of the Moment: one entry per half hour from the slots the app shared (up to a day ahead), so it changes
-/// without the app. WidgetKit decides exactly when a widget redraws; the app refreshes the list whenever it opens.
+/// The start of the next calendar day: 23 or 25 hours later when the clocks change, never a fixed 86,400 seconds.
+private func nextDay(_ dayStart: Date) -> Date {
+    Calendar.current.date(byAdding: .day, value: 1, to: dayStart) ?? Calendar.current.startOfDay(for: dayStart.addingTimeInterval(36 * 3600))
+}
+
+/// The Ayah of the Moment, worked out inside the extension from the bundled pool (AyahMoments.json: the app's corpus text
+/// and order, generated by scripts/build.mjs), so the widget keeps changing every half hour for as long as it runs, without
+/// the app. The same arithmetic as src/worship.ts slotOf: 30-minute slots counted in elapsed time from 2000-01-01 00:00
+/// standard local time, so a daylight saving change neither skips nor repeats a slot, and slots still start at :00 and :30.
+enum MomentClock {
+    struct Entry: Decodable {
+        let surah: Int, ayah: Int, text: String, name: String, nameAr: String
+        init(from decoder: Decoder) throws {
+            var c = try decoder.unkeyedContainer()
+            surah = try c.decode(Int.self); ayah = try c.decode(Int.self); text = try c.decode(String.self); name = try c.decode(String.self); nameAr = try c.decode(String.self)
+        }
+    }
+    private struct Pool: Decodable { let v: Int; let slotMinutes: Int; let ayahs: [Entry] }
+    static let length: TimeInterval = 1800, epoch: TimeInterval = 946_684_800 // 2000-01-01T00:00Z
+    /// Empty if the file is missing or in an unknown format; the widget then falls back to the slots the app shared.
+    static let pool: [Entry] = {
+        guard let url = Bundle.main.url(forResource: "AyahMoments", withExtension: "json"), let data = try? Data(contentsOf: url),
+              let p = try? JSONDecoder().decode(Pool.self, from: data), p.v == 1, p.slotMinutes == 30 else { return [] }
+        return p.ayahs
+    }()
+    /// The time zone's standard-time offset in the year of `date`: the smaller of its January and July offsets.
+    static func standardOffset(_ date: Date, _ zone: TimeZone = .current) -> TimeInterval {
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+        let year = calendar.component(.year, from: date)
+        let offsets = [1, 7].compactMap { calendar.date(from: DateComponents(year: year, month: $0, day: 1)) }.map { zone.secondsFromGMT(for: $0) }
+        return TimeInterval(offsets.min() ?? zone.secondsFromGMT(for: date))
+    }
+    static func slot(_ date: Date, _ zone: TimeZone = .current) -> Int { Int(((date.timeIntervalSince1970 + standardOffset(date, zone) - epoch) / length).rounded(.down)) }
+    static func start(_ slot: Int, _ zone: TimeZone = .current) -> Date {
+        let local = epoch + Double(slot) * length
+        let first = local - standardOffset(Date(timeIntervalSince1970: local), zone)
+        return Date(timeIntervalSince1970: local - standardOffset(Date(timeIntervalSince1970: first), zone))
+    }
+    static func moment(_ slot: Int, _ zone: TimeZone = .current) -> SharedTimeline.Worship.Moment? {
+        guard !pool.isEmpty else { return nil }
+        let e = pool[((slot % pool.count) + pool.count) % pool.count]
+        return .init(at: start(slot, zone).timeIntervalSince1970 * 1000, surah: e.surah, ayah: e.ayah, ref: "\(e.surah):\(e.ayah)", text: e.text, name: e.name, nameAr: e.nameAr)
+    }
+}
+
+/// The Ayah of the Moment: one entry per half hour for the next day, worked out here (MomentClock), then a fresh timeline
+/// once that runs out: about one reload a day, well within WidgetKit's budget. WidgetKit decides exactly when a widget
+/// redraws, so a change can show a little after the half hour. Falls back to the slots the app shared if the pool is missing.
 struct MomentProvider: TimelineProvider {
     func placeholder(in context: Context) -> PrayerEntry { sample() }
     func getSnapshot(in context: Context, completion: @escaping (PrayerEntry) -> Void) { completion(context.isPreview ? sample() : entries(SharedTimeline.load(), Date()).first!) }
     func getTimeline(in context: Context, completion: @escaping (Timeline<PrayerEntry>) -> Void) {
         let list = entries(SharedTimeline.load(), Date())
-        completion(Timeline(entries: list, policy: .after(list.last!.date.addingTimeInterval(1800))))
+        completion(Timeline(entries: list, policy: .atEnd))
     }
     private func sample() -> PrayerEntry {
         PrayerEntry(date: Date(), state: .ready, next: nil, since: Date(), today: [], moment: nil, labels: ["momentTab": "Ayah of the moment"], rtl: false, locale: .current, momentAyah: .init(at: Date().timeIntervalSince1970 * 1000, surah: 94, ayah: 6, ref: "94:6", text: "إِنَّ مَعَ ٱلْعُسْرِ يُسْرًا", name: "Ash-Sharh", nameAr: "الشرح"))
     }
     private func entries(_ data: SharedTimeline?, _ now: Date) -> [PrayerEntry] {
         let locale = data?.locale.map { Locale(identifier: $0) } ?? .current, nowMs = now.timeIntervalSince1970 * 1000
+        func make(_ date: Date, _ m: SharedTimeline.Worship.Moment?) -> PrayerEntry { PrayerEntry(date: date, state: m == nil ? .noData : .ready, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, momentAyah: m) }
+        if !MomentClock.pool.isEmpty {
+            let first = MomentClock.slot(now)
+            return [make(now, MomentClock.moment(first))] + (1..<48).compactMap { i in MomentClock.moment(first + i).map { make(Date(timeIntervalSince1970: $0.at / 1000), $0) } }
+        }
         let moments = data?.worship?.moments ?? []
         let current = moments.last { $0.at <= nowMs }
         let upcoming = moments.filter { $0.at > nowMs }
-        func make(_ date: Date, _ m: SharedTimeline.Worship.Moment?) -> PrayerEntry { PrayerEntry(date: date, state: m == nil ? .noData : .ready, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, momentAyah: m) }
         return [make(now, current)] + upcoming.map { make(Date(timeIntervalSince1970: $0.at / 1000), $0) }
     }
 }

@@ -356,9 +356,19 @@ function widgetWorship(now = Date.now()) {
     const days = [-1, 0, 1].map(i => { const d = new Date(now); d.setDate(d.getDate() + i); return dayKey(d.getTime()); });
     return { salah: days.map(day => ({ day, kept: PRAYERS.filter(p => { const s = salahStatus(state, day, p); return s === 'done' || s === 'madeUp'; }) })), moments: upcomingMoments(now, 48) };
 }
+/** The last widget write failure (the native OSStatus), shown on the prayer page until a write succeeds. */
+let widgetError: string | null = null;
 async function pushWidget(): Promise<void> {
     if (!isNative()) return;
-    await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }, widgetDaily(), widgetWorship())).catch(() => { });
+    try {
+        await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }, widgetDaily(), widgetWorship()));
+        widgetError = null;
+    }
+    catch (e) {
+        const err = e as { code?: string; message?: string };
+        widgetError = err?.code ?? 'error';
+        console.error('AyahFlow widget update failed', err?.message ?? e);
+    }
 }
 /** Re-plans istighfar reminders, e.g. after the count changes, so the count they show stays right and they stop at the target. */
 /** The chosen rotation phrases, built-in (with their source) and the user's own. */
@@ -496,7 +506,7 @@ function prayerView(): string {
     const fajrChoices = [...reciters, ...ONLINE_RECORDINGS.filter(r => r.fajrOnly && state.athan.downloads.includes(r.id)).map(r => `online-${r.id}`)];
     const own = `<div class="own-athan"><label class="button secondary full" for="athan-file">${ic('upload', 16)} ${t(state.athan.custom ? 'replaceOwn' : 'useOwn')}</label><input type="file" id="athan-file" accept="audio/*" hidden>${state.athan.custom ? actionButton('athan-remove-own', t('removeOwn'), 'text-button danger-text') : ''}<p class="tiny muted mt12">${t('ownNote')}</p></div>`;
     const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('reciter')}</h2><p class="picker-label">${t('onDevice')}</p><div class="stack">${[...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])].map(reciterCard).join('')}</div>${own}<p class="picker-label mt20">${t('moreReciters')}</p><p class="tiny muted mb16">${t('moreRecitersNote')} <a href="${ONLINE_PROVIDER.page}" target="_blank" rel="noopener noreferrer">${escapeHtml(ONLINE_PROVIDER.provider)}${ic('link', 11)}</a>${smartBridge() ? '' : `<br>${t('appOnlyDownload')}`}</p><div class="stack">${ONLINE_RECORDINGS.map(onlineCard).join('')}</div><label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${fajrChoices.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
-    return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}<section class="settings-section">${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
+    return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}<section class="settings-section">${widgetError ? `<div class="notice warning" role="status">${ic('info', 18)}<p>${t('widgetSaveFailed').replace('{code}', escapeHtml(widgetError))}</p></div>` : ''}${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
 }
 /** Keeps countdowns current while a page shows them, without re-rendering. */
 let lastSlot = slotOf(Date.now());

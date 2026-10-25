@@ -70,7 +70,7 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         let json = call.getString("data")
         let data = (json == nil || json == "null") ? nil : json!.data(using: .utf8)
         let status = SharedWidgetStore.save(data)
-        status == errSecSuccess ? call.resolve() : call.reject("widget store failed (\(status))")
+        status == errSecSuccess ? call.resolve() : call.reject("widget store failed: OSStatus \(status) \(SharedWidgetStore.message(status))", String(status))
     }
 
     /// Downloads an athan recording the user asked for. Only HTTPS from cdn.aladhan.com, at most 12 MB, verified against the

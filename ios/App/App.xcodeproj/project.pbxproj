@@ -17,6 +17,7 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		698BC4549C1BCAF0D17E338B /* AyahFlowWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABBA3C591D98622D8FE3D04D /* AyahFlowWidget.swift */; };
+		8744B288A81C119ACCE47612 /* AyahMoments.json in Resources */ = {isa = PBXBuildFile; fileRef = 83ABFCD7F782E41AB898D48E /* AyahMoments.json */; };
 		92FAC678B85AE8FC8E7ACEA8 /* AyahFlowWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5B00CD773EBA531D9BAF74BB /* AyahFlowWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		A9C14766FE8FDC5A8C7497C3 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EC4BA58209286F24F33B2CFE /* SwiftUI.framework */; };
@@ -62,6 +63,7 @@
 		5B00CD773EBA531D9BAF74BB /* AyahFlowWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AyahFlowWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DEA255583ED34A1AD0F03C2 /* AyahFlowQuran-Regular.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "AyahFlowQuran-Regular.ttf"; sourceTree = "<group>"; };
 		6C23CA0EB3847EA0B43AB520 /* App.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		83ABFCD7F782E41AB898D48E /* AyahMoments.json */ = {isa = PBXFileReference; includeInIndex = 1; path = AyahMoments.json; sourceTree = "<group>"; };
 		9232DA89295053ADB23E9E75 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
@@ -149,6 +151,7 @@
 				5692F7129A852E6C3A00AF49 /* AyahFlowWidget.entitlements */,
 				5DEA255583ED34A1AD0F03C2 /* AyahFlowQuran-Regular.ttf */,
 				DE091FA3FB16C84E1025A7E1 /* OFL-ScheherazadeNew.txt */,
+				83ABFCD7F782E41AB898D48E /* AyahMoments.json */,
 			);
 			name = AyahFlowWidget;
 			path = AyahFlowWidget;
@@ -261,6 +264,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4EB86494D48A2A00048EB98D /* AyahFlowQuran-Regular.ttf in Resources */,
+				8744B288A81C119ACCE47612 /* AyahMoments.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

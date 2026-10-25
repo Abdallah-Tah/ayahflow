@@ -217,12 +217,16 @@ export function mergeDetections(existing: Detection[], events: { event: Detectio
 
 // ---- Athan and widget ---------------------------------------------------------------------------
 const PRAYER_CODE: Record<PrayerName, number> = { fajr: 4, dhuhr: 5, asr: 6, maghrib: 7, isha: 8 };
-/** Stable athan notification id per prayer and day (codes 4-8; adhkar reminders use 1-3). */
+/** Stable athan notification id per prayer and prayer day (codes 4-8; adhkar reminders use 1-3). Keyed on the day the
+ * prayer belongs to, not the date it falls on: an Isha just after midnight and the next one just before would otherwise
+ * share an id, and the second alert would replace the first. */
 export function athanId(prayer: PrayerName, day: string): number { return PRAYER_CODE[prayer] * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
 /** `day` is the local day the prayer belongs to (an Isha after midnight belongs to the day before). */
 export interface PrayerAt { prayer: PrayerName; at: number; day: string }
-/** Prayer times from the saved place for `days` days starting today, in order, led by any of yesterday's that are
- * still to come (at high latitudes in summer, Isha can fall after midnight). Empty without a saved place. */
+/** Prayer times from the saved place for `days` days starting today, led by any of yesterday's that are still to come
+ * (at high latitudes in summer, Isha can fall after midnight), in time order. Near the solstice some methods' high-latitude
+ * rules put yesterday's Isha up to a few minutes after today's Fajr; both stay, in the order they occur. Empty without a
+ * saved place. */
 export function prayersFrom(state: AppState, now = Date.now(), days = 7): PrayerAt[] {
     const out: PrayerAt[] = [];
     for (let i = -1; i < days; i++) {
@@ -230,7 +234,7 @@ export function prayersFrom(state: AppState, now = Date.now(), days = 7): Prayer
         const t = timesFor(state, d);
         if (t) for (const p of PRAYERS) if (i >= 0 || t[p] > now) out.push({ prayer: p, at: t[p], day: dayKey(d.getTime()) });
     }
-    return out;
+    return out.sort((a, b) => a.at - b.at || a.day.localeCompare(b.day));
 }
 export function nextPrayer(state: AppState, now = Date.now()): PrayerAt | null { return prayersFrom(state, now, 2).find(p => p.at > now) ?? null; }
 /** The day the Today card shows: the day of the next prayer, so the big time and the timeline always agree. After Isha
@@ -242,7 +246,7 @@ export function prayerDayView(state: AppState, now = Date.now()): { next: Prayer
     for (let i = -1; i < 2; i++) {
         const d = new Date(now); d.setDate(d.getDate() + i);
         const times = timesFor(state, d);
-        if (times && PRAYERS.some(p => times[p] === next.at)) return { next, times, tomorrow: i > 0, day: dayKey(d.getTime()) };
+        if (times && dayKey(d.getTime()) === next.day) return { next, times, tomorrow: i > 0, day: dayKey(d.getTime()) };
     }
     return null;
 }
@@ -251,7 +255,7 @@ export interface AthanAlert { id: number; at: number; prayer: PrayerName; title:
 /** Athan alerts for the next week (35 at most, within iOS's 64 pending notifications together with adhkar reminders). */
 export function athanSchedule(state: AppState, label: (p: PrayerName, at: number) => { title: string; body: string }, now = Date.now()): AthanAlert[] {
     if (!state.athan.enabled) return [];
-    return prayersFrom(state, now, PLAN_DAYS).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, dayKey(p.at)), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
+    return prayersFrom(state, now, PLAN_DAYS).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, p.day), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
 }
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
 /** Today's dhikr counts, adhkar progress and (only when the step tracker is on) the latest step reading, for the widget. */
