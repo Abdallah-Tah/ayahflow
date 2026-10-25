@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 12);
+    assert.equal(STATE_VERSION, 13);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -214,7 +214,7 @@ test('Widget data carries a week of prayers and windows, without coordinates', (
 });
 
 test('v7 reciters: bundled ids or a custom file; exports drop the custom file and fall back to a bundled reciter', () => {
-    assert.equal(STATE_VERSION, 12);
+    assert.equal(STATE_VERSION, 13);
     const base = initialState();
     assert.equal(base.athan.reciter, 'beautiful'); assert.equal(base.athan.custom, null);
     assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'unknown' } }), /reciter/);
@@ -268,7 +268,7 @@ test('Detections keep a short reason from the phone (no coordinates) and validat
 
 test('Counter phrases are verbatim slices; their counts are stated in the cited narration', async () => {
     const { COUNTERS, counterPosition } = await import('../www/js/adhkar.js');
-    assert.deepEqual(COUNTERS.map(c => [c.id, c.total]), [['istighfar', 100], ['istighfar-tawbah', 70], ['tasbih-prayer', 100]]);
+    assert.deepEqual(COUNTERS.map(c => [c.id, c.total]), [['istighfar', 100], ['istighfar-tawbah', 70], ['tasbih-prayer', 100], ['tasbih-prayer-34', 100], ['tasbih-prayer-10', 30]]);
     for (const c of COUNTERS) {
         for (const s of c.steps) assert(sources[s.source.ref].text.includes(s.text), `${c.id}: "${s.text}" not verbatim in ${s.source.ref}`);
         for (const ev of c.evidence) assert(key(sources[c.source.ref].text).includes(key(ev)), `${c.id}: count evidence missing`);
@@ -305,7 +305,7 @@ test('v9 counts are set (not added) per counter and day, validated, migrated and
     const v8 = JSON.parse(JSON.stringify(initialState())); v8.version = 8; delete v8.counts; delete v8.health;
     v8.xp = 30;
     const m = validateState(v8);
-    assert.equal(m.version, 12); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
+    assert.equal(m.version, 13); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
     assert.deepEqual(exportable(s).counts, s.counts);
 });
 
@@ -374,7 +374,7 @@ test('Rotation phrases are verbatim slices of their cited narrations, including 
     assert.deepEqual(ROTATION_GROUPS.flatMap(g => g.ids).sort(), ROTATION.map(r => r.id).sort()); // every phrase is shown once
 });
 test('Rotation reminders: off by default, inside waking hours, in turn, capped so all reminders fit iOS’s 64', async () => {
-    const { rotationReminders, ROTATION_MAX, PLAN_DAYS, istighfarReminders } = await import('../www/js/smart.js');
+    const { rotationReminders, ROTATION_MAX, PLAN_DAYS, SALAH_MAX, istighfarReminders } = await import('../www/js/smart.js');
     const { ROTATION } = await import('../www/js/adhkar.js');
     const phrases = ROTATION.slice(0, 3).map(r => ({ id: r.id, text: r.text, note: 'src' }));
     const at8 = new Date(2026, 9, 22, 7, 0).getTime();
@@ -392,7 +392,7 @@ test('Rotation reminders: off by default, inside waking hours, in turn, capped s
     assert.equal(later.find(x => new Date(x.at).getHours() === 12).phrase, r.find(x => new Date(x.at).getHours() === 12).phrase);
     const busy = rotationReminders({ ...on, rotation: { ...on.rotation, every: 30, from: '06:00', to: '23:30' } }, phrases, 'Dhikr', at8);
     assert.equal(busy.length, ROTATION_MAX);
-    assert.equal(PLAN_DAYS * 5 + PLAN_DAYS * 3 + 6 + ROTATION_MAX, 64); // athan + adhkar + istighfar + rotation
+    assert.equal(PLAN_DAYS * 5 + PLAN_DAYS * 3 + 6 + SALAH_MAX + ROTATION_MAX, 64); // athan + adhkar + istighfar + prayer check-ins + rotation
     assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, every: 5 } }), /rotation/);
     assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, from: '21:00', to: '08:00' } }), /rotation/);
     assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, phrases: ['made-up'] } }), /rotation/);

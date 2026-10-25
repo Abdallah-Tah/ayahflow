@@ -249,3 +249,73 @@ dialog{width:calc(100% - 40px);max-width:390px;background:var(--panel);color:var
 .phrase-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);margin-bottom:7px;cursor:pointer}.phrase-row.on{border-color:rgb(var(--tint) / .5)}.phrase-row input{width:20px;height:20px;accent-color:var(--gold);flex-shrink:0}.phrase-row .grow{display:flex;flex-direction:column;gap:2px;min-width:0}.phrase-text.arabic{font-size:calc(19px * var(--ar));line-height:1.7}.phrase-text{overflow-wrap:anywhere}.mb8{margin-bottom:8px}
 .place-row .segment{flex-wrap:nowrap;max-width:100%}.place-row .segment button{white-space:nowrap;padding-inline:9px;min-width:0}
 .ayah-day{margin-top:12px;padding:16px 18px;border:1px solid rgb(var(--tint) / .35);border-radius:20px;background:var(--hero-fill)}.ayah-day .eyebrow{font-size:10px}.ayah-day-text{font-size:calc(26px * var(--ar));line-height:2;margin:8px 0 4px;color:var(--text)}
+/* ---- Home widgets, Salah tracker, guided tasbih (v13) ---------------------------------------------------
+   Each widget is its own compact card; spacing stays even so the screen reads as four calm blocks, not one wall. */
+.widget{margin-top:12px;padding:16px;border:1px solid var(--line);border-radius:20px;background:var(--card-fill)}
+.prayer-day.widget{margin-top:12px;padding:16px 16px 10px}.prayer-day.widget .prayer-day-main{margin:6px 0 14px}
+.prayer-day.widget .prayer-day-name{font-size:30px}.prayer-day.widget .prayer-day-time{font-size:26px}
+.widget-link{display:flex;align-items:center;gap:6px;margin:8px auto 0;min-height:40px;color:var(--gold);font-size:12px}
+.day-labels .st-dot{display:inline-grid;place-items:center;width:16px;height:16px;margin:3px auto 0;border-radius:50%;font-style:normal;background:rgb(var(--green-rgb) / .16);color:var(--green)}
+.day-labels .st-dot svg{width:11px;height:11px}.day-labels .st-missed .st-dot{background:rgb(var(--tint) / .08);color:var(--soft)}
+.day-labels .st-done,.day-labels .st-madeUp{opacity:1}
+.meter{height:4px;border-radius:4px;background:var(--track);overflow:hidden;margin:10px 0 12px}.meter span{display:block;height:100%;background:var(--gold-fill);border-radius:inherit;transition:width .4s ease}
+.success-text{color:var(--green)}
+.salah-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.salah-chip{display:flex;flex-direction:column;align-items:center;gap:3px;min-height:76px;padding:9px 2px 7px;border:1px solid var(--line);border-radius:14px;background:var(--panel);text-align:center;transition:border-color .2s,background .2s}
+.salah-chip .salah-name{font-size:12px;font-weight:600;line-height:1.2;overflow-wrap:anywhere}.salah-chip .tiny{font-size:10px;line-height:1.25;font-variant-numeric:tabular-nums}
+.salah-mark{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;border:1.5px dashed var(--line-strong);color:var(--muted)}
+.salah-chip.st-done,.salah-chip.st-madeUp{border-color:rgb(var(--green-rgb) / .45);background:rgb(var(--green-rgb) / .07)}
+.salah-chip.st-done .salah-mark,.salah-chip.st-madeUp .salah-mark{border:0;background:var(--green);color:var(--bg)}
+.salah-chip.st-missed .salah-mark{border-style:solid;color:var(--soft)}
+.salah-chip:not(:disabled):hover{border-color:rgb(var(--tint) / .45)}
+.tasbih-offer{margin-top:12px;border-color:rgb(var(--tint) / .45)}
+.quick-body{display:flex;align-items:center;gap:14px;margin:10px 0}
+.quick-text{flex:1;min-width:0;font-size:calc(24px * var(--ar));line-height:1.9;text-align:center}.quick-text:not(.arabic){font-size:16px;line-height:1.5}
+.quick-tap{--p:0%;width:96px;height:96px;flex-shrink:0;border-radius:50%;display:grid;place-content:center;position:relative;background:conic-gradient(var(--gold) var(--p),var(--track) 0);touch-action:manipulation}
+.quick-tap:before{content:'';position:absolute;inset:4px;border-radius:50%;background:radial-gradient(circle at 50% 35%,rgb(var(--tint) / .16),transparent 70%),var(--panel)}
+.quick-tap>*{position:relative}.quick-num{font:28px/1 var(--serif);color:var(--gold-bright);font-variant-numeric:tabular-nums}.quick-tap small{font-size:10px;color:var(--muted)}
+.quick-tap:active{transform:scale(.96)}.quick-tap.met{background:conic-gradient(var(--green) var(--p),var(--track) 0)}
+.quick-foot{gap:8px}.quick-foot .chip-wrap{gap:5px}.quick-foot .range-chip{min-height:34px;padding:5px 10px;font-size:11px}
+.ayah-moment{border-color:rgb(var(--tint) / .35);background:var(--hero-fill)}
+.ayah-moment-text{font-size:calc(25px * var(--ar));line-height:2.05;text-align:center;margin:12px 0 6px;overflow-wrap:break-word}
+.ayah-translation{font-family:var(--serif);font-size:14px;line-height:1.6;color:var(--muted);text-align:center;margin:0 0 8px}
+.ayah-moment-foot{margin-top:4px;gap:6px}.ayah-ref{display:inline-flex;align-items:baseline;gap:6px;min-height:40px;text-align:start}.ayah-ref .arabic{font-size:18px;color:var(--gold)}
+.ayah-actions{display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+.ayah-actions .icon-button{min-width:44px;height:44px}.icon-button[aria-pressed=true]{color:var(--gold)}
+.gap4{gap:4px}
+.tile-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.mini-tile{display:flex;align-items:flex-start;gap:10px;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--panel);text-align:start;min-height:84px}
+.mini-tile strong{display:block;font:15px/1.25 var(--serif);font-weight:400;margin-bottom:3px}.mini-tile .grow{min-width:0}
+.sheet .sheet-options{display:grid;gap:8px;margin:16px 0 12px}
+.sheet-option{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);text-align:start}
+.sheet-option.active{border-color:var(--gold);color:var(--gold)}.sheet .button{margin-top:14px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:12px}
+.cal-head{font-size:10px;color:var(--soft);text-align:center;padding-bottom:2px}
+.cal-day{aspect-ratio:1;min-height:38px;border-radius:10px;border:1px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-variant-numeric:tabular-nums;background:var(--panel)}
+.cal-day i{width:60%;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--green) calc(var(--k) * 100%),var(--track) 0)}
+.cal-day.full{background:rgb(var(--green-rgb) / .1)}.cal-day.today{border-color:rgb(var(--tint) / .5)}.cal-day.selected{border-color:var(--gold);color:var(--gold)}
+.insights{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;font-size:13px;color:var(--muted)}.insights li{display:flex;gap:8px;align-items:flex-start}.insights svg{color:var(--gold);margin-top:3px}
+.tasbih-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.tasbih-tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 2px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}.tasbih-tile .ring{--size:40px}
+.tasbih-tile.finished{border-color:rgb(var(--green-rgb) / .4)}.tasbih-tile.finished .ring{background:conic-gradient(var(--green) var(--p),var(--track) 0);color:var(--green)}
+.lib-card{display:flex;align-items:flex-start;gap:4px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+.lib-card.done{border-color:rgb(var(--green-rgb) / .35)}
+.lib-open{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding:14px 4px 12px 14px;text-align:start}
+html[dir=rtl] .lib-open{padding:14px 14px 12px 4px}
+.lib-open strong{font:16px/1.3 var(--serif);font-weight:400}
+.lib-text{font-size:calc(20px * var(--ar));line-height:1.9;color:var(--text)}.lib-text:not(.arabic){font-size:14px;line-height:1.5}
+.ring.tiny-ring{--size:26px}.ring.tiny-ring:before{inset:2.5px}
+.lib-card .fav{margin:8px 6px 0 0}.fav[aria-pressed=true]{color:var(--gold)}
+.filter-row{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding-bottom:2px;margin-inline:-2px}.filter-row::-webkit-scrollbar{display:none}.filter-row .range-chip{flex-shrink:0}
+.mode-card.selected{border-color:rgb(var(--tint) / .55)}.mode-card .round-icon.arabic{font-size:15px;line-height:1}
+.recitation-text{padding:4px 6px 14px;border-inline-start:2px solid rgb(var(--tint) / .35);margin:-2px 0 6px 14px}
+.verse-card{padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--panel);margin-bottom:10px}
+.celebrate{animation:celebrate .9s ease-out}
+@keyframes celebrate{0%{box-shadow:0 0 0 0 rgb(var(--tint) / .55)}60%{box-shadow:0 0 0 14px rgb(var(--tint) / 0)}100%{box-shadow:none}}
+.reduced-motion .celebrate,.reduced-motion .meter span{animation:none;transition:none}
+@media(prefers-reduced-motion:reduce){.celebrate{animation:none}}
+@media(max-width:360px){.salah-chip{min-height:70px;padding-inline:1px}.salah-chip .salah-name{font-size:11px}.quick-tap{width:84px;height:84px}.quick-num{font-size:24px}.tile-row{grid-template-columns:1fr}.mini-tile{min-height:0}.prayer-day.widget .prayer-day-name{font-size:26px}.prayer-day.widget .prayer-day-time{font-size:22px}.ayah-actions .icon-button{min-width:40px}}
+.main.still{animation:none}
+.target-field input{min-height:44px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);padding:0 12px;font-size:16px;max-width:160px}
+.dhikr-text.small-ar{font-size:calc(21px * var(--ar));margin:2px 0 8px}
+.target-field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}

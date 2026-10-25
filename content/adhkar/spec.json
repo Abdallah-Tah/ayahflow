@@ -519,6 +519,76 @@
         "تمام المائة"
       ],
       "perPrayer": true
+    },
+    {
+      "id": "tasbih-prayer-34",
+      "title": {
+        "en": "Tasbih after prayer (33·33·34)",
+        "fr": "Tasbih après la prière (33·33·34)",
+        "ar": "التسبيح دبر الصلاة (٣٣·٣٣·٣٤)"
+      },
+      "steps": [
+        {
+          "source": "muslim:5601",
+          "start": "سبحان الله",
+          "end": "الله",
+          "count": 33
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الحمد لله",
+          "end": "لله",
+          "count": 33
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الله اكبر",
+          "end": "اكبر",
+          "count": 34
+        }
+      ],
+      "countSource": "muslim:1349",
+      "evidence": [
+        "ثلاث وثلاثون تسبيحة",
+        "اربع وثلاثون تكبيرة"
+      ],
+      "also": [
+        "muslim:1350"
+      ],
+      "perPrayer": true
+    },
+    {
+      "id": "tasbih-prayer-10",
+      "title": {
+        "en": "Tasbih after prayer (10·10·10)",
+        "fr": "Tasbih après la prière (10·10·10)",
+        "ar": "التسبيح دبر الصلاة (١٠·١٠·١٠)"
+      },
+      "steps": [
+        {
+          "source": "muslim:5601",
+          "start": "سبحان الله",
+          "end": "الله",
+          "count": 10
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الحمد لله",
+          "end": "لله",
+          "count": 10
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الله اكبر",
+          "end": "اكبر",
+          "count": 10
+        }
+      ],
+      "countSource": "bukhari:6329",
+      "evidence": [
+        "تسبحون في دبر كل صلاة عشرا"
+      ],
+      "perPrayer": true
     }
   ],
   "rotation": [
@@ -593,6 +663,350 @@
       "source": "bukhari:6307",
       "start": "استغفر الله واتوب اليه",
       "end": "اليه"
+    }
+  ],
+  "library": [
+    {
+      "id": "salawat-nabi",
+      "category": "salawat",
+      "title": {
+        "en": "Blessings on the Prophet ﷺ",
+        "fr": "Prière sur le Prophète ﷺ",
+        "ar": "الصلاة على النبي ﷺ"
+      },
+      "wording": "common",
+      "text": "اللهم صلِّ وسلِّم على نبينا محمد",
+      "source": "muslim:912",
+      "virtue": {
+        "start": "من صلى علي واحدة",
+        "end": "عشرا"
+      },
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "A common short wording of salawat. The hadith cited is about the virtue of sending blessings in general, not this exact wording; the narrated wording is the Ibrahimiyya below.",
+        "fr": "Formule courante et brève. Le hadith cité porte sur le mérite de la prière sur le Prophète en général, pas sur cette formulation ; la formulation rapportée est l’Ibrahimiyya ci-dessous.",
+        "ar": "صيغة شائعة مختصرة. الحديث المذكور في فضل الصلاة على النبي عمومًا لا في هذا اللفظ بعينه، واللفظ المروي هو الصلاة الإبراهيمية أدناه."
+      }
+    },
+    {
+      "id": "salawat-ibrahimiyya",
+      "category": "salawat",
+      "title": {
+        "en": "The Ibrahimiyya",
+        "fr": "La prière abrahamique",
+        "ar": "الصلاة الإبراهيمية"
+      },
+      "source": "bukhari:3370",
+      "start": "اللهم صل على محمد",
+      "end": "كما باركت على ابراهيم وعلى ال ابراهيم انك حميد مجيد",
+      "target": 10,
+      "targetKind": "personal",
+      "about": {
+        "en": "The wording the Prophet ﷺ taught when asked how to send blessings on him (narrated by Ka‘b ibn ‘Ujrah).",
+        "fr": "La formulation enseignée par le Prophète ﷺ quand on lui demanda comment prier sur lui (rapportée par Ka‘b ibn ‘Ujrah).",
+        "ar": "اللفظ الذي علّمه النبي ﷺ لما سُئل عن كيفية الصلاة عليه (رواه كعب بن عجرة)."
+      }
+    },
+    {
+      "id": "tahlil-100",
+      "category": "tahlil",
+      "title": {
+        "en": "The complete tahlil",
+        "fr": "Le tahlil complet",
+        "ar": "التهليل الكامل"
+      },
+      "source": "bukhari:6403",
+      "start": "لا اله الا الله وحده",
+      "end": "على كل شيء قدير",
+      "target": 100,
+      "targetKind": "sunnah",
+      "evidence": [
+        "في يوم مائة مرة"
+      ],
+      "about": {
+        "en": "The hadith mentions saying it a hundred times in a day.",
+        "fr": "Le hadith mentionne de le dire cent fois dans la journée.",
+        "ar": "ذكر الحديث قولها مائة مرة في اليوم."
+      }
+    },
+    {
+      "id": "la-ilaha-illallah",
+      "category": "tahlil",
+      "title": {
+        "en": "The best remembrance",
+        "fr": "Le meilleur rappel",
+        "ar": "أفضل الذكر"
+      },
+      "source": "tirmidhi:3383",
+      "start": "لا اله الا الله",
+      "end": "لا اله الا الله",
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "The hadith calls it the best remembrance. No number is stated; 100 is a personal goal.",
+        "fr": "Le hadith le qualifie de meilleur rappel. Aucun nombre n’est fixé ; 100 est un objectif personnel.",
+        "ar": "وصفه الحديث بأنه أفضل الذكر، ولم يحدد عددًا؛ المائة هدف شخصي."
+      }
+    },
+    {
+      "id": "subhanallah-wabihamdihi",
+      "category": "tasbih",
+      "title": {
+        "en": "Glory and praise to Allah",
+        "fr": "Gloire et louange à Allah",
+        "ar": "سبحان الله وبحمده"
+      },
+      "source": "bukhari:6405",
+      "start": "سبحان الله وبحمده",
+      "end": "سبحان الله وبحمده",
+      "target": 100,
+      "targetKind": "sunnah",
+      "evidence": [
+        "في يوم مائة مرة"
+      ],
+      "about": {
+        "en": "The hadith mentions saying it a hundred times in a day.",
+        "fr": "Le hadith mentionne de le dire cent fois dans la journée.",
+        "ar": "ذكر الحديث قولها مائة مرة في اليوم."
+      }
+    },
+    {
+      "id": "kalimatan",
+      "category": "tasbih",
+      "title": {
+        "en": "Two words beloved to the Most Merciful",
+        "fr": "Deux paroles aimées du Tout Miséricordieux",
+        "ar": "كلمتان حبيبتان إلى الرحمن"
+      },
+      "source": "bukhari:6406",
+      "start": "سبحان الله العظيم",
+      "end": "سبحان الله وبحمده",
+      "also": [
+        "bukhari:6682"
+      ],
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "Described as light on the tongue, heavy in the scale and beloved to the Most Merciful. No number is stated; 100 is a personal goal. Other narrations give the two phrases in the reverse order.",
+        "fr": "Décrites comme légères sur la langue, lourdes dans la balance et aimées du Tout Miséricordieux. Aucun nombre n’est fixé. D’autres versions donnent l’ordre inverse.",
+        "ar": "وُصفتا بأنهما خفيفتان على اللسان ثقيلتان في الميزان حبيبتان إلى الرحمن، ولم يحدد عددًا. وفي روايات أخرى بالترتيب المعكوس."
+      }
+    },
+    {
+      "id": "istighfar-tawbah-100",
+      "category": "istighfar",
+      "title": {
+        "en": "Seeking forgiveness and repenting",
+        "fr": "Demander pardon et se repentir",
+        "ar": "الاستغفار والتوبة"
+      },
+      "source": "bukhari:6307",
+      "start": "استغفر الله واتوب اليه",
+      "end": "اليه",
+      "also": [
+        "muslim:6858"
+      ],
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "The Prophet ﷺ said he sought forgiveness and repented more than seventy times a day (al-Bukhari); another narration says a hundred times a day (Muslim). 100 is a personal goal.",
+        "fr": "Le Prophète ﷺ dit qu’il demandait pardon et se repentait plus de soixante-dix fois par jour (al-Bukhari) ; une autre version dit cent fois (Muslim). 100 est un objectif personnel.",
+        "ar": "قال النبي ﷺ إنه يستغفر الله ويتوب إليه في اليوم أكثر من سبعين مرة (البخاري)، وفي رواية مائة مرة (مسلم). المائة هدف شخصي."
+      }
+    },
+    {
+      "id": "four-words",
+      "category": "tasbih",
+      "title": {
+        "en": "The four great words",
+        "fr": "Les quatre grandes paroles",
+        "ar": "الكلمات الأربع"
+      },
+      "source": "muslim:6847",
+      "start": "سبحان الله والحمد لله",
+      "end": "والله اكبر",
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "The Prophet ﷺ said saying them is dearer to him than all the sun rises over. No number is stated; 100 is a personal goal.",
+        "fr": "Le Prophète ﷺ dit qu’elles lui sont plus chères que tout ce sur quoi le soleil se lève. Aucun nombre n’est fixé.",
+        "ar": "قال النبي ﷺ إن قولها أحب إليه مما طلعت عليه الشمس، ولم يحدد عددًا."
+      }
+    },
+    {
+      "id": "hawqala",
+      "category": "tasbih",
+      "title": {
+        "en": "A treasure of Paradise",
+        "fr": "Un trésor du Paradis",
+        "ar": "كنز من كنوز الجنة"
+      },
+      "source": "bukhari:6384",
+      "start": "لا حول ولا قوة الا بالله",
+      "end": "الا بالله",
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "Called a treasure from the treasures of Paradise. No number is stated; 100 is a personal goal.",
+        "fr": "Appelée un trésor parmi les trésors du Paradis. Aucun nombre n’est fixé.",
+        "ar": "وُصفت بأنها كنز من كنوز الجنة، ولم يحدد عددًا."
+      }
+    },
+    {
+      "id": "sayyid-istighfar-lib",
+      "category": "istighfar",
+      "title": {
+        "en": "The master supplication for forgiveness",
+        "fr": "La meilleure demande de pardon",
+        "ar": "سيد الاستغفار"
+      },
+      "source": "bukhari:6306",
+      "start": "اللهم انت ربي",
+      "end": "لا يغفر الذنوب الا انت",
+      "target": 1,
+      "targetKind": "sunnah",
+      "evidence": [
+        "من قالها من النهار",
+        "من قالها من الليل"
+      ],
+      "about": {
+        "en": "The hadith speaks of saying it with conviction during the day and during the night: once in the morning and once in the evening.",
+        "fr": "Le hadith parle de la dire avec conviction le jour et la nuit : une fois le matin, une fois le soir.",
+        "ar": "ذكر الحديث قولها موقنًا بها من النهار ومن الليل: مرة في الصباح ومرة في المساء."
+      }
+    },
+    {
+      "id": "dua-yunus",
+      "category": "quranic",
+      "title": {
+        "en": "The supplication of Yunus ﷺ",
+        "fr": "L’invocation de Yunus ﷺ",
+        "ar": "دعاء يونس عليه السلام"
+      },
+      "source": "tirmidhi:3505",
+      "start": "لا اله الا انت سبحانك",
+      "end": "من الظالمين",
+      "quranRef": "21:87",
+      "target": 33,
+      "targetKind": "personal",
+      "about": {
+        "en": "The words of Yunus in the belly of the whale (Quran 21:87). The hadith says a Muslim who calls with them for anything is answered. No number is stated.",
+        "fr": "Les paroles de Yunus dans le ventre de la baleine (Coran 21:87). Aucun nombre n’est fixé.",
+        "ar": "دعوة ذي النون في بطن الحوت (الأنبياء ٨٧)، ولم يحدد الحديث عددًا."
+      }
+    },
+    {
+      "id": "hasbunallah",
+      "category": "quranic",
+      "title": {
+        "en": "Trust in Allah",
+        "fr": "La confiance en Allah",
+        "ar": "التوكل على الله"
+      },
+      "source": "bukhari:4563",
+      "start": "حسبنا الله ونعم الوكيل",
+      "end": "حسبنا الله ونعم الوكيل",
+      "quranRef": "3:173",
+      "target": 33,
+      "targetKind": "personal",
+      "about": {
+        "en": "Said by Ibrahim when thrown into the fire and by the Prophet ﷺ when told the people had gathered against them (Quran 3:173). No number is stated.",
+        "fr": "Dite par Ibrahim jeté dans le feu et par le Prophète ﷺ (Coran 3:173). Aucun nombre n’est fixé.",
+        "ar": "قالها إبراهيم حين أُلقي في النار وقالها محمد ﷺ (آل عمران ١٧٣)، ولم يحدد عدد."
+      }
+    },
+    {
+      "id": "rabbana-atina",
+      "category": "quranic",
+      "title": {
+        "en": "Good in this world and the next",
+        "fr": "Le bien ici-bas et dans l’au-delà",
+        "ar": "دعاء الخير في الدنيا والآخرة"
+      },
+      "source": "bukhari:6389",
+      "start": "ربنا اتنا في الدنيا",
+      "end": "عذاب النار",
+      "quranRef": "2:201",
+      "target": 1,
+      "targetKind": "personal",
+      "about": {
+        "en": "Anas said this was the supplication the Prophet ﷺ made most often (Quran 2:201).",
+        "fr": "Anas dit que c’était l’invocation la plus fréquente du Prophète ﷺ (Coran 2:201).",
+        "ar": "قال أنس إنه كان أكثر دعاء النبي ﷺ (البقرة ٢٠١)."
+      }
+    },
+    {
+      "id": "entering-toilet",
+      "category": "daily",
+      "title": {
+        "en": "Entering the toilet",
+        "fr": "En entrant aux toilettes",
+        "ar": "دعاء دخول الخلاء"
+      },
+      "source": "bukhari:6322",
+      "start": "اللهم اني اعوذ بك من الخبث",
+      "end": "والخبائث",
+      "also": [
+        "bukhari:142"
+      ],
+      "target": 1,
+      "targetKind": "sunnah",
+      "evidence": [
+        "اذا دخل الخلاء"
+      ],
+      "about": {
+        "en": "What the Prophet ﷺ said when he entered the toilet.",
+        "fr": "Ce que disait le Prophète ﷺ en entrant aux toilettes.",
+        "ar": "ما كان يقوله النبي ﷺ إذا دخل الخلاء."
+      }
+    },
+    {
+      "id": "after-eating",
+      "category": "daily",
+      "title": {
+        "en": "After eating",
+        "fr": "Après le repas",
+        "ar": "دعاء بعد الطعام"
+      },
+      "source": "bukhari:5458",
+      "start": "الحمد لله كثيرا طيبا",
+      "end": "ربنا",
+      "target": 1,
+      "targetKind": "sunnah",
+      "evidence": [
+        "اذا رفع مائدته"
+      ],
+      "about": {
+        "en": "What the Prophet ﷺ said when his meal was taken away.",
+        "fr": "Ce que disait le Prophète ﷺ quand on retirait son repas.",
+        "ar": "ما كان يقوله النبي ﷺ إذا رُفعت مائدته."
+      }
+    },
+    {
+      "id": "distress",
+      "category": "daily",
+      "title": {
+        "en": "In distress",
+        "fr": "Dans l’angoisse",
+        "ar": "دعاء الكرب"
+      },
+      "source": "bukhari:6346",
+      "start": "لا اله الا الله العظيم الحليم",
+      "end": "رب العرش الكريم",
+      "also": [
+        "bukhari:6345"
+      ],
+      "target": 1,
+      "targetKind": "sunnah",
+      "evidence": [
+        "عند الكرب"
+      ],
+      "about": {
+        "en": "What the Prophet ﷺ said in times of distress.",
+        "fr": "Ce que disait le Prophète ﷺ dans l’angoisse.",
+        "ar": "ما كان يقوله النبي ﷺ عند الكرب."
+      }
     }
   ]
 }

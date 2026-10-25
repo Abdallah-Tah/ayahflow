@@ -13,7 +13,13 @@ The app ships the complete Quran: 114 surahs, 6236 ayahs, from **Tanzil Quran Te
 
 **Why not Quran.com.** The September starter text was a Quran.com snapshot. The Quran Foundation Developer Terms (updated 2026-10-11) do not permit distributing a prepackaged or build-time bundle of their content; offline copies must come through their Content Sync API and be refreshed weekly. Tanzil's terms explicitly allow verbatim copies in any application with attribution and a link. Compared with the old 37 starter ayahs, Tanzil differs only in 108:1 (Unicode composition: the old copy was NFC-normalised, same rendering) and 109:4 and 110:2 (the old copy had an extra U+06ED small low meem; current Tanzil and the current Quran.com API both omit it).
 
-Translations and tafsir remain external links (Quran.com), not bundled text.
+## English translation (Pickthall)
+
+Shown under ayahs on Home, in saved verses and in Short Recitations (it can be hidden). `content/translations/en.pickthall.txt` is Tanzil's file for *The Meaning of the Glorious Koran* by Mohammed Marmaduke William Pickthall (1930), "Last Update: September 4, 2010", from `https://tanzil.net/trans/?transID=en.pickthall&type=txt-2`, SHA-256 `4aabbfa9d96796f5a6b0217d2c39dce1a3084f772bf6f2650e37082a774e3cc7`. `scripts/import-translation.mjs` checks the checksum, the 6236 lines and the order against the Arabic corpus; lines are copied exactly (only the `surah|ayah|` prefix is removed).
+
+**Licence note (review before any paid release).** The translation is in the public domain (published 1930; the translator died in 1936). Tanzil states that the translations on its page are "for non-commercial purposes only" and asks for permission otherwise. AyahFlow is free today; if it is ever sold or carries paid features, either confirm Tanzil's terms or replace this file with another public-domain copy of Pickthall (same importer, new checksum).
+
+Tafsir remains an external link (Quran.com), not bundled text.
 
 ## Adhkar and prayer-surah suggestions
 
@@ -29,6 +35,21 @@ Recorded per entry: collection, number, in-book reference (verified to match sun
 - "Arriving at / leaving work" have no narrated supplication in this library; they are shown as general reminders and never as a sunnah claim.
 - Prayer-surah suggestions cite hadiths that name the surahs (e.g. Al-A‘la and Al-Ghashiyah in the Friday and Eid prayers, Muslim in-book 7/78 = Muslim 878). The app does **not** claim what any particular imam recites today; no reliable source for that was found.
 - Numbering differs between hadith editions; the dataset's Sahih Muslim numbers are not the common Abd al-Baqi numbers, which is why texts are located by content and linked by in-book reference.
+
+**Dhikr library** (`library` in the spec, v13). Sixteen counted adhkar, each a verbatim slice of its cited hadith, with a target that is either a **count stated in the hadith** (`targetKind: sunnah`, backed by `evidence` phrases found in the source: e.g. «في يوم مائة مرة» in al-Bukhari 6403 and 6405) or a **personal goal** (`personal`, where the hadith gives no number). Checks made while building it:
+
+- *Salawat on the Prophet ﷺ* «اللهم صلِّ وسلِّم على نبينا محمد»: this exact wording is not in any narration of the dataset. It is kept as requested, marked `wording: 'common'` and labelled in the app as a common formula; the cited hadith (Muslim 408 = in-book 4/74) is about the virtue of sending salawat in general and is shown verbatim as such. It is the only entry whose text is not sliced from a hadith (enforced by the build and tests).
+- *Ibrahimiyya*: al-Bukhari 3370 (Ka‘b ibn ‘Ujrah), both halves, as narrated.
+- *Kalimatan*: al-Bukhari 6406 gives «سبحان الله العظيم، سبحان الله وبحمده» (the requested order); 6682 and 7563 give the reverse; 6682 is listed as also.
+- *Four words*: the requested "Muslim 2695" is the dataset's muslim:6847, in-book 48/42.
+- *Sayyid al-istighfar*: al-Bukhari 6306 reads «وأبوء **لك** بذنبي»; the request omitted «لك». The narrated wording is used.
+- *Istighfar wa tawbah*: no fixed count; the app states "more than seventy times a day" (al-Bukhari 6307) and "a hundred times a day" (Muslim 2702 = in-book 48/52) and uses 100 as a personal goal.
+- Yunus (Tirmidhi 3505, *sahih*), «حسبنا الله ونعم الوكيل» (al-Bukhari 4563) and «ربنا آتنا…» (al-Bukhari 6389) are sliced from those hadiths; their Quran references (21:87, 3:173, 2:201) are shown beside them.
+- Daily duas added: entering the toilet (al-Bukhari 6322), after eating (5458), in distress (6346). The narration in Muslim 6908 (evening) and Abu Dawud 5074 contain narrator remarks inside the supplication, so they were not sliced.
+
+**Tasbih after prayer.** Three narrated ways, each counted separately per prayer and day: 33·33·33 + tahlil (Muslim 597 = in-book 5/188), 33·33·34 (Muslim 596 = in-book 5/186), 10·10·10 (al-Bukhari 6329). Phrase wording comes from Muslim in-book 48/38 as before.
+
+Sahih Muslim is shown in the app by its in-book reference ("book 4, hadith 74"), because the dataset's Muslim numbers differ from the common Abd al-Baqi numbers.
 
 All adhkar carry `reviewStatus: awaiting-scholar-review`, shown in the app. Translations are not bundled (translations on hadith sites belong to their translators); each entry links to its source page.
 
@@ -65,3 +86,9 @@ Add review samples on iOS and Android at large text sizes; verify joined Arabic 
 ## Du'a of the day (Lock Screen and widgets)
 
 `src/duas.ts` lists Quranic supplications by reference only (surah, first and last ayah), following the widely published "Rabbana" and "Rabbi" du'as; a du'a spanning several ayahs is kept together (e.g. 20:25–28, 40:8–9). The Arabic is read from the Tanzil corpus unchanged. Only du'as of at most 100 letters (marks ignored) are picked, so the whole text fits the Lock Screen and is never cut; longer ones such as 2:286 stay in the list but are not shown daily. A fixed hash of the local date picks one per day, so every device shows the same one; nothing is ranked, interpreted or translated (no licensed translation is bundled). `tests/adhkar.test.mjs` checks every reference exists and addresses رَبَّنَا or رَبِّ. Review status: the selection awaits scholar review.
+
+## Ayah of the Moment and Short Recitations (v13)
+
+**Ayah of the Moment** (`src/worship.ts`): every ayah of the corpus with 12–260 letters (marks ignored) is put once in a fixed shuffled order; local half-hour slot *n* shows entry *n* of that order, so no ayah repeats for about 100 days and every device shows the same one. Ayahs shorter than 12 letters (e.g. stand-alone opening letters) or longer than 260 are left out so the card always shows a whole ayah. Nothing is ranked or chosen by theme: an ayah may begin or end mid-passage, and previous/next buttons open its neighbours (within the surah). The widget receives the next 48 slots' text (the corpus strings as they are).
+
+**Short Recitations for Salah**: references only (text from the corpus), chosen so each passage ends where its sentence ends: 67:1–5, 55:1–13, 23:1–11 (the request said 23:1–5, but 23:6 «إلا على أزواجهم» continues 23:5), 59:21–24, 76:1–6 (76:6 «عينا يشرب بها» continues 76:5), 2:1–5, 2:255, 2:285–286, 3:190–194, 24:35, 78:1–16 and 89:27–30. They are presented as optional suggestions for one's own recitation; none is claimed to be prescribed for a prayer. The selection awaits scholar review.

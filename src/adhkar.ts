@@ -2,9 +2,9 @@
  * Content is generated from content/adhkar/ (verbatim hadith slices + Quran references), reviewStatus
  * 'awaiting-scholar-review'. A delivered reminder is never evidence of recitation: only explicit
  * completions (see AdhkarCompletion in engine.ts) count. */
-import ADHKAR, { type AdhkarEntry, type PrayerSet, type HadithSource, type DhikrCounter, type RotationPhrase } from './adhkar-data.js';
+import ADHKAR, { type AdhkarEntry, type PrayerSet, type HadithSource, type DhikrCounter, type RotationPhrase, type LibraryDhikr } from './adhkar-data.js';
 import { chapter, verse } from './data.js';
-export type { AdhkarEntry, PrayerSet, HadithSource, DhikrCounter, RotationPhrase };
+export type { AdhkarEntry, PrayerSet, HadithSource, DhikrCounter, RotationPhrase, LibraryDhikr };
 export const ADHKAR_REVIEW = ADHKAR.reviewStatus;
 export const ADHKAR_DATASET = ADHKAR.dataset;
 export const MOMENTS = ['morning', 'evening', 'leave_home', 'enter_home', 'vehicle', 'travel', 'work_arrive', 'work_leave', 'mosque_enter', 'mosque_leave', 'after_prayer', 'sleep', 'wake'] as const;
@@ -15,6 +15,10 @@ export const ADHKAR_ENTRIES: readonly AdhkarEntry[] = ADHKAR.adhkar;
 export const PRAYER_SETS: readonly PrayerSet[] = ADHKAR.prayer;
 export const COUNTERS: readonly DhikrCounter[] = ADHKAR.counters;
 export const ROTATION: readonly RotationPhrase[] = ADHKAR.rotation;
+export const LIBRARY: readonly LibraryDhikr[] = ADHKAR.library;
+export const LIBRARY_CATEGORIES = ['salawat', 'tahlil', 'tasbih', 'istighfar', 'quranic', 'daily'] as const;
+/** Guided tasbih after the obligatory prayers: separate variants, each counted on its own (never mixed). */
+export const TASBIH_VARIANTS: readonly string[] = ADHKAR.counters.filter(c => c.perPrayer).map(c => c.id);
 /** How the rotation phrases are grouped on the settings screen. */
 export const ROTATION_GROUPS: readonly { key: string; ids: string[] }[] = [
     { key: 'tahlil', ids: ['tahlil-takbir', 'tahlil-wahdahu', 'tahlil-la-sharik', 'tahlil-mulk', 'tahlil-hawqala'] },

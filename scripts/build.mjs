@@ -24,6 +24,8 @@ await cp('public', 'www', { recursive: true });
 const { writeQuranModule } = await import('./import-quran.mjs');
 const quran = await writeQuranModule('www/js/quran-data.js');
 await cp('content/tanzil', 'www/content/tanzil', { recursive: true }); // Licence requires the notice to travel with the text.
+// English translation (Pickthall, via Tanzil): verbatim, checksum-pinned (scripts/import-translation.mjs).
+await (await import('./import-translation.mjs')).writeTranslationModule('www/js/translation-data.js');
 // Adhkar library: verified verbatim hadith slices + Quran references (scripts/build-adhkar.mjs), shipped as a module.
 await writeFile('www/js/adhkar-data.js', `/* Generated from content/adhkar/adhkar.json — do not edit. Source: ${JSON.parse(await readFile('content/adhkar/adhkar.json', 'utf8')).dataset}. */\nexport default ${await readFile('content/adhkar/adhkar.json', 'utf8')};\n`);
 // Athan catalogue (names, credits, licences) for the recordings in public/sounds (scripts/prepare-athan.mjs).

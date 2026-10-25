@@ -1,14 +1,15 @@
-import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, type RuleId } from './data.js';
-import { COUNTERS, ROTATION, ROTATION_GROUPS, counter, counterPosition, type DhikrCounter, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
+import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, translation, TRANSLATION_SOURCE, type RuleId } from './data.js';
+import { COUNTERS, ROTATION, ROTATION_GROUPS, LIBRARY, LIBRARY_CATEGORIES, TASBIH_VARIANTS, counter, counterPosition, type DhikrCounter, type LibraryDhikr, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
 import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, ROTATION_MAX, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
-import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
+import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
+import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
-type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation';
+type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations';
 let state: AppState = initialState();
 let view: View = 'today';
 let selectedOption: string | null = null;
@@ -95,31 +96,27 @@ catch (e) {
     throw e;
 } }
 function wave(): string { return `<span class="wave" aria-hidden="true">${[8, 13, 20, 12, 26, 32, 20, 37, 24, 16, 29, 19, 12, 7].map((h, i) => `<i style="--h:${h}px;--delay:${i * .067}s"></i>`).join('')}</span>`; }
-function nav(): string { const active = view === 'reader' ? 'quran' : view === 'lesson' || view === 'tajweed' || view === 'recite' ? 'practice' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home'], ['adhkar', 'tasbih'], ['quran', 'book'], ['practice', 'layers'], ['progress', 'chart']].map(([v, i]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(v!)}</span></button>`).join('')}</nav>`; }
+function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'tasbih' ? 'prayer' : view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
 function header(): string {
     if (view === 'session' && state.session) {
         const s = state.session;
         return `<header class="app-header">${actionButton('pause', ic('close'), 'icon-button', `aria-label="${t('pause')}"`)}<span class="header-detail">${t('question')} ${num(s.index + 1)} ${t('of')} ${num(s.queue.length)}</span><span class="top-meta">${ic('leaf', 16)} ${num(state.xp)}</span></header>`;
     }
-    if (['reader', 'lesson', 'recite', 'tajweed', 'settings', 'moment', 'reminders', 'prayer', 'counter', 'steps', 'rotation'].includes(view))
+    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations'].includes(view))
         return `<header class="app-header">${backButton()}<span class="header-wordmark">Ayah<span class="gold">Flow</span></span><span style="width:44px"></span></header>`;
-    return `<header class="app-header"><button class="brand" data-action="nav" data-view="today" aria-label="AyahFlow ${t('today')}"><img src="./assets/icon.svg" alt=""><span>Ayah<span>Flow</span></span></button><div class="row gap8"><span class="top-meta">${ic('leaf', 15)} ${num(streak(state.days))}</span><button class="icon-button" data-action="nav" data-view="settings" aria-label="${t('settings')}">${ic('gear', 21)}</button></div></header>`;
+    return `<header class="app-header"><button class="brand" data-action="nav" data-view="today" aria-label="AyahFlow ${t('today')}"><img src="./assets/icon.svg" alt=""><span>Ayah<span>Flow</span></span></button><div class="row gap8"><span class="top-meta" title="${t('fullDays')}" aria-label="${t('fullDays')}: ${num(salahStreak(state))}">${ic('leaf', 15)} ${num(salahStreak(state))}</span><button class="icon-button" data-action="nav" data-view="settings" aria-label="${t('settings')}">${ic('gear', 21)}</button></div></header>`;
 }
 function weekMarkup(): string { const today = new Date(); const monday = new Date(today); const day = monday.getDay(); monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1)); return `<div class="week-days">${Array.from({ length: 7 }, (_, i) => { const d = new Date(monday); d.setDate(d.getDate() + i); const key = dayKey(d.getTime()); const active = !!state.days[key]; return `<div class="day-item"><span class="day-dot ${active ? 'done' : ''} ${key === dayKey() ? 'current' : ''}" aria-label="${escapeHtml(d.toLocaleDateString(state.locale))}: ${num(state.days[key] ?? 0)}">${active ? ic('check', 13) : ''}</span><span>${escapeHtml(d.toLocaleDateString(state.locale, { weekday: 'narrow' }))}</span></div>`; }).join('')}</div>`; }
-function homeView(): string {
-    const due = dueItems(state).length;
-    const estimated = planSession(state, 'mixed', Date.now(), 2026);
-    const newCount = estimated.filter(v => v.reason === 'new').length;
-    return `${dateLine()}<section class="hero"><p class="eyebrow">${t('personalPlan')}</p><h1>${t('greeting')}<br><em>${t('heroLine')}</em></h1><p>${t('heroSub')}</p>${archArt()}</section>
-<section class="today-card"><div class="row between"><div class="row"><span class="round-icon">${ic('sun', 24)}</span><h2>${t('daily')}</h2></div><span class="gold">${ic('spark', 18)}</span></div><p class="description">${t('adaptive')}</p><div class="plan-tags"><span class="pill">${ic('clock', 13)} ${num(state.goal)} ${t('minutes')} · ${t('estimated')}</span><span class="pill">${num(due)} ${t('due')}</span><span class="pill">${num(newCount)} ${t('newCards')}</span></div>${primary(state.session ? 'resume' : 'daily', state.session ? t('resume') : t('start'))}</section>${prayerDay()}${nowCard()}${dailyPulse()}${ayahCard()}
-<section class="section"><div class="row between"><h2 class="section-title">${t('yourPath')}</h2>${actionButton('nav', t('all') + ' ' + ic('chevron', 13), 'text-button', 'data-view="practice"')}</div><div class="feature-grid"><button class="feature-card" data-action="start-mode" data-mode="next">${ic('book', 25)}<h3>${t('memorize')}</h3><p>${t('memorizeSub')}</p></button><button class="feature-card" data-action="nav" data-view="tajweed">${ic('wave', 25)}<h3>${t('tajweed')}</h3><p>${t('tajweedSub')}</p></button></div><button class="feature-wide row" data-action="nav" data-view="recite"><span class="gold">${ic('mic', 25)}</span><span class="grow"><h3>${t('recite')}</h3><p>${t('reciteSub')}</p></span><span class="gold arrow-icon">${ic('chevron', 17)}</span></button><button class="feature-wide row" data-action="start-mode" data-mode="locate"><span class="gold">${ic('pin', 25)}</span><span class="grow"><h3>${t('locate')}</h3><p>${t('locateDesc')}</p></span>${chevronEnd()}</button></section>
-<section class="section week-card"><div class="row between" style="margin-bottom:0"><div><span class="small">${num(streak(state.days))} ${t('dayStreak')}</span><p class="tiny muted">${t('week')}</p></div><div class="small gold">${num(state.xp)} <span class="tiny">${t('practicePoints')}</span></div></div>${weekMarkup()}</section><p class="gentle">${t('gentle')}</p>`;
-}
 function practiceView(): string { return `<p class="eyebrow mt12">${t('practice')}</p><h1 class="page-title">${t('choosePractice')}<br><span class="gold">${t('oneStep')}</span></h1><p class="page-sub">${t('rangeNote')}</p><div class="stack">${(['next', 'previous', 'listen', 'recall', 'locate'] as const).map((m, i) => `<button class="mode-card" data-action="start-mode" data-mode="${m}"><span class="round-icon">${ic(['book', 'loop', 'headphones', 'eye', 'pin'][i]!, 21)}</span><span class="grow"><h3>${t(m)}</h3><p>${t(m + 'Desc')}</p></span><span class="muted arrow-icon">${ic('chevron', 16)}</span></button>`).join('')}</div>${prayerSection()}<section class="section"><div class="row between"><h2 class="section-title">${t('range')}</h2><span class="pill">${num(state.selectedSurahs.length)} ${t('selectedSurahsCount')}</span></div><div class="preset-row">${(['short', 'juz30', 'prayer'] as const).map(p => `<button class="range-chip" data-action="range-preset" data-preset="${p}">${t(p === 'short' ? 'presetShort' : p === 'juz30' ? 'presetJuz30' : 'presetPrayer')}</button>`).join('')}</div><div class="chip-wrap mt12">${state.selectedSurahs.map(id => chapter(id)).map(x => `<button class="range-chip selected" data-action="range" data-surah="${x.id}" aria-pressed="true" aria-label="${t('removePlace')} ${escapeHtml(x.name)}"><span>${state.locale === 'ar' ? x.ar : escapeHtml(x.name)}</span>${ic('close', 13)}</button>`).join('')}</div><label class="select-row mt12">${ic('book', 17)}<select id="range-add" aria-label="${t('addSurah')}"><option value="">${t('addSurah')}</option>${SURAH_DATA.filter(x => !state.selectedSurahs.includes(x.id)).map(x => `<option value="${x.id}">${num(x.id)} · ${escapeHtml(state.locale === 'ar' ? x.ar : x.name)}</option>`).join('')}</select></label></section><section class="section"><button class="feature-wide row" data-action="nav" data-view="tajweed">${ic('wave', 23)}<span class="grow">${t('lessons')}</span>${ic('chevron', 16)}</button></section>`; }
 function surahRows(): string { let surahs = SURAH_DATA.filter(s => `${s.name} ${s.en} ${s.ar} ${s.id}`.toLowerCase().includes(libraryQuery.toLowerCase()) && (!libraryJuz || (juzOf(s.id, 1) <= libraryJuz && libraryJuz <= juzOf(s.id, s.count)))); if (libraryFilter === 'bookmarks')
     surahs = surahs.filter(s => state.bookmarks.some(k => k.startsWith(`${s.id}:`))); if (!surahs.length)
     return `<p class="empty">${t(libraryFilter === 'bookmarks' ? 'noBookmarks' : 'noResults')}</p>`; return surahs.map(s => `<button class="surah-row" data-action="read-surah" data-surah="${s.id}"><span class="surah-number">${num(s.id)}</span><span class="grow"><h3>${escapeHtml(s.name)}</h3><p>${escapeHtml(s.en)} · ${num(s.count)} ${t('ayahs')} · ${t(s.type)}</p></span><span class="arabic" lang="ar">${s.ar}</span></button>`).join(''); }
-function quranView(): string { return `<p class="eyebrow mt12">${t('starter')}</p><h1 class="page-title">${t('readerTitle')}</h1><p class="page-sub">${t('readerSub')}</p><button class="feature-wide row mb16" data-action="read-last"><span class="gold">${ic('bookmark', 23)}</span><span class="grow"><span class="tiny muted">${t('lastRead')}</span><h3>${escapeHtml(chapter(state.readPosition.surah).name)} · ${num(state.readPosition.ayah)}</h3></span>${ic('chevron', 16)}</button><label class="search-box">${ic('search', 18)}<input id="surah-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${escapeHtml(libraryQuery)}"></label><div class="segment"><button data-action="library-filter" data-filter="all" class="${libraryFilter === 'all' ? 'active' : ''}">${t('all')}</button><button data-action="library-filter" data-filter="bookmarks" class="${libraryFilter === 'bookmarks' ? 'active' : ''}">${t('bookmarks')} · ${num(state.bookmarks.length)}</button></div><label class="select-row">${ic('layers', 17)}<select id="juz-filter" aria-label="${t('juz')}"><option value="0">${t('allJuz')}</option>${Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}" ${libraryJuz === i + 1 ? 'selected' : ''}>${t('juz')} ${num(i + 1)}</option>`).join('')}</select></label><div id="surah-list">${surahRows()}</div><p class="gentle">${t('offline')} · <a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`; }
+/** Verses, recitations and the memorization tools (kept, outside the main tabs). */
+function quranMore(): string {
+    return `<div class="tile-row section"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('savedVerses')} · ${num(state.bookmarks.length)}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
+<section class="section"><h2 class="section-title mb16">${t('memorization')}</h2><button class="feature-wide row" data-action="nav" data-view="practice"><span class="gold">${ic('layers', 23)}</span><span class="grow"><h3>${t('memorize')}</h3><p>${t('memorizeSub')}</p></span>${chevronEnd()}</button>${state.session ? `<button class="feature-wide row" data-action="resume"><span class="gold">${ic('play', 20)}</span><span class="grow"><h3>${t('resume')}</h3></span>${chevronEnd()}</button>` : ''}<button class="feature-wide row" data-action="nav" data-view="tajweed"><span class="gold">${ic('wave', 23)}</span><span class="grow"><h3>${t('tajweed')}</h3><p>${t('tajweedDraftShort')}</p></span>${chevronEnd()}</button><button class="feature-wide row" data-action="nav" data-view="recite"><span class="gold">${ic('mic', 23)}</span><span class="grow"><h3>${t('recite')}</h3><p>${t('reciteSub')}</p></span>${chevronEnd()}</button></section>`;
+}
+function quranView(): string { return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('readerTitle')}</h1><p class="page-sub">${t('readerSub')}</p><button class="feature-wide row mb16" data-action="read-last"><span class="gold">${ic('bookmark', 23)}</span><span class="grow"><span class="tiny muted">${t('lastRead')}</span><h3>${escapeHtml(chapter(state.readPosition.surah).name)} · ${num(state.readPosition.ayah)}</h3></span>${ic('chevron', 16)}</button><label class="search-box">${ic('search', 18)}<input id="surah-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${escapeHtml(libraryQuery)}"></label><div class="segment"><button data-action="library-filter" data-filter="all" class="${libraryFilter === 'all' ? 'active' : ''}">${t('all')}</button><button data-action="library-filter" data-filter="bookmarks" class="${libraryFilter === 'bookmarks' ? 'active' : ''}">${t('bookmarks')} · ${num(state.bookmarks.length)}</button></div><label class="select-row">${ic('layers', 17)}<select id="juz-filter" aria-label="${t('juz')}"><option value="0">${t('allJuz')}</option>${Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}" ${libraryJuz === i + 1 ? 'selected' : ''}>${t('juz')} ${num(i + 1)}</option>`).join('')}</select></label><div id="surah-list">${surahRows()}</div>${quranMore()}<p class="gentle">${t('offline')} · <a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`; }
 /** Word spans for highlighting. Joined with single spaces they reproduce the source string exactly. */
 const wordSpans = (text: string) => ayahWords(text).map((w, i) => `<span class="w" data-w="${i}">${escapeHtml(w)}</span>`).join(' ');
 function followWhere(): string {
@@ -233,7 +230,7 @@ function tajweedView(): string { return `<p class="eyebrow mt12">${t('tajweed')}
 function lessonView(): string { const l = LESSONS.find(l => l.id === lessonId)!; const text = verse(l.surah, l.ayah); const highlighted = escapeHtml(text).replace(escapeHtml(l.highlight), `<mark>${escapeHtml(l.highlight)}</mark>`); const done = state.lessonChecks.includes(l.id); return `<p class="eyebrow mt12">${t('tajweed')}</p><h1 class="page-title">${l.name} <span class="arabic gold" lang="ar">${l.ar}</span></h1><p class="page-sub">${t('lessonsSub')}</p><div class="lesson-example ${l.id}"><p class="eyebrow center">${t('example')}</p><p class="arabic" lang="ar" dir="rtl">${highlighted}</p><p class="center small muted">${escapeHtml(chapter(l.surah).name)} · ${ref(l.surah, l.ayah)}</p><p class="center tiny muted mt12">${t('focus')}</p></div><div class="control-row"><button class="mini-control" data-action="play-verse" data-surah="${l.surah}" data-ayah="${l.ayah}"><span>${ic('play', 19)}</span>${t('play')}</button><button class="mini-control" data-action="play-verse" data-surah="${l.surah}" data-ayah="${l.ayah}" data-speed="0.85"><span>0.85×</span>0.85×</button><button class="mini-control" data-action="play-verse" data-surah="${l.surah}" data-ayah="${l.ayah}" data-loop="true"><span>${ic('loop', 19)}</span>${t('repeatAudio')}</button></div><section class="rule-detail"><h2>${l.name}</h2><p>${escapeHtml(l.description[state.locale])}</p></section><div class="notice">${ic('info', 18)}<div><strong>${t('tip')}</strong><p>${escapeHtml(l.tip[state.locale])}</p></div></div><section class="section"><h2 class="section-title">${t('knowledgeCheck')}</h2><p class="small muted mt12">${escapeHtml(l.question[state.locale])}</p>${l.choices[state.locale].map((c, i) => `<button class="knowledge-choice ${done && i === l.answer ? 'checked' : ''}" data-action="lesson-answer" data-choice="${i}">${escapeHtml(c)} ${done && i === l.answer ? ic('check', 15) : ''}</button>`).join('')}</section><div class="mt28">${primary('record-ayah', t('practiceVoice'), `data-surah="${l.surah}" data-ayah="${l.ayah}"`)}</div><p class="gentle">${t('editorial')}<br>${t('lessonKnowledge')}</p><a class="text-link" href="${l.source}" target="_blank" rel="noopener noreferrer">${t('source')} ${ic('arrow', 12)}</a>`; }
 function clipCard(clip: Recording, unsaved = false): string { return `<div class="audio-row"><div class="row between"><span><strong>${unsaved ? t('yourRecording') : escapeHtml(chapter(clip.surah).name)}</strong><p class="tiny muted">${ref(clip.surah, clip.ayah)} · ${Math.round(clip.duration)}s${unsaved ? '' : ` · ${new Date(clip.createdAt).toLocaleDateString(state.locale)}`}</p></span>${actionButton('play-recording', ic('play'), 'icon-button', `data-id="${clip.id}" aria-label="${t('play')}"`)}</div><div class="row between mt12">${wave()}<div class="row gap8">${unsaved ? actionButton('save-recording', ic('download', 17), 'icon-button', `aria-label="${t('saveRecording')}"`) : actionButton('share-recording', ic('share', 17), 'icon-button', `data-id="${clip.id}" aria-label="${t('share')}"`)}${actionButton('delete-recording', ic('trash', 17), 'icon-button', `data-id="${clip.id}" aria-label="${t('delete')}"`)}</div></div>${unsaved ? `<p class="tiny muted mt12">${t('saveRecording')}</p>` : ''}</div>`; }
 function reciteView(): string { return `<p class="eyebrow mt12">${t('recite')}</p><h1 class="page-title">${t('studio')}</h1><p class="page-sub">${t('studioSub')}</p><div class="record-selector"><select id="recite-surah" aria-label="${t('surah')}" ${recordingActive() ? 'disabled' : ''}>${SURAH_DATA.map(s => `<option value="${s.id}" ${s.id === reciteSurah ? 'selected' : ''}>${escapeHtml(state.locale === 'ar' ? s.ar : s.name)}</option>`).join('')}</select><select id="recite-ayah" aria-label="${t('ayah')}" ${recordingActive() ? 'disabled' : ''}>${chapter(reciteSurah).verses.map((_, i) => `<option value="${i + 1}" ${i + 1 === reciteAyah ? 'selected' : ''}>${t('ayah')} ${num(i + 1)}</option>`).join('')}</select></div><div class="question-ayah"><p class="arabic center" lang="ar">${escapeHtml(verse(reciteSurah, reciteAyah))}</p><p class="verse-key">${ref(reciteSurah, reciteAyah)}</p></div><div class="audio-row row"><span class="gold">${ic('headphones', 21)}</span><div class="grow"><strong>${t('reference')}</strong><p class="tiny muted">${t('audioProvider')}</p></div>${actionButton('play-verse', ic('play'), 'icon-button', `data-surah="${reciteSurah}" data-ayah="${reciteAyah}" aria-label="${t('play')}"`)}</div><div class="record-control"><button class="record-button ${recordingActive() ? 'live' : ''}" data-action="record" aria-label="${t(recordingActive() ? 'stop' : 'record')}">${ic(recordingActive() ? 'stop' : 'mic', 36)}</button><p class="small">${t(recordingActive() ? 'recording' : 'record')}</p><p class="record-timer" id="record-timer">${recordingActive() ? '00:00' : '90s max'}</p></div>${unsavedClip ? clipCard(unsavedClip, true) : ''}<div class="notice">${ic('shield', 20)}<div><strong>${t('noScore')}</strong><p>${t('noScoreSub')}</p></div></div><p class="gentle">${t('privateRecording')}</p><section class="section"><div class="row between"><h2 class="section-title">${t('savedRecordings')}</h2><span class="pill">${num(savedClips.length)}</span></div>${savedClips.length ? savedClips.sort((a, b) => b.createdAt - a.createdAt).map(r => clipCard(r)).join('') : `<p class="empty">${t('noRecordings')}</p>`}</section>`; }
-function progressView(): string { const accuracy = completedAccuracy(state), cards = Object.values(state.cards), retainedCards = cards.filter(c => retention(c) === 'retained'), weak = weakItems(state); return `<p class="eyebrow mt12">${t('deviceOnly')}</p><h1 class="page-title">${t('progressTitle')}</h1><p class="page-sub">${t('progressSub')}</p><div class="progress-cards"><div class="metric"><div class="progress-ring" style="--percent:${accuracy ?? 0}%"><span>${accuracy === null ? '—' : num(accuracy) + '%'}</span></div><div class="grow"><h2 class="section-title">${t('quizAccuracy')}</h2><p class="label">${accuracy === null ? t('notYet') : `${num(state.attempts.filter(a => a.mode !== 'recall').length)} ${t('reviewed')}`}</p></div></div><div class="metric"><p class="value">${num(streak(state.days))}</p><p class="label">${t('dayStreak')}</p></div><div class="metric"><p class="value">${num(retainedCards.length)}</p><p class="label">${t('retained')}</p></div></div><div class="mt20">${miniNotice('retentionNote')}</div><section class="section week-card"><h2 class="section-title">${t('week')}</h2>${weekMarkup()}</section><section class="section"><h2 class="section-title mb16">${t('needsPractice')}</h2><div class="stack">${weak.length ? weak.map(c => `<button class="weak-row" data-action="practice-weak" data-key="${c.key}"><span class="gold">${ic('loop', 22)}</span><span class="grow"><h3>${escapeHtml(chapter(c.surah).name)} · ${ref(c.surah, c.ayah)}</h3><p>${t(c.mode)} · ${num(c.lapses)} ${t('missedChecks')}</p></span>${ic('chevron', 16)}</button>`).join('') : `<p class="empty">${t('noWeakness')}</p>`}</div></section><section class="section"><h2 class="section-title mb16">${t('surahProgress')}</h2>${SURAH_DATA.filter(s => state.selectedSurahs.includes(s.id)).map(s => { const seen = new Set(cards.filter(c => c.surah === s.id).map(c => c.ayah)).size; return `<div class="mini-stats"><div class="row between"><span class="small">${escapeHtml(s.name)}</span><span class="tiny muted">${num(seen)} / ${num(s.count)} ${t('ayahs')}</span></div><div class="bar-track mt12"><span style="width:${seen / s.count * 100}%"></span></div></div>`; }).join('')}</section><section class="section"><div class="mini-stats row between"><span class="small">${t('selfChecks')}</span><span class="gold">${num(state.recallSelfChecks)}</span></div><div class="mini-stats row between"><span class="small">${t('teacherVerified')}</span><span class="tiny muted">${t('unavailable')}</span></div></section>`; }
+function progressView(): string { const accuracy = completedAccuracy(state), cards = Object.values(state.cards), retainedCards = cards.filter(c => retention(c) === 'retained'), weak = weakItems(state); return `<p class="eyebrow mt12">${t('deviceOnly')}</p><h1 class="page-title">${t('progressTitle')}</h1><p class="page-sub">${t('progressSubWorship')}</p>${worshipProgress()}<div class="progress-cards"><div class="metric"><div class="progress-ring" style="--percent:${accuracy ?? 0}%"><span>${accuracy === null ? '—' : num(accuracy) + '%'}</span></div><div class="grow"><h2 class="section-title">${t('quizAccuracy')}</h2><p class="label">${accuracy === null ? t('notYet') : `${num(state.attempts.filter(a => a.mode !== 'recall').length)} ${t('reviewed')}`}</p></div></div><div class="metric"><p class="value">${num(streak(state.days))}</p><p class="label">${t('dayStreak')}</p></div><div class="metric"><p class="value">${num(retainedCards.length)}</p><p class="label">${t('retained')}</p></div></div><div class="mt20">${miniNotice('retentionNote')}</div><section class="section week-card"><h2 class="section-title">${t('week')}</h2>${weekMarkup()}</section><section class="section"><h2 class="section-title mb16">${t('needsPractice')}</h2><div class="stack">${weak.length ? weak.map(c => `<button class="weak-row" data-action="practice-weak" data-key="${c.key}"><span class="gold">${ic('loop', 22)}</span><span class="grow"><h3>${escapeHtml(chapter(c.surah).name)} · ${ref(c.surah, c.ayah)}</h3><p>${t(c.mode)} · ${num(c.lapses)} ${t('missedChecks')}</p></span>${ic('chevron', 16)}</button>`).join('') : `<p class="empty">${t('noWeakness')}</p>`}</div></section><section class="section"><h2 class="section-title mb16">${t('surahProgress')}</h2>${SURAH_DATA.filter(s => state.selectedSurahs.includes(s.id)).map(s => { const seen = new Set(cards.filter(c => c.surah === s.id).map(c => c.ayah)).size; return `<div class="mini-stats"><div class="row between"><span class="small">${escapeHtml(s.name)}</span><span class="tiny muted">${num(seen)} / ${num(s.count)} ${t('ayahs')}</span></div><div class="bar-track mt12"><span style="width:${seen / s.count * 100}%"></span></div></div>`; }).join('')}</section><section class="section"><div class="mini-stats row between"><span class="small">${t('selfChecks')}</span><span class="gold">${num(state.recallSelfChecks)}</span></div><div class="mini-stats row between"><span class="small">${t('teacherVerified')}</span><span class="tiny muted">${t('unavailable')}</span></div></section>`; }
 function settingsView(): string { return `<h1 class="page-title">${t('settings')}</h1><section class="settings-section"><h2>${t('language')}</h2><div class="segment">${(['en', 'fr', 'ar'] as const).map((l, i) => `<button class="${state.locale === l ? 'active' : ''}" data-action="language" data-locale="${l}" lang="${l}">${['English', 'Français', 'العربية'][i]}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('appearance')}</h2><div class="segment" role="group" aria-label="${t('appearance')}">${(['system', 'light', 'dark'] as const).map(theme => `<button data-action="theme" data-theme="${theme}" class="${state.theme === theme ? 'active' : ''}" aria-pressed="${state.theme === theme}">${t(theme)}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('arabicSize')}</h2><div class="segment" role="group" aria-label="${t('arabicSize')}">${(['s', 'm', 'l', 'xl'] as const).map((z, i) => `<button data-action="arabic-size" data-size="${z}" class="${state.arabicSize === z ? 'active' : ''}" aria-pressed="${state.arabicSize === z}" aria-label="${t(['sizeS', 'sizeM', 'sizeL', 'sizeXL'][i]!)}"><span class="size-glyph size-${z}" lang="ar">ع</span></button>`).join('')}</div><p class="arabic size-preview" lang="ar" dir="rtl">${escapeHtml(verse(112, 1))} ${marker(1)}</p><h2 class="mt28">${t('layout')}</h2><div class="segment" role="group" aria-label="${t('layout')}">${(['cards', 'flow'] as const).map(l => `<button data-action="layout" data-layout="${l}" class="${state.readingLayout === l ? 'active' : ''}" aria-pressed="${state.readingLayout === l}">${t(l === 'cards' ? 'layoutCards' : 'layoutFlow')}</button>`).join('')}</div></section><section class="settings-section"><h2>${t('dailyGoal')}</h2><div class="segment">${[3, 7, 10].map(g => `<button data-action="goal" data-goal="${g}" class="${state.goal === g ? 'active' : ''}">${num(g)} ${t('minutes')}</button>`).join('')}</div><p class="tiny muted">${t('goalNote')}</p><label class="setting-row"><span><strong>${t('motion')}</strong></span><input type="checkbox" id="motion-toggle" ${state.reducedMotion ? 'checked' : ''} aria-label="${t('motion')}"></label><label class="setting-row"><span><strong>${t('onlineAudio')}</strong><p>${t('onlineAudioNote')}</p></span><input type="checkbox" id="audio-toggle" ${state.audioConsent ? 'checked' : ''} aria-label="${t('onlineAudio')}"></label>${voiceAvailable ? `<label class="setting-row"><span><strong>${t('voiceSetting')}</strong><p>${t('voiceSettingNote')}</p></span><input type="checkbox" id="voice-toggle" ${state.voiceFollowConsent ? 'checked' : ''} aria-label="${t('voiceSetting')}"></label>` : ''}</section><section class="settings-section"><h2>${t('reminder')}</h2><p class="tiny muted mb16">${t('reminderNote')}</p><div class="row"><input id="reminder-time" type="time" value="${state.reminder ?? '20:00'}" aria-label="${t('reminder')}">${actionButton('reminder', t('setReminder'), 'button secondary grow')}</div>${state.reminder ? actionButton('remove-reminder', t('removeReminder'), 'text-button') : ''}</section><section class="settings-section"><h2>${t('dataPrivacy')}</h2>${isTemporary() ? miniNotice('temporaryNote') : ''}<p class="small muted mb16">${t('privacyNote')}</p><div class="stack">${actionButton('export', ic('download', 18) + t('export'), 'button secondary full')}${actionButton('import', ic('upload', 18) + t('import'), 'button subtle full')}</div><p class="tiny muted mt12">${t('exportNote')}</p><div class="mt20">${actionButton('reset', ic('trash', 18) + t('reset'), 'button danger full')}</div></section><section class="settings-section"><button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('radar', 22)}</span><span class="grow"><h3>${t('autoReminders')}</h3><p>${t('autoSub')}</p></span>${chevronEnd()}</button></section><section class="settings-section"><h2>${t('about')}</h2><p class="small muted">${t('aboutText')}</p><p class="small muted mt12">${t('editorial')}</p><a class="text-link" href="https://tanzil.net" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a><br><a class="text-link" href="https://alquran.cloud/terms-and-conditions" target="_blank" rel="noopener noreferrer">Islamic Network · ${t('onlineAudio')}</a></section>`; }
 // ---- Adhkar ------------------------------------------------------------------------------------
 const MOMENT_ICON: Record<Moment, string> = { morning: 'sun', evening: 'moon', leave_home: 'door', enter_home: 'home', vehicle: 'car', travel: 'pin', work_arrive: 'briefcase', work_leave: 'briefcase', mosque_enter: 'mosque', mosque_leave: 'mosque', after_prayer: 'spark', sleep: 'moon', wake: 'sun' };
@@ -257,7 +254,9 @@ function prayerSection(): string {
 }
 function sourceLine(src: HadithSource, also: HadithSource[] = [], note?: string): string {
     const grade = src.grades.find(g => g.by === 'Al-Albani') ?? src.grades[0];
-    const link = (x: HadithSource) => `<a href="${sourceUrl(x)}" target="_blank" rel="noopener noreferrer">${escapeHtml(x.collection)} ${escapeHtml(x.number)}${ic('link', 11)}</a>`;
+    // The dataset numbers Sahih Muslim differently from the common (Abd al-Baqi) numbering, so Muslim is cited by its
+    // in-book reference, the one sunnah.com shows and links.
+    const link = (x: HadithSource) => `<a href="${sourceUrl(x)}" target="_blank" rel="noopener noreferrer">${escapeHtml(x.collection)} ${x.ref.startsWith('muslim:') && x.inBook ? `· ${t('book')} ${num(x.inBook.book)}, ${t('hadith')} ${num(x.inBook.hadith)}` : escapeHtml(x.number)}${ic('link', 11)}</a>`;
     return `<p class="source-line">${ic('book', 13)}<span>${link(src)}${grade ? ` · ${escapeHtml(grade.by)}: ${escapeHtml(grade.grade)}` : ''}${also.length ? ` · ${t('alsoIn')} ${also.map(link).join(', ')}` : ''}${note === 'muallaq' ? `<br>${t('muallaq')}` : ''}</span></p>`;
 }
 function entryCard(e: AdhkarEntry, m: Moment): string {
@@ -273,10 +272,6 @@ function entryCard(e: AdhkarEntry, m: Moment): string {
 function momentTile(m: Moment): string {
     const general = GENERAL_MOMENTS.includes(m), [done, total] = momentProgress(m);
     return `<button class="moment-tile ${!general && done === total ? 'finished' : ''}" data-action="moment" data-moments="${m}"><span class="gold">${ic(MOMENT_ICON[m], 22)}</span><span class="moment-name">${t('m_' + m)}</span><span class="tiny muted">${general ? '—' : done === total ? t('momentDone') : `${num(done)} ${t('of')} ${num(total)}`}</span></button>`;
-}
-function adhkarView(): string {
-    const on = state.smart.location || state.smart.vehicle || state.smart.timed;
-    return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('adhkarTitle')}</h1><p class="page-sub">${t('adhkarSub')}</p>${nowCard()}<section class="section"><h2 class="section-title mb16">${t('counters')}</h2><div class="moment-grid">${counterDefs().map(counterTile).join('')}</div><button class="feature-wide row mt12" data-action="nav" data-view="rotation"><span class="gold">${ic('bell', 24)}</span><span class="grow"><h3>${t('rotationTitle')}</h3><p>${state.rotation.enabled ? `${t('rotationEvery')} ${rotationLabel(state.rotation.every)} · ${state.rotation.from}–${state.rotation.to}` : t('rotationSub')}</p></span>${chevronEnd()}</button></section><section class="section"><h2 class="section-title mb16">${t('dailyMoments')}</h2><div class="moment-grid">${DAILY.map(momentTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('outMoments')}</h2><div class="moment-grid">${OUT.map(momentTile).join('')}</div></section><button class="feature-wide row section" data-action="nav" data-view="reminders"><span class="gold">${ic('radar', 24)}</span><span class="grow"><h3>${t('autoReminders')}</h3><p>${on ? `${[state.smart.location && t('locationReminders'), state.smart.vehicle && t('vehicleReminders'), state.smart.timed && t('timedReminders')].filter(Boolean).join(' · ')}` : t('autoSub')}</p></span>${chevronEnd()}</button><p class="gentle">${t('adhkarReview')}</p>`;
 }
 function momentView(): string {
     const ms = momentIds.length ? momentIds : ['morning' as Moment];
@@ -323,6 +318,7 @@ const copyFor = (m: Moment) => ({ title: t('m_' + m), body: momentPreview(m) ?? 
 async function syncSmart(): Promise<void> {
     const bridge = smartBridge();
     if (!bridge) return;
+    void syncSalah();
     try {
         const events = await bridge.takeEvents();
         if (events.length) await commit({ ...state, detections: mergeDetections(state.detections, events) });
@@ -356,9 +352,13 @@ function widgetDaily(): WidgetDaily {
         steps: state.health.steps && today !== undefined ? { today, goal: state.health.stepGoal, at: stepsAt } : null,
     };
 }
+function widgetWorship(now = Date.now()) {
+    const days = [-1, 0, 1].map(i => { const d = new Date(now); d.setDate(d.getDate() + i); return dayKey(d.getTime()); });
+    return { salah: days.map(day => ({ day, kept: PRAYERS.filter(p => { const s = salahStatus(state, day, p); return s === 'done' || s === 'madeUp'; }) })), moments: upcomingMoments(now, 48) };
+}
 async function pushWidget(): Promise<void> {
     if (!isNative()) return;
-    await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }, widgetDaily())).catch(() => { });
+    await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }, widgetDaily(), widgetWorship())).catch(() => { });
 }
 /** Re-plans istighfar reminders, e.g. after the count changes, so the count they show stays right and they stop at the target. */
 /** The chosen rotation phrases, built-in (with their source) and the user's own. */
@@ -498,7 +498,7 @@ function timesHint(): string {
 }
 function prayerView(): string {
     const now = Date.now(), times = timesFor(state, new Date(now)), next = nextPrayer(state, now);
-    const head = `<p class="eyebrow mt12">${t('athan')}</p><h1 class="page-title">${t('prayerTimes')}</h1><p class="page-sub">${t('prayerTimesSub')}</p>`;
+    const head = `<p class="page-sub">${t('prayerTimesSub')}</p>`;
     if (!times) return `${head}<div class="notice warning">${ic('pin', 18)}<p>${t('noPlacePrayer')}</p></div><div class="mt20">${primary('nav', t('savePlaces'), 'data-view="reminders"')}</div>`;
     const rows: [string, number][] = [['fajr', times.fajr], ['sunrise', times.sunrise], ['dhuhr', times.dhuhr], ['asr', times.asr], ['maghrib', times.maghrib], ['isha', times.isha]];
     const list = rows.map(([k, at]) => { const isNext = !!next && next.prayer === k && next.at === at, prayer = (PRAYERS as readonly string[]).includes(k); return `<div class="prayer-row ${isNext ? 'next' : ''} ${at < now ? 'past' : ''}"><span class="grow"><strong>${t('p_' + k)}</strong>${isNext ? `<span class="tiny gold" data-countdown="${at}">${countdown(at, now)}</span>` : ''}</span><span class="prayer-time">${clock(at)}</span>${prayer ? `<button class="icon-button ${state.athan.enabled && state.athan.prayers[k as PrayerName] ? 'active' : ''}" data-action="athan-prayer" data-prayer="${k}" aria-pressed="${state.athan.prayers[k as PrayerName]}" aria-label="${t('athan')} · ${t('p_' + k)}" ${state.athan.enabled ? '' : 'disabled'}>${ic('bell', 17)}</button>` : '<span class="bell-spacer"></span>'}</div>`; }).join('');
@@ -510,15 +510,25 @@ function prayerView(): string {
     return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}<section class="settings-section">${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
 }
 /** Keeps countdowns current while a page shows them, without re-rendering. */
-setInterval(() => { document.querySelectorAll<HTMLElement>('[data-countdown]').forEach(el => { el.textContent = countdown(Number(el.dataset.countdown)); }); }, 30000);
+let lastSlot = slotOf(Date.now());
+setInterval(() => {
+    document.querySelectorAll<HTMLElement>('[data-countdown]').forEach(el => { el.textContent = countdown(Number(el.dataset.countdown)); });
+    // A new half hour brings a new ayah on Home, unless the user is reading the current one or has a dialog open.
+    const slot = slotOf(Date.now());
+    if (slot !== lastSlot && view === 'today' && !ayahBrowse && !(ayahPin && Date.now() < ayahPin.until) && !document.querySelector('dialog[open]')) { lastSlot = slot; const y = window.scrollY; render(); window.scrollTo(0, y); }
+}, 30000);
 // ---- Counters and steps ------------------------------------------------------------------------
 /** Today's count for a counter, including taps not saved yet. */
 function count(id: string): number { const p = pendingCounts[id]; return p && dayKey(p.at) === dayKey() ? p.n : countOn(state, id); }
 /** Built-in counters (sourced) and the user's own (shown as theirs, unchecked), in one shape for the screens. */
-interface CounterDef { id: string; name: string; steps: readonly { text: string; count: number }[]; total: number; atLeast?: boolean; perPrayer?: boolean; builtIn: DhikrCounter | null; custom: CustomCounter | null }
+interface CounterDef { id: string; name: string; steps: readonly { text: string; count: number }[]; total: number; atLeast?: boolean; perPrayer?: boolean; builtIn: DhikrCounter | null; library: LibraryDhikr | null; custom: CustomCounter | null; kind: 'sunnah' | 'personal' | 'own'; sourced: number }
+/** Built-in counters, the library and the user's own, in one shape. A personal target replaces the number counted
+ * towards, while the sourced or suggested number stays shown beside it. */
 function counterDefs(): CounterDef[] {
-    return [...COUNTERS.map(c => ({ id: c.id, name: c.title[state.locale], steps: c.steps, total: c.total, atLeast: c.atLeast, perPrayer: c.perPrayer, builtIn: c, custom: null })),
-        ...state.myCounters.map(m => ({ id: m.id, name: m.title || m.text, steps: [{ text: m.text, count: m.target }], total: m.target, builtIn: null, custom: m }))];
+    const goal = state.worship.targets;
+    return [...COUNTERS.map(c => { const total = c.steps.length === 1 ? goal[c.id] ?? c.total : c.total; return { id: c.id, name: c.title[state.locale], steps: c.steps.length === 1 ? [{ text: c.steps[0]!.text, count: total }] : c.steps, total, atLeast: c.atLeast && total === c.total, perPrayer: c.perPrayer, builtIn: c, library: null, custom: null, kind: 'sunnah' as const, sourced: c.total }; }),
+        ...LIBRARY.map(l => { const total = goal[l.id] ?? l.target; return { id: l.id, name: l.title[state.locale], steps: [{ text: l.text, count: total }], total, builtIn: null, library: l, custom: null, kind: l.targetKind, sourced: l.target }; }),
+        ...state.myCounters.map(m => ({ id: m.id, name: m.title || m.text, steps: [{ text: m.text, count: m.target }], total: m.target, builtIn: null, library: null, custom: m, kind: 'own' as const, sourced: m.target }))];
 }
 const counterDef = (id: string): CounterDef => counterDefs().find(c => c.id === id) ?? counterDefs()[0]!;
 const target = (c: { atLeast?: boolean; total: number }) => c.atLeast ? `${num(c.total)}+` : num(c.total);
@@ -583,25 +593,34 @@ function counterForm(): string {
 <div class="row gap8 mt20">${actionButton('counter-save', `${ic('check', 16)} ${t('saveCounter')}`, 'button primary')}${actionButton('counter-cancel', t('cancel'))}</div></section>`;
 }
 function counterView(): string {
-    const all = counterDefs();
-    const chips = `<div class="chip-wrap">${all.map(x => `<button class="range-chip ${x.id === counterId && !addingCounter ? 'selected' : ''}" data-action="counter" data-counter="${x.id}" aria-pressed="${x.id === counterId && !addingCounter}" dir="auto">${escapeHtml(x.name.length > 28 ? x.name.slice(0, 27) + '…' : x.name)}</button>`).join('')}${state.myCounters.length < MAX_CUSTOM_COUNTERS ? `<button class="range-chip add-chip ${addingCounter ? 'selected' : ''}" data-action="counter-add">+ ${t('addCounter')}</button>` : ''}</div>`;
+    const all = counterDefs(), c = counterDef(counterId);
+    const near = [...new Set([c.id, ...state.worship.favorites, ...state.worship.recent])].filter(id => all.some(x => x.id === id)).slice(0, 8);
+    const chips = `<div class="chip-wrap">${near.map(id => { const x = counterDef(id); return `<button class="range-chip ${x.id === counterId && !addingCounter ? 'selected' : ''}" data-action="counter" data-counter="${x.id}" aria-pressed="${x.id === counterId && !addingCounter}" dir="auto">${escapeHtml(x.name.length > 28 ? x.name.slice(0, 27) + '…' : x.name)}</button>`; }).join('')}<button class="range-chip" data-action="nav" data-view="adhkar">${t('allAdhkar')}</button>${state.myCounters.length < MAX_CUSTOM_COUNTERS ? `<button class="range-chip add-chip ${addingCounter ? 'selected' : ''}" data-action="counter-add">+ ${t('addCounter')}</button>` : ''}</div>`;
     if (addingCounter) return `<p class="eyebrow mt12">${t('counters')}</p><h1 class="page-title">${t('addCounter')}</h1>${chips}${counterForm()}`;
-    const c = counterDef(counterId), n = count(c.id), pos = counterPosition(c, n), step = c.steps[pos.step]!;
-    const roundDone = n > 0 && pos.inRound === 0, long = step.text.length > 40, src = c.builtIn;
+    const n = count(c.id), pos = counterPosition(c, n), step = c.steps[pos.step]!;
+    const roundDone = n > 0 && pos.inRound === 0, long = step.text.length > 40, src = c.builtIn, lib = c.library, fav = state.worship.favorites.includes(c.id);
     const list = c.steps.length > 1 ? `<ol class="count-steps">${c.steps.map((x, i) => `<li class="${i < pos.step || roundDone ? 'done' : i === pos.step ? 'current' : ''}"><span class="arabic" lang="ar" dir="rtl">${escapeHtml(x.text)}</span><span class="pill">×${num(x.count)}</span></li>`).join('')}</ol>` : '';
     const wording = src ? src.steps.filter(x => x.source.ref !== src.source.ref).map(x => x.source).filter((x, i, a) => a.findIndex(y => y.ref === x.ref) === i) : [];
     const phrase = c.custom ? `<span class="tap-phrase custom ${long ? 'long' : ''}" dir="auto">${escapeHtml(step.text)}</span>` : `<span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span>`;
-    const about = src
-        ? `<div class="notice mt20">${ic('info', 18)}<p>${c.perPrayer ? t('perPrayerNote') : `${t('dailyTargetNote')} ${c.atLeast ? t('moreThan') + ' ' : ''}${num(c.total)}`}</p></div>${sourceLine(src.source, src.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}`
+    const countLine = c.custom ? `${t('yourTarget')}: ${num(c.total)}` : c.kind === 'sunnah' ? `${t('sunnahCount')}: ${c.atLeast ? t('moreThan') + ' ' : ''}${num(c.sourced)}${c.total !== c.sourced ? ` · ${t('yourTarget')}: ${num(c.total)}` : ''}` : `${t('personalGoal')}: ${num(c.total)}${c.total !== c.sourced ? ` (${t('suggested')} ${num(c.sourced)})` : ''}`;
+    const about = lib
+        ? `<div class="notice mt20">${ic('info', 18)}<p>${escapeHtml(lib.about[state.locale])}</p></div>${lib.wording === 'common' ? `<p class="tiny gold mt12">${t('commonWording')}</p><p class="tiny muted">${t('virtueHadith')}:</p><p class="arabic dhikr-text small-ar" lang="ar" dir="rtl">${escapeHtml(lib.virtue ?? '')}</p>` : ''}${lib.quranRef ? `<p class="tiny muted">${t('quranLabel')} <bdi>${lib.quranRef.replace('-', '–')}</bdi></p>` : ''}${sourceLine(lib.source, lib.also)}`
+        : src ? `<div class="notice mt20">${ic('info', 18)}<p>${c.perPrayer ? t('perPrayerNote') : `${t('dailyTargetNote')} ${c.atLeast ? t('moreThan') + ' ' : ''}${num(c.sourced)}`}</p></div>${sourceLine(src.source, src.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}`
         : `<div class="notice mt20">${ic('info', 18)}<p>${t('addedByYouNote')} ${t('yourTarget')}: ${num(c.total)}.</p></div>${actionButton('counter-remove', `${ic('trash', 15)} ${t('removeCounter')}`, 'text-button danger-text')}`;
-    return `<p class="eyebrow mt12">${t('counters')}${c.custom ? ` · ${t('addedByYou')}` : ''}</p><h1 class="page-title" dir="auto">${escapeHtml(c.custom?.title || (c.custom ? t('myCounter') : c.name))}</h1>${chips}
-<section class="tap-zone"><div class="count-meta"><span class="pill ${roundDone ? 'success' : 'gold'}">${roundDone ? `${ic('check', 12)} ${t('roundDone')}` : c.steps.length > 1 ? `${num(pos.step + 1)} / ${num(c.steps.length)}` : `${t('round')} ${num(pos.rounds + 1)}`}</span><span class="tiny muted" aria-live="polite">${t('todayCount')} <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</span></div>
+    const targets = !c.custom && c.steps.length === 1 && !c.perPrayer ? `<section class="settings-section"><h2>${t('yourTarget')}</h2><div class="chip-wrap">${[...new Set([c.sourced, 33, 100, 300, 1000])].map(v => `<button class="range-chip ${c.total === v ? 'selected' : ''}" data-action="target-preset" data-n="${v}" aria-pressed="${c.total === v}">${num(v)}${v === c.sourced ? ` · ${t(c.kind === 'sunnah' ? 'sunnahShort' : 'suggested')}` : ''}</button>`).join('')}</div><label class="field target-field mt12"><span>${t('anyNumber')}</span><input id="target-input" type="number" inputmode="numeric" min="1" max="10000" value="${c.total}"></label></section>` : '';
+    return `<p class="eyebrow mt12">${t('counters')}${c.custom ? ` · ${t('addedByYou')}` : ''}</p><div class="row between"><h1 class="page-title" dir="auto">${escapeHtml(c.custom?.title || (c.custom ? t('myCounter') : c.name))}</h1><button class="icon-button fav" data-action="fav-toggle" data-counter="${c.id}" aria-pressed="${fav}" aria-label="${t(fav ? 'unfavorite' : 'favorite')}">${ic(fav ? 'starFill' : 'star', 20)}</button></div>${chips}
+<section class="tap-zone ${celebrate === c.id ? 'celebrate' : ''}"><div class="count-meta"><span class="pill ${roundDone ? 'success' : 'gold'}">${roundDone ? `${ic('check', 12)} ${t('roundDone')}` : c.steps.length > 1 ? `${num(pos.step + 1)} / ${num(c.steps.length)}` : `${t('round')} ${num(pos.rounds + 1)}`}</span><span class="tiny muted" aria-live="polite">${t('todayCount')} <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</span></div>
 <button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') || c.custom ? heart(c.id, roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner">${phrase}<span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
-<p class="tiny muted">${t('tapAnywhere')}</p>
-<div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
+<p class="tiny muted">${t('tapAnywhere')} · ${countLine}</p>
+<div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}${actionButton('dhikr-copy', ic('copy', 18), 'icon-button', `aria-label="${t('copy')}"`)}${actionButton('dhikr-share', ic('share', 18), 'icon-button', `aria-label="${t('share')}"`)}</div></section>
+<div class="progress-cards"><div class="metric"><p class="value">${num(n)}</p><p class="label">${t('today')}</p></div><div class="metric"><p class="value">${num(lifetimeCount(state, c.id) - countOn(state, c.id) + n)}</p><p class="label">${t('lifetime')}</p></div></div>
 ${counterWeek(c)}
 ${c.id === 'istighfar' && isNative() ? `<label class="setting-row"><span><strong>${t('istighfarRemind')}</strong><p>${t('istighfarRemindSub')}</p></span><input type="checkbox" id="istighfar-remind" ${state.istighfarReminder ? 'checked' : ''} aria-label="${t('istighfarRemind')}"></label>` : ''}
-${list}${about}<p class="gentle">${t('ownCount')}</p>`;
+${list}${about}${targets}${feedbackSettings()}<p class="gentle">${t('ownCount')}</p>`;
+}
+function feedbackSettings(): string {
+    const p = state.worship.prefs;
+    return `<section class="settings-section"><h2>${t('tapFeedback')}</h2><label class="setting-row"><span><strong>${t('haptics')}</strong></span><input type="checkbox" id="pref-haptics" ${p.haptics ? 'checked' : ''} aria-label="${t('haptics')}"></label><label class="setting-row"><span><strong>${t('tapSound')}</strong></span><input type="checkbox" id="pref-sounds" ${p.sounds ? 'checked' : ''} aria-label="${t('tapSound')}"></label></section>`;
 }
 /** Steps per day for the last 7 local days, oldest first (null where the device has no figure). */
 function stepDays(): { day: string; label: string; steps: number | null }[] {
@@ -641,12 +660,255 @@ ${state.health.steps ? `<section class="tap-zone">${ring((today ?? 0) / goal * 1
 <section class="settings-section"><h2>${t('stepsGoal')}</h2><div class="segment">${[5000, 8000, 10000, 12000].map(g => `<button data-action="step-goal" data-goal="${g}" class="${goal === g ? 'active' : ''}" aria-pressed="${goal === g}">${num(g)}</button>`).join('')}</div></section>
 ${actionButton('steps-disable', t('stepsOff'), 'text-button')}` : isNative() ? primary('steps-enable', t('stepsEnable')) : ''}<p class="gentle">${t('stepsPrivacy')}</p>`;
 }
-const views: Record<View, () => string> = { today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayerView, counter: counterView, steps: stepsView, rotation: rotationView };
-function render(): void { applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); root.innerHTML = `<div class="app-shell">${header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''}" id="main" tabindex="-1">${views[view]()}</main>${nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') applyFollow(); }
+// ---- Worship: home widgets, prayer tracker, guided tasbih, verses ---------------------------------
+/** The ayah of the moment stays put while the user reads it (for 10 minutes after their last touch of the card). */
+let ayahPin: { slot: number; until: number } | null = null;
+/** An ayah next to the ayah of the moment, opened with the previous/next buttons (never crosses a surah boundary). */
+let ayahBrowse: { surah: number; ayah: number } | null = null;
+let prayerTab: 'today' | 'history' | 'times' = 'today';
+let historyMonth = 0;
+let historyDay: string | null = null;
+let tasbihPrayer: PrayerName = 'fajr';
+let tasbihDay = dayKey();
+let tasbihPaused = false;
+/** The prayer just confirmed, so the tracker can offer its tasbih. */
+let justPrayed: { prayer: PrayerName; day: string } | null = null;
+let recitationId: string | null = null;
+let adhkarFilter = 'all';
+/** A tap that just finished a round or a sequence (for a short completion glow). */
+let celebrate: string | null = null;
+const pendingTasbih: Record<string, { day: string; prayer: PrayerName; id: string; n: number }> = {};
+let tasbihTimer: ReturnType<typeof setTimeout> | null = null;
+const shownSlot = (now = Date.now()) => ayahPin && now < ayahPin.until ? ayahPin.slot : slotOf(now);
+const pinAyah = () => { ayahPin = { slot: shownSlot(), until: Date.now() + 10 * 60000 }; };
+/** Feedback for a tap, as the user chose (haptics on by default, sound off). */
+let tickAudio: AudioContext | null = null;
+function feedback(strong = false): void {
+    const p = state.worship.prefs;
+    if (p.haptics && !state.reducedMotion) { haptic(); if (strong) setTimeout(haptic, 120); }
+    if (p.sounds) {
+        try {
+            tickAudio ??= new AudioContext();
+            const o = tickAudio.createOscillator(), g = tickAudio.createGain(), at = tickAudio.currentTime;
+            o.frequency.value = strong ? 880 : 620; g.gain.setValueAtTime(0.08, at); g.gain.exponentialRampToValueAtTime(0.0001, at + (strong ? .35 : .08));
+            o.connect(g).connect(tickAudio.destination); o.start(at); o.stop(at + (strong ? .36 : .09));
+        } catch { /* no audio output: silent */ }
+    }
+}
+const statusIcon = (s: SalahStatus | null) => s === 'done' ? ic('check', 15) : s === 'madeUp' ? ic('loop', 14) : s === 'missed' ? ic('minus', 15) : '';
+const statusLabel = (s: SalahStatus | null) => t(s === 'done' ? 'st_done' : s === 'madeUp' ? 'st_madeUp' : s === 'missed' ? 'st_missed' : 'st_open');
+/** Times of a day at the saved place (null without one: the tracker still works, without times). */
+const dayTimes = (day: string) => { const [y, m, d] = day.split('-').map(Number); return timesFor(state, new Date(y!, m! - 1, d!, 12)); };
+/** A prayer can be confirmed once its time has come (any time on past days, or always without a saved place). */
+function canConfirm(day: string, prayer: PrayerName, now = Date.now()): boolean {
+    if (day < dayKey(now)) return true;
+    if (day > dayKey(now)) return false;
+    const times = dayTimes(day);
+    return !times || times[prayer] <= now;
+}
+/** Widget 1: next prayer, live countdown, the day's five prayers with what the user confirmed. */
+function nextPrayerWidget(): string {
+    const now = Date.now(), day = prayerDayView(state, now);
+    if (!day) return `<button class="prayer-day empty" data-action="nav" data-view="reminders"><span class="now-orb">${ic('mosque', 22)}</span><span class="grow small">${t('setupPrayer')}</span>${chevronEnd()}</button>`;
+    const { times, next, tomorrow } = day, today = dayKey(now), shown = tomorrow ? dayKey(next.at) : today;
+    const stops = PRAYERS.map(p => times[p]);
+    const pos = (at: number) => { if (at <= stops[0]!) return 10; if (at >= stops[4]!) return 90; const i = stops.findIndex((x, k) => at >= x && at < stops[k + 1]!); return 10 + 20 * (i + (at - stops[i]!) / (stops[i + 1]! - stops[i]!)); };
+    const status = state.athan.enabled ? `${ic('bell', 13)} ${escapeHtml(state.athan.sound === 'chime' ? t('soundChime') : reciterName(next.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter))}` : `${ic('bell', 13)} ${t('athanOffShort')}`;
+    return `<section class="prayer-day widget" aria-labelledby="w-next"><div class="row between"><span class="eyebrow" id="w-next">${t('nextPrayer')}${tomorrow ? ` · ${t('tomorrow')}` : ''}</span><span class="athan-chip ${state.athan.enabled ? 'on' : ''}">${status}</span></div><div class="prayer-day-main"><span class="grow"><strong class="prayer-day-name">${t('p_' + next.prayer)}</strong><span class="small gold" data-countdown="${next.at}" aria-live="off">${countdown(next.at, now)}</span></span><span class="prayer-day-time">${clock(next.at)}</span></div><div class="day-line" aria-hidden="true"><span class="day-fill" style="width:${pos(now) - 10}%"></span>${PRAYERS.map(p => `<span class="day-mark ${times[p] <= now ? 'past' : ''} ${next.at === times[p] ? 'next' : ''}" style="inset-inline-start:${pos(times[p])}%"></span>`).join('')}<span class="day-now" style="inset-inline-start:${pos(now)}%"></span></div><div class="day-labels">${PRAYERS.map(p => { const s = salahStatus(state, shown, p); return `<span class="${next.at === times[p] ? 'next' : ''} ${times[p] <= now ? 'past' : ''} ${s ? 'st-' + s : ''}"><b>${t('p_' + p)}</b>${clock(times[p])}${s ? `<i class="st-dot" aria-label="${statusLabel(s)}">${statusIcon(s)}</i>` : ''}</span>`; }).join('')}</div><button class="text-button widget-link" data-action="nav" data-view="prayer">${ic('clock', 14)} ${t('allPrayers')} ${chevronEnd()}</button></section>`;
+}
+/** Widget 2: one-tap confirmation of today's prayers and the day's progress. */
+function trackerWidget(day = dayKey(), full = false): string {
+    const s = daySummary(state, day), kept = s.done + s.madeUp, times = dayTimes(day), now = Date.now();
+    const chips = PRAYERS.map(p => {
+        const st = s.statuses[p], ok = canConfirm(day, p, now), label = `${t('p_' + p)}: ${statusLabel(st)}`;
+        return `<button class="salah-chip ${st ? 'st-' + st : ''}" data-action="salah-tap" data-prayer="${p}" data-day="${day}" aria-label="${label}${!ok ? ` · ${t('notYetTime')}` : ''}" ${ok || st ? '' : 'disabled'}><span class="salah-mark" aria-hidden="true">${st ? statusIcon(st) : ''}</span><span class="salah-name">${t('p_' + p)}</span><span class="tiny muted">${st ? statusLabel(st) : times ? clock(times[p]) : t('tapToConfirm')}</span></button>`;
+    }).join('');
+    const after = justPrayed && justPrayed.day === day && day === dayKey() && salahStatus(state, day, justPrayed.prayer) === 'done' && !anyTasbihDone(state, day, justPrayed.prayer)
+        ? `<button class="feature-wide row tasbih-offer" data-action="tasbih-start" data-prayer="${justPrayed.prayer}" data-day="${day}"><span class="gold">${ic('tasbih', 22)}</span><span class="grow"><h3>${t('tasbihAfter').replace('{prayer}', t('p_' + justPrayed.prayer))}</h3><p>${t('tasbihAfterSub')}</p></span>${chevronEnd()}</button>` : '';
+    return `<section class="widget tracker" aria-labelledby="w-track-${day}"><div class="row between"><span class="eyebrow" id="w-track-${day}">${day === dayKey() ? t('todaysPrayers') : escapeHtml(new Date(`${day}T12:00:00`).toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span class="tiny ${kept === 5 ? 'success-text' : 'muted'}" aria-live="polite">${t('ofFive').replace('{n}', num(kept))}</span></div><div class="meter" aria-hidden="true"><span style="width:${kept / 5 * 100}%"></span></div><div class="salah-row">${chips}</div>${after}${full ? `<p class="tiny muted mt12">${t('trackerNote')}</p>` : ''}</section>`;
+}
+/** The dhikr shown on Home: the first favourite, else the last one used, else glorification. */
+function quickDhikrId(): string {
+    const ids = new Set(counterDefs().map(c => c.id));
+    return [...state.worship.favorites, ...state.worship.recent, 'subhanallah-wabihamdihi'].find(id => ids.has(id) && !counterDef(id).perPrayer) ?? counterDefs()[0]!.id;
+}
+/** Widget 3: one dhikr with a large tap target, its count and target, and the way to the others. */
+function quickDhikrWidget(): string {
+    const c = counterDef(quickDhikrId()), n = count(c.id), pos = counterPosition(c, n), step = c.steps[pos.step]!, done = n >= c.total;
+    const others = [...new Set([...state.worship.favorites, ...state.worship.recent])].filter(id => id !== c.id && counterDefs().some(x => x.id === id && !x.perPrayer)).slice(0, 3);
+    const phrase = c.custom ? `<p class="quick-text" dir="auto">${escapeHtml(step.text)}</p>` : `<p class="arabic quick-text" lang="ar" dir="rtl">${escapeHtml(step.text)}</p>`;
+    return `<section class="widget quick ${celebrate === c.id ? 'celebrate' : ''}" aria-labelledby="w-quick"><div class="row between"><span class="eyebrow" id="w-quick">${t('quickDhikr')}</span><button class="text-button" data-action="counter" data-counter="${c.id}">${escapeHtml(c.name.length > 26 ? c.name.slice(0, 25) + '…' : c.name)} ${chevronEnd()}</button></div><div class="quick-body">${phrase}<button class="quick-tap ${done ? 'met' : ''}" data-action="quick-tap" data-counter="${c.id}" style="--p:${Math.min(100, n / c.total * 100)}%" aria-label="${t('tapToCount')}: ${num(n)} ${t('of')} ${num(c.total)}"><span class="quick-num">${num(n)}</span><small>${t('of')} ${num(c.total)}</small></button></div><div class="row between wrap quick-foot">${c.custom ? `<span class="tiny gold">${t('addedByYou')}</span>` : `<span class="tiny muted">${c.kind === 'sunnah' ? t('sunnahCount') : t('personalGoal')}</span>`}<span class="chip-wrap">${others.map(id => `<button class="range-chip" data-action="counter" data-counter="${id}" dir="auto">${escapeHtml(counterDef(id).name.slice(0, 18))}</button>`).join('')}<button class="range-chip" data-action="nav" data-view="adhkar">${t('allAdhkar')}</button></span></div></section>`;
+}
+const verseText = (s: number, a: number) => `${verse(s, a)} ${'۝'}${mushafDigits.format(a)}`;
+/** Widget 4: the Ayah of the Moment, with translation, audio, save, copy and share. */
+function ayahWidget(): string {
+    const now = Date.now(), slot = shownSlot(now), base = ayahOfMoment(slot), a = ayahBrowse ?? base, c = chapter(a.surah), saved = state.bookmarks.includes(`${a.surah}:${a.ayah}`);
+    const ends = slotRange(slot)[1], left = Math.max(1, Math.round((ends - now) / 60000)), browsing = !!ayahBrowse && (ayahBrowse.surah !== base.surah || ayahBrowse.ayah !== base.ayah);
+    const tr = state.worship.prefs.translation ? `<p class="ayah-translation" lang="en" dir="ltr">${escapeHtml(translation(a.surah, a.ayah))}<span class="tiny muted"> — ${escapeHtml(TRANSLATION_SOURCE.name)}</span></p>` : '';
+    const btn = (action: string, icon: string, label: string, extra = '') => `<button class="icon-button" data-action="${action}" data-surah="${a.surah}" data-ayah="${a.ayah}" aria-label="${label}" ${extra}>${icon === 'prev' || icon === 'next' ? `<span class="arrow-icon">${ic(icon, 18)}</span>` : ic(icon, 18)}</button>`;
+    return `<section class="widget ayah-moment" aria-labelledby="w-ayah"><div class="row between"><span class="eyebrow" id="w-ayah">${browsing ? t('readingNearby') : t('ayahMoment')}</span><span class="tiny muted">${browsing ? `<button class="text-button" data-action="moment-now">${t('backToMoment')}</button>` : ayahPin && now < ayahPin.until ? t('heldWhileReading') : t('nextIn').replace('{m}', num(left))}</span></div>
+<p class="arabic ayah-moment-text" lang="ar" dir="rtl">${escapeHtml(verse(a.surah, a.ayah))} ${marker(a.ayah)}</p>${tr}
+<div class="row between ayah-moment-foot"><button class="text-button ayah-ref" data-action="read-ayah" data-surah="${a.surah}" data-ayah="${a.ayah}"><span class="arabic" lang="ar">${c.ar}</span> <span class="tiny muted">${escapeHtml(c.name)} <bdi>${a.surah}:${a.ayah}</bdi></span></button><span class="row gap4">${btn('moment-prev', 'prev', t('previousAyah'), a.ayah > 1 ? '' : 'disabled')}${btn('moment-next', 'next', t('nextAyah'), a.ayah < c.count ? '' : 'disabled')}</span></div>
+<div class="ayah-actions">${btn('play-verse', 'play', t('listen'))}${btn('toggle-translation', 'globe', t(state.worship.prefs.translation ? 'hideTranslation' : 'showTranslation'), `aria-pressed="${state.worship.prefs.translation}"`)}${btn('save-verse', saved ? 'starFill' : 'star', t(saved ? 'unsaveVerse' : 'saveVerse'), `aria-pressed="${saved}"`)}${btn('copy-verse', 'copy', t('copy'))}${btn('share-verse', 'share', t('share'))}</div></section>`;
+}
+function homeView(): string {
+    return `${dateLine()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
+<div class="tile-row"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('dailyVerseSub')}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
+${nowCard()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
+}
+/** Status choices for one prayer: completed, missed (only the user says so), made up later, or not confirmed. */
+function chooseStatus(prayer: PrayerName, day: string, current: SalahStatus | null): Promise<SalahStatus | null | undefined> {
+    let dialog = document.querySelector<HTMLDialogElement>('#status-sheet');
+    if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'status-sheet'; dialog.className = 'sheet'; document.body.append(dialog); }
+    const options: [SalahStatus | null, string, string][] = [['done', 'st_done', 'check'], ...(current === 'missed' || current === 'madeUp' ? [['madeUp', 'st_madeUp', 'loop'] as [SalahStatus, string, string]] : []), ['missed', 'st_missed', 'minus'], [null, 'st_clear', 'close']];
+    dialog.innerHTML = `<h2>${t('p_' + prayer)}</h2><p class="small muted">${escapeHtml(new Date(`${day}T12:00:00`).toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }))} · ${statusLabel(current)}</p><div class="sheet-options">${options.map(([s, key, icon]) => `<button class="sheet-option ${s === current ? 'active' : ''}" data-status="${s ?? ''}" ${s === current ? 'aria-current="true"' : ''}>${ic(icon, 18)} ${t(key)}</button>`).join('')}</div><p class="tiny muted">${t('statusNote')}</p><button class="button secondary full" data-status="cancel">${t('cancel')}</button>`;
+    return new Promise(resolve => {
+        const d = dialog!;
+        d.onclick = e => { const b = (e.target as Element).closest<HTMLButtonElement>('[data-status]'); if (!b) { if (e.target === d) { d.close(); resolve(undefined); } return; } d.close(); const v = b.dataset.status!; resolve(v === 'cancel' ? undefined : v === '' ? null : v as SalahStatus); };
+        d.oncancel = e => { e.preventDefault(); d.close(); resolve(undefined); };
+        d.showModal(); d.querySelector<HTMLButtonElement>('.sheet-option')?.focus();
+    });
+}
+/** Saves a status and refreshes reminders and widgets. */
+async function saveSalah(day: string, prayer: PrayerName, status: SalahStatus | null): Promise<void> {
+    await commit(setSalah(state, day, prayer, status, Date.now()));
+    justPrayed = status === 'done' ? { prayer, day } : justPrayed?.prayer === prayer ? null : justPrayed;
+    void syncSalah();
+    void pushWidget();
+}
+async function syncSalah(): Promise<void> {
+    const bridge = smartBridge();
+    if (!bridge) return;
+    try { await bridge.scheduleSalah(salahReminders(state, (p, kind) => ({ title: t(kind === 'tasbih' ? 'nudgeTasbihTitle' : 'checkInTitle').replace('{prayer}', t('p_' + p)), body: t(kind === 'tasbih' ? 'nudgeTasbihBody' : 'checkInBody') }))); }
+    catch { toast(t('reminderSyncFailed')); }
+}
+/** One month of the history calendar: how many of the five each day were confirmed. */
+function historyCalendar(): string {
+    const now = new Date(), first = new Date(now.getFullYear(), now.getMonth() + historyMonth, 1), days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    const lead = (first.getDay() + 6) % 7, today = dayKey();
+    const cells = Array.from({ length: lead }, () => '<span></span>').join('') + Array.from({ length: days }, (_, i) => {
+        const day = dayKey(new Date(first.getFullYear(), first.getMonth(), i + 1, 12).getTime()), s = daySummary(state, day), kept = s.done + s.madeUp, future = day > today;
+        return `<button class="cal-day ${day === today ? 'today' : ''} ${day === historyDay ? 'selected' : ''} ${kept === 5 ? 'full' : kept ? 'some' : ''}" data-action="history-day" data-day="${day}" ${future ? 'disabled' : ''} aria-label="${escapeHtml(new Date(`${day}T12:00:00`).toLocaleDateString(state.locale, { day: 'numeric', month: 'long' }))}: ${t('ofFive').replace('{n}', num(kept))}"><span>${num(i + 1)}</span><i style="--k:${kept / 5}"></i></button>`;
+    }).join('');
+    const week = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(state.locale, { weekday: 'narrow' }));
+    return `<section class="section widget"><div class="row between"><button class="icon-button" data-action="history-month" data-step="-1" aria-label="${t('previousMonth')}"><span class="arrow-icon">${ic('prev', 18)}</span></button><h2 class="section-title">${escapeHtml(first.toLocaleDateString(state.locale, { month: 'long', year: 'numeric' }))}</h2><button class="icon-button" data-action="history-month" data-step="1" aria-label="${t('nextMonth')}" ${historyMonth >= 0 ? 'disabled' : ''}><span class="arrow-icon">${ic('next', 18)}</span></button></div><div class="cal-grid" role="group">${week.map(w => `<span class="cal-head">${escapeHtml(w)}</span>`).join('')}${cells}</div><p class="tiny muted mt12">${t('calendarNote')}</p></section>${historyDay ? trackerWidget(historyDay, true) : ''}`;
+}
+function insightsSection(): string {
+    const week = salahWeek(state), streakDays = salahStreak(state), ins = salahInsights(state), top = Math.max(5, ...week.map(d => d.kept));
+    const bars = `<div class="step-bars short">${week.map(d => `<div class="step-bar ${d.day === dayKey() ? 'current' : ''} ${d.kept === 5 ? 'met' : ''}"><span class="tiny muted">${d.kept ? num(d.kept) : '—'}</span><i style="height:${d.kept / top * 72}%"></i><span class="tiny">${escapeHtml(new Date(`${d.day}T12:00:00`).toLocaleDateString(state.locale, { weekday: 'narrow' }))}</span></div>`).join('')}</div>`;
+    const lines = [streakDays ? t('salahStreak').replace('{n}', num(streakDays)) : t('salahStreakNone'), ins.best && ins.confirmed >= 10 ? t('bestPrayer').replace('{prayer}', t('p_' + ins.best)).replace('{n}', num(ins.perPrayer[ins.best])) : '', ins.recordedDays ? t('recordedDays').replace('{n}', num(ins.confirmed)).replace('{d}', num(ins.recordedDays)) : ''].filter(Boolean);
+    return `<section class="section"><h2 class="section-title mb16">${t('thisWeek')}</h2>${bars}<ul class="insights">${lines.map(l => `<li>${ic('leaf', 14)} ${l}</li>`).join('')}</ul></section>`;
+}
+function salahSettings(): string {
+    const p = state.worship.prefs, toggle = (id: string, on: boolean, label: string, note: string) => `<label class="setting-row"><span><strong>${label}</strong><p>${note}</p></span><input type="checkbox" id="${id}" ${on ? 'checked' : ''} aria-label="${label}"></label>`;
+    return `<section class="settings-section"><h2>${t('salahReminders')}</h2>${isNative() ? '' : miniNotice('nativeOnlyReminders')}${toggle('pref-checkin', p.checkIn, t('checkInToggle'), t('checkInNote'))}${p.checkIn ? `<div class="segment compact" role="group" aria-label="${t('checkInAfterLabel')}">${CHECK_IN_AFTER.map(m => `<button data-action="checkin-after" data-min="${m}" class="${p.checkInAfter === m ? 'active' : ''}" aria-pressed="${p.checkInAfter === m}">${num(m)} ${t('minuteShort')}</button>`).join('')}</div>` : ''}${toggle('pref-tasbih-nudge', p.tasbihNudge, t('tasbihNudgeToggle'), t('tasbihNudgeNote'))}</section>`;
+}
+function prayerTabs(): string {
+    return `<div class="segment" role="tablist">${(['today', 'history', 'times'] as const).map(x => `<button role="tab" data-action="prayer-tab" data-tab="${x}" class="${prayerTab === x ? 'active' : ''}" aria-selected="${prayerTab === x}">${t('ptab_' + x)}</button>`).join('')}</div>`;
+}
+function prayersView(): string {
+    const head = `<p class="eyebrow mt12">${t('prayers')}</p><h1 class="page-title">${t('salahTitle')}</h1>${prayerTabs()}`;
+    if (prayerTab === 'times') return `${head}${prayerView()}`;
+    if (prayerTab === 'history') return `${head}${historyCalendar()}${insightsSection()}`;
+    return `${head}${prayerPlace(state) ? nextPrayerWidget() : ''}${trackerWidget(dayKey(), true)}${tasbihTiles()}${insightsSection()}${salahSettings()}<p class="gentle">${t('salahPrivate')}</p>`;
+}
+function tasbihTiles(): string {
+    const day = dayKey(), id = state.worship.prefs.tasbihVariant;
+    return `<section class="section"><h2 class="section-title mb16">${t('guidedTasbih')}</h2><div class="tasbih-tiles">${PRAYERS.map(p => { const n = tasbihCount(day, p, id), total = counter(id).total; return `<button class="tasbih-tile ${n >= total ? 'finished' : ''}" data-action="tasbih-start" data-prayer="${p}" data-day="${day}">${ring(n / total * 100, n >= total ? ic('check', 16) : `<span class="tiny">${num(n)}</span>`)}<span class="tiny">${t('p_' + p)}</span></button>`; }).join('')}</div></section>`;
+}
+// Guided tasbih ------------------------------------------------------------------------------------
+const tasbihKey = (day: string, prayer: PrayerName, id: string) => `${day}/${prayer}/${id}`;
+function tasbihCount(day: string, prayer: PrayerName, id: string): number { return pendingTasbih[tasbihKey(day, prayer, id)]?.n ?? tasbihOn(state, day, prayer, id); }
+async function flushTasbih(): Promise<void> {
+    if (tasbihTimer) { clearTimeout(tasbihTimer); tasbihTimer = null; }
+    const keys = Object.keys(pendingTasbih);
+    if (!keys.length) return;
+    let next = state;
+    for (const k of keys) { const p = pendingTasbih[k]!; next = setTasbih(next, p.day, p.prayer, p.id, p.n); }
+    const saved = keys.map(k => [k, pendingTasbih[k]!] as const);
+    try { if (next !== state) await commit(next); } catch { return; }
+    for (const [k, p] of saved) if (pendingTasbih[k] === p) delete pendingTasbih[k];
+    void syncSalah();
+}
+function tasbihView(): string {
+    const id = state.worship.prefs.tasbihVariant, c = counter(id), n = tasbihCount(tasbihDay, tasbihPrayer, id), done = n >= c.total;
+    const pos = counterPosition(c, Math.min(n, c.total - 1)), step = c.steps[pos.step]!, inStep = done ? step.count : pos.inStep;
+    const variants = `<div class="chip-wrap">${TASBIH_VARIANTS.map(v => `<button class="range-chip ${v === id ? 'selected' : ''}" data-action="tasbih-variant" data-id="${v}" aria-pressed="${v === id}">${escapeHtml(counter(v).steps.map(s => num(s.count)).join(' · '))}</button>`).join('')}</div>`;
+    const prayers = `<div class="segment compact" role="group" aria-label="${t('prayers')}">${PRAYERS.map(p => `<button data-action="tasbih-prayer" data-prayer="${p}" class="${p === tasbihPrayer ? 'active' : ''}" aria-pressed="${p === tasbihPrayer}">${t('p_' + p)}${tasbihCount(tasbihDay, p, id) >= c.total ? ` ${ic('check', 11)}` : ''}</button>`).join('')}</div>`;
+    const list = `<ol class="count-steps">${c.steps.map((x, i) => `<li class="${done || i < pos.step ? 'done' : i === pos.step ? 'current' : ''}"><span class="arabic" lang="ar" dir="rtl">${escapeHtml(x.text)}</span><span class="pill">×${num(x.count)}</span></li>`).join('')}</ol>`;
+    const wording = c.steps.map(x => x.source).filter((x, i, a) => x.ref !== c.source.ref && a.findIndex(y => y.ref === x.ref) === i);
+    return `<p class="eyebrow mt12">${t('guidedTasbih')}${tasbihDay !== dayKey() ? ` · ${escapeHtml(new Date(`${tasbihDay}T12:00:00`).toLocaleDateString(state.locale, { day: 'numeric', month: 'short' }))}` : ''}</p><h1 class="page-title">${t('tasbihAfter').replace('{prayer}', t('p_' + tasbihPrayer))}</h1>${prayers}
+<section class="tap-zone ${celebrate === 'tasbih' ? 'celebrate' : ''}"><div class="count-meta"><span class="pill ${done ? 'success' : 'gold'}">${done ? `${ic('check', 12)} ${t('tasbihComplete')}` : `${num(pos.step + 1)} / ${num(c.steps.length)}`}</span><span class="tiny muted" aria-live="polite">${t('total')} <strong class="gold">${num(Math.min(n, c.total))}</strong> / ${num(c.total)}</span></div>
+<button class="tap-counter" data-action="tasbih-tap" ${done || tasbihPaused ? 'disabled' : ''} aria-label="${escapeHtml(step.text)}: ${num(inStep)} ${t('of')} ${num(step.count)}">${beads(inStep, step.count)}<span class="tap-inner"><span class="arabic tap-phrase ${step.text.length > 40 ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+<p class="tiny muted">${tasbihPaused ? t('pausedNote') : done ? t('tasbihDoneNote') : t('tapAnywhere')}</p>
+<div class="row gap8">${actionButton('tasbih-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n && !tasbihPaused ? '' : 'disabled'}`)}${actionButton('tasbih-pause', ic(tasbihPaused ? 'play' : 'pause', 18), 'icon-button', `aria-label="${t(tasbihPaused ? 'resume' : 'pause')}" aria-pressed="${tasbihPaused}" ${done ? 'disabled' : ''}`)}${actionButton('tasbih-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
+${list}<section class="section"><h2 class="section-title mb16">${t('tasbihVariants')}</h2>${variants}<p class="tiny muted mt12">${t('variantsNote')}</p></section>${sourceLine(c.source, c.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}<p class="gentle">${t('ownCount')}</p>`;
+}
+// Verses -------------------------------------------------------------------------------------------
+function verseBlock(s: number, a: number, extra = ''): string {
+    const c = chapter(s);
+    return `<article class="verse-card"><p class="arabic dhikr-text" lang="ar" dir="rtl">${escapeHtml(verse(s, a))} ${marker(a)}</p>${state.worship.prefs.translation ? `<p class="ayah-translation" lang="en" dir="ltr">${escapeHtml(translation(s, a))}</p>` : ''}<div class="row between"><button class="text-button" data-action="read-ayah" data-surah="${s}" data-ayah="${a}"><span class="arabic" lang="ar">${c.ar}</span> <span class="tiny muted">${escapeHtml(c.name)} <bdi>${s}:${a}</bdi></span></button><span class="row gap4">${extra}<button class="icon-button" data-action="play-verse" data-surah="${s}" data-ayah="${a}" aria-label="${t('listen')}">${ic('play', 16)}</button><button class="icon-button" data-action="share-verse" data-surah="${s}" data-ayah="${a}" aria-label="${t('share')}">${ic('share', 16)}</button></span></div></article>`;
+}
+function versesView(): string {
+    const a = ayahOfDay(dayKey()), c = chapter(a.surah);
+    const daily = Array.from({ length: a.to - a.ayah + 1 }, (_, k) => verseBlock(a.surah, a.ayah + k)).join('');
+    const saved = state.bookmarks.map(k => k.split(':').map(Number) as [number, number]);
+    return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('dailyVerse')}</h1><p class="page-sub">${t('dailyVerseNote')}</p><p class="tiny gold mb16">${escapeHtml(c.name)} <bdi>${ayahRef(a)}</bdi></p>${daily}
+<section class="section"><h2 class="section-title mb16">${t('savedVerses')}</h2>${saved.length ? saved.map(([s, n]) => verseBlock(s, n, `<button class="icon-button" data-action="save-verse" data-surah="${s}" data-ayah="${n}" aria-label="${t('unsaveVerse')}">${ic('starFill', 16)}</button>`)).join('') : `<p class="empty">${t('noSavedVerses')}</p>`}</section><p class="gentle">${t('translationCredit')} · <a href="${TRANSLATION_SOURCE.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(TRANSLATION_SOURCE.source)}</a></p>`;
+}
+function recitationsView(): string {
+    const list = RECITATIONS.map(r => { const c = chapter(r.surah); return `<button class="mode-card ${r.id === recitationId ? 'selected' : ''}" data-action="recitation" data-id="${r.id}" aria-expanded="${r.id === recitationId}"><span class="round-icon arabic" lang="ar">${c.ar.replace(/^سُورَةُ /, '').slice(0, 6)}</span><span class="grow"><h3>${escapeHtml(c.name)} <bdi class="tiny muted">${r.surah}:${r.from}${r.to > r.from ? `–${r.to}` : ''}</bdi></h3><p>${t('rec_' + r.id)}</p></span><span class="muted arrow-icon">${ic('chevron', 16)}</span></button>${r.id === recitationId ? `<div class="recitation-text">${recitation(r.id).ayahs.map(x => `<p class="arabic dhikr-text" lang="ar" dir="rtl">${escapeHtml(x.text)} ${marker(x.n)}</p>${state.worship.prefs.translation ? `<p class="ayah-translation" lang="en" dir="ltr">${escapeHtml(translation(r.surah, x.n))}</p>` : ''}`).join('')}<div class="row gap8 mt12">${actionButton('play-verse', `${ic('play', 15)} ${t('listenFirst')}`, 'button subtle', `data-surah="${r.surah}" data-ayah="${r.from}"`)}${actionButton('read-ayah', `${ic('book', 15)} ${t('readInContext')}`, 'button subtle', `data-surah="${r.surah}" data-ayah="${r.from}"`)}</div></div>` : ''}`; }).join('');
+    return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('shortRecitations')}</h1><p class="page-sub">${t('recitationsSub')}</p><div class="notice mb16">${ic('info', 18)}<p>${t('recitationsNote')}</p></div><div class="stack">${list}</div><p class="gentle">${t('recitationsReview')}</p>`;
+}
+// Progress -----------------------------------------------------------------------------------------
+function worshipProgress(): string {
+    const today = dayKey(), s = daySummary(state, today), weekDays = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return dayKey(d.getTime()); });
+    const ids = counterDefs().map(c => c.id);
+    const dayTotal = (day: string) => state.counts.filter(c => c.day === day).reduce((n, c) => n + c.n, 0) + state.worship.tasbih.filter(r => r.day === day).reduce((n, r) => n + r.n, 0);
+    const todayDhikr = ids.reduce((n, id) => n + count(id), 0) + state.worship.tasbih.filter(r => r.day === today).reduce((n, r) => n + r.n, 0);
+    const weekDhikr = todayDhikr + weekDays.slice(1).reduce((n, d) => n + dayTotal(d), 0);
+    const lifetime = ids.reduce((n, id) => n + lifetimeCount(state, id), 0) + state.worship.tasbih.reduce((n, r) => n + r.n, 0);
+    const top = ids.map(id => [id, lifetimeCount(state, id)] as const).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const quranWeek = weekDays.filter(d => state.worship.quran[d]?.length).length, surahsWeek = new Set(weekDays.flatMap(d => state.worship.quran[d] ?? [])).size;
+    const metric = (v: string, l: string) => `<div class="metric"><p class="value">${v}</p><p class="label">${l}</p></div>`;
+    return `<section class="section"><h2 class="section-title mb16">${t('prayers')}</h2><div class="progress-cards">${metric(`${num(s.done + s.madeUp)}<span class="tiny muted"> / 5</span>`, t('confirmedToday'))}${metric(num(salahStreak(state)), t('fullDays'))}${metric(num(salahWeek(state).reduce((n, d) => n + d.kept, 0)), t('confirmedWeek'))}</div></section>${insightsSection()}
+<section class="section"><h2 class="section-title mb16">${t('dhikrHistory')}</h2><div class="progress-cards">${metric(num(todayDhikr), t('today'))}${metric(num(weekDhikr), t('last7Days'))}${metric(num(lifetime), t('lifetime'))}</div>${top.length ? `<div class="stack mt12">${top.map(([id, n]) => `<button class="mini-stats row between" data-action="counter" data-counter="${id}"><span class="small" dir="auto">${escapeHtml(counterDef(id).name)}</span><span class="gold">${num(n)}</span></button>`).join('')}</div>` : `<p class="empty">${t('noDhikrYet')}</p>`}</section>
+<section class="section"><h2 class="section-title mb16">${t('quranActivity')}</h2><div class="progress-cards">${metric(num(quranWeek), t('readingDays'))}${metric(num(surahsWeek), t('surahsOpened'))}${metric(num(state.bookmarks.length), t('savedVerses'))}</div><p class="tiny muted mt12">${t('quranActivityNote')}</p></section><p class="gentle">${t('progressPrivate')}</p>
+<h2 class="section-title section">${t('memorization')}</h2>`;
+}
+// Adhkar library -----------------------------------------------------------------------------------
+function libraryCard(c: CounterDef): string {
+    const n = count(c.id), fav = state.worship.favorites.includes(c.id), done = !c.perPrayer && n >= c.total, lib = c.library;
+    const text = c.steps[0]!.text;
+    return `<article class="lib-card ${done ? 'done' : ''}"><button class="lib-open" data-action="counter" data-counter="${c.id}"><span class="row between"><strong dir="auto">${escapeHtml(c.name)}</strong>${ring(c.perPrayer ? 0 : n / c.total * 100, done ? ic('check', 13) : '', 'tiny-ring')}</span><span class="${c.custom ? '' : 'arabic '}lib-text" ${c.custom ? 'dir="auto"' : 'lang="ar" dir="rtl"'}>${escapeHtml(text.length > 90 ? text.slice(0, text.lastIndexOf(' ', 88)) + ' …' : text)}</span><span class="tiny muted">${c.perPrayer ? t('perPrayerShort') : `${num(n)} / ${target(c)}`} · ${c.custom ? `<span class="gold">${t('addedByYou')}</span>` : c.kind === 'sunnah' ? t('sunnahCount') : t('personalGoal')}${lib?.quranRef ? ` · ${t('quranLabel')} <bdi>${lib.quranRef}</bdi>` : ''}</span></button><button class="icon-button fav" data-action="fav-toggle" data-counter="${c.id}" aria-pressed="${fav}" aria-label="${t(fav ? 'unfavorite' : 'favorite')}: ${escapeHtml(c.name)}">${ic(fav ? 'starFill' : 'star', 18)}</button></article>`;
+}
+function adhkarView(): string {
+    const on = state.smart.location || state.smart.vehicle || state.smart.timed, all = counterDefs().filter(c => !c.perPrayer);
+    const filters: [string, string][] = [['all', t('all')], ['favorites', `${t('favorites')} · ${num(state.worship.favorites.length)}`], ...LIBRARY_CATEGORIES.map(k => [k, t('cat_' + k)] as [string, string]), ['own', t('yourOwn')]];
+    const shown = adhkarFilter === 'favorites' ? state.worship.favorites.map(counterDef).filter(c => !c.perPrayer) : adhkarFilter === 'own' ? all.filter(c => c.custom) : adhkarFilter === 'all' ? [...all.filter(c => c.library), ...all.filter(c => c.builtIn), ...all.filter(c => c.custom)] : all.filter(c => c.library?.category === adhkarFilter || (!c.library && !c.custom && adhkarFilter === 'istighfar'));
+    const recent = state.worship.recent.filter(id => all.some(c => c.id === id)).slice(0, 4);
+    return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('adhkarTitle')}</h1>${nowCard()}
+<button class="feature-wide row" data-action="tasbih-start" data-prayer="${currentPrayer()}" data-day="${dayKey()}"><span class="gold">${ic('tasbih', 24)}</span><span class="grow"><h3>${t('guidedTasbih')}</h3><p>${t('guidedTasbihSub')}</p></span>${chevronEnd()}</button>
+${recent.length ? `<section class="section"><h2 class="section-title mb16">${t('recent')}</h2><div class="chip-wrap">${recent.map(id => `<button class="range-chip" data-action="counter" data-counter="${id}" dir="auto">${escapeHtml(counterDef(id).name)}</button>`).join('')}</div></section>` : ''}
+<section class="section"><div class="row between"><h2 class="section-title">${t('library')}</h2><button class="text-button" data-action="counter-add">+ ${t('addCounter')}</button></div><div class="chip-wrap filter-row mt12" role="group" aria-label="${t('library')}">${filters.map(([k, l]) => `<button class="range-chip ${adhkarFilter === k ? 'selected' : ''}" data-action="adhkar-filter" data-filter="${k}" aria-pressed="${adhkarFilter === k}">${l}</button>`).join('')}</div><div class="stack mt12">${shown.length ? shown.map(libraryCard).join('') : `<p class="empty">${t(adhkarFilter === 'favorites' ? 'noFavorites' : 'noOwnYet')}</p>`}</div></section>
+<section class="section"><h2 class="section-title mb16">${t('dailyMoments')}</h2><div class="moment-grid">${DAILY.map(momentTile).join('')}</div></section><section class="section"><h2 class="section-title mb16">${t('dailyDuas')}</h2><div class="moment-grid">${OUT.map(momentTile).join('')}</div></section>
+<button class="feature-wide row section" data-action="nav" data-view="rotation"><span class="gold">${ic('bell', 24)}</span><span class="grow"><h3>${t('rotationTitle')}</h3><p>${state.rotation.enabled ? `${t('rotationEvery')} ${rotationLabel(state.rotation.every)} · ${state.rotation.from}–${state.rotation.to}` : t('rotationSub')}</p></span>${chevronEnd()}</button><button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('radar', 24)}</span><span class="grow"><h3>${t('autoReminders')}</h3><p>${on ? `${[state.smart.location && t('locationReminders'), state.smart.vehicle && t('vehicleReminders'), state.smart.timed && t('timedReminders')].filter(Boolean).join(' · ')}` : t('autoSub')}</p></span>${chevronEnd()}</button><p class="gentle">${t('adhkarReview')}</p>`;
+}
+/** The obligatory prayer whose time it is now (the last one that began), for the tasbih shortcut. */
+function currentPrayer(now = Date.now()): PrayerName {
+    const times = dayTimes(dayKey(now));
+    if (!times) return 'fajr';
+    return [...PRAYERS].reverse().find(p => times[p] <= now) ?? 'isha';
+}
+
+const views: Record<View, () => string> = { today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
+/** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
+let drawnView: View | null = null;
+function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); root.innerHTML = `<div class="app-shell">${header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') applyFollow(); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
-    history.pushState(null, '', `#${target}`); if (target !== 'counter') void flushCounts(); render(); if (target === 'today' || target === 'steps') void refreshSteps(); if (target === 'reminders') void syncSmart().then(() => { if (view === 'reminders') { const y = window.scrollY; render(); window.scrollTo(0, y); } }); window.scrollTo(0, 0); document.querySelector<HTMLElement>('#main')?.focus({ preventScroll: true }); }
+    history.pushState(null, '', `#${target}`); if (target !== 'counter') void flushCounts(); if (target !== 'tasbih') void flushTasbih(); if (target === 'reader') void commit(noteQuranOpen(state, readerSurah, Date.now())).catch(() => { }); if (target !== 'today') { ayahBrowse = null; ayahPin = null; } render(); if (target === 'today' || target === 'steps') void refreshSteps(); if (target === 'reminders') void syncSmart().then(() => { if (view === 'reminders') { const y = window.scrollY; render(); window.scrollTo(0, y); } }); window.scrollTo(0, 0); document.querySelector<HTMLElement>('#main')?.focus({ preventScroll: true }); }
 async function launch(mode: Mode | 'mixed', kind: 'daily' | 'practice' = 'practice', only?: QueueItem[]): Promise<void> { if (state.session) {
     await navigate('session');
     toast(t('resume'));
@@ -702,7 +964,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await navigate(d.view as View);
             break;
         case 'back':
-            await navigate(view === 'reader' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' ? 'today' : view === 'moment' || view === 'reminders' ? 'adhkar' : view === 'prayer' ? 'today' : 'practice');
+            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'tasbih' ? 'prayer' : 'practice');
             break;
         case 'daily':
             await launch('mixed', 'daily');
@@ -762,6 +1024,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             }
             if (recordingActive() || followingActive())
                 return;
+            if (view === 'today') pinAyah();
             void playAudio(audioUrl(Number(d.surah), Number(d.ayah)), Number(d.speed ?? 1), d.loop === 'true').catch(() => { });
             break;
         case 'stop-audio':
@@ -957,6 +1220,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await flushCounts();
             counterId = d.counter!;
             addingCounter = false;
+            if (state.worship.recent[0] !== counterId) await commit(markRecent(state, counterId)).catch(() => { });
             if (view === 'counter') { render(); break; }
             await navigate('counter');
             break;
@@ -1019,16 +1283,179 @@ async function handleAction(el: HTMLElement): Promise<void> {
             render();
             break;
         }
+        case 'quick-tap':
         case 'count-tap':
         case 'count-undo': {
-            const n = Math.max(0, Math.min(MAX_COUNT, count(counterId) + (d.action === 'count-tap' ? 1 : -1)));
-            pendingCounts[counterId] = { n, at: Date.now() };
+            const id = d.action === 'quick-tap' ? d.counter! : counterId, c = counterDef(id);
+            if (c.id !== id) return;
+            const n = Math.max(0, Math.min(MAX_COUNT, count(id) + (d.action === 'count-undo' ? -1 : 1)));
+            pendingCounts[id] = { n, at: Date.now() };
             heartBeat = d.action === 'count-tap';
-            if (!state.reducedMotion) haptic();
+            const finished = d.action !== 'count-undo' && n > 0 && (n % c.total === 0 || c.steps.length > 1 && counterPosition(c, n).inStep === 0);
+            celebrate = finished && n % c.total === 0 && !state.reducedMotion ? id : null;
+            feedback(finished);
+            if (state.worship.recent[0] !== id) { state = markRecent(state, id); }
+            const y = window.scrollY;
             render();
+            if (view === 'today') window.scrollTo(0, y);
+            celebrate = null;
             document.querySelector<HTMLElement>(`[data-action="${d.action}"]`)?.focus();
             if (countTimer) clearTimeout(countTimer);
             countTimer = setTimeout(() => { void flushCounts().then(() => { if (view === 'counter') render(); }); }, 800);
+            break;
+        }
+        case 'salah-tap': {
+            const prayer = d.prayer as PrayerName, day = d.day!;
+            if (!PRAYERS.includes(prayer)) return;
+            const current = salahStatus(state, day, prayer);
+            // One tap confirms; tapping a recorded prayer opens the choices (to correct it, or record a make-up).
+            const next = current === null && canConfirm(day, prayer) ? 'done' : await chooseStatus(prayer, day, current);
+            if (next === undefined || next === current) return;
+            await saveSalah(day, prayer, next);
+            feedback(next === 'done');
+            const y = window.scrollY; render(); window.scrollTo(0, y);
+            if (next === 'done') toast(t('confirmedToast').replace('{prayer}', t('p_' + prayer)));
+            break;
+        }
+        case 'tasbih-start': {
+            const prayer = d.prayer as PrayerName;
+            if (!PRAYERS.includes(prayer)) return;
+            tasbihPrayer = prayer; tasbihDay = d.day && /^\d{4}-\d{2}-\d{2}$/.test(d.day) ? d.day : dayKey(); tasbihPaused = false;
+            await navigate('tasbih');
+            break;
+        }
+        case 'tasbih-prayer':
+            await flushTasbih();
+            if (PRAYERS.includes(d.prayer as PrayerName)) { tasbihPrayer = d.prayer as PrayerName; tasbihPaused = false; }
+            render();
+            break;
+        case 'tasbih-variant':
+            if (!TASBIH_VARIANTS.includes(d.id!)) return;
+            await flushTasbih();
+            await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, tasbihVariant: d.id! } } });
+            render();
+            break;
+        case 'tasbih-pause':
+            await flushTasbih();
+            tasbihPaused = !tasbihPaused;
+            render();
+            break;
+        case 'tasbih-tap':
+        case 'tasbih-undo': {
+            if (tasbihPaused) return;
+            const id = state.worship.prefs.tasbihVariant, c = counter(id), before = tasbihCount(tasbihDay, tasbihPrayer, id);
+            const n = Math.max(0, Math.min(c.total, before + (d.action === 'tasbih-tap' ? 1 : -1)));
+            if (n === before) return;
+            pendingTasbih[tasbihKey(tasbihDay, tasbihPrayer, id)] = { day: tasbihDay, prayer: tasbihPrayer, id, n };
+            const stepDone = d.action === 'tasbih-tap' && (n === c.total || counterPosition(c, n).inStep === 0);
+            feedback(stepDone);
+            celebrate = n === c.total && d.action === 'tasbih-tap' && !state.reducedMotion ? 'tasbih' : null;
+            render();
+            celebrate = null;
+            document.querySelector<HTMLElement>(n === c.total ? '[data-action="tasbih-reset"]' : `[data-action="${d.action}"]`)?.focus();
+            if (tasbihTimer) clearTimeout(tasbihTimer);
+            if (n === c.total) await flushTasbih(); else tasbihTimer = setTimeout(() => void flushTasbih(), 800);
+            break;
+        }
+        case 'tasbih-reset': {
+            if (!(await confirmAction(t('resetTasbihConfirm').replace('{prayer}', t('p_' + tasbihPrayer))))) return;
+            const id = state.worship.prefs.tasbihVariant;
+            pendingTasbih[tasbihKey(tasbihDay, tasbihPrayer, id)] = { day: tasbihDay, prayer: tasbihPrayer, id, n: 0 };
+            await flushTasbih();
+            tasbihPaused = false;
+            render();
+            break;
+        }
+        case 'prayer-tab':
+            if (['today', 'history', 'times'].includes(d.tab!)) prayerTab = d.tab as typeof prayerTab;
+            render();
+            break;
+        case 'history-month':
+            historyMonth = Math.min(0, historyMonth + Number(d.step));
+            historyDay = null;
+            render();
+            break;
+        case 'history-day':
+            historyDay = historyDay === d.day ? null : d.day!;
+            render();
+            document.querySelector(`#w-track-${historyDay}`)?.scrollIntoView({ block: 'nearest' });
+            break;
+        case 'checkin-after': {
+            const m = Number(d.min);
+            if (!(CHECK_IN_AFTER as readonly number[]).includes(m)) return;
+            await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, checkInAfter: m as typeof CHECK_IN_AFTER[number] } } });
+            await syncSalah();
+            render();
+            break;
+        }
+        case 'fav-toggle': {
+            const id = d.counter!;
+            await commit(toggleFavorite(state, id));
+            toast(t(state.worship.favorites.includes(id) ? 'favoriteAdded' : 'favoriteRemoved'));
+            const y = window.scrollY; render(); window.scrollTo(0, y);
+            break;
+        }
+        case 'adhkar-filter':
+            adhkarFilter = d.filter!;
+            render();
+            break;
+        case 'target-preset': {
+            const n = Number(d.n), c = counterDef(counterId);
+            await flushCounts();
+            await commit(setTarget(state, c.id, n === c.sourced ? null : n));
+            render();
+            break;
+        }
+        case 'dhikr-copy':
+        case 'dhikr-share': {
+            const c = counterDef(counterId), src = c.library?.source ?? c.builtIn?.source;
+            const text = `${c.steps.map(x => x.text).join('\n')}\n${c.custom ? t('addedByYou') : `${c.name}${src ? ` · ${src.collection} ${src.number}` : ''}${c.library?.quranRef ? ` · ${t('quranLabel')} ${c.library.quranRef}` : ''}`}`;
+            if (d.action === 'dhikr-copy') { await navigator.clipboard.writeText(text).then(() => toast(t('copied')), () => toast(t('error'))); break; }
+            const r = await shareText(c.name, text).catch(() => null);
+            if (r === 'copied') toast(t('copied'));
+            break;
+        }
+        case 'recitation':
+            recitationId = recitationId === d.id ? null : d.id!;
+            render();
+            document.querySelector('.mode-card.selected')?.scrollIntoView({ block: 'nearest' });
+            break;
+        case 'moment-prev':
+        case 'moment-next': {
+            const s0 = Number(d.surah), a0 = Number(d.ayah) + (d.action === 'moment-next' ? 1 : -1);
+            if (a0 < 1 || a0 > chapter(s0).count) return;
+            pinAyah();
+            ayahBrowse = { surah: s0, ayah: a0 };
+            const y = window.scrollY; render(); window.scrollTo(0, y);
+            break;
+        }
+        case 'moment-now':
+            ayahBrowse = null; ayahPin = null;
+            { const y = window.scrollY; render(); window.scrollTo(0, y); }
+            break;
+        case 'toggle-translation':
+            pinAyah();
+            await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, translation: !state.worship.prefs.translation } } });
+            { const y = window.scrollY; render(); window.scrollTo(0, y); }
+            break;
+        case 'save-verse': {
+            const k = `${Number(d.surah)}:${Number(d.ayah)}`;
+            verse(Number(d.surah), Number(d.ayah));
+            if (view === 'today') pinAyah();
+            const saved = state.bookmarks.includes(k);
+            await commit({ ...state, bookmarks: saved ? state.bookmarks.filter(x => x !== k) : [...state.bookmarks, k] });
+            toast(t(saved ? 'verseUnsaved' : 'verseSaved'));
+            const y = window.scrollY; render(); window.scrollTo(0, y);
+            break;
+        }
+        case 'copy-verse':
+        case 'share-verse': {
+            const sN = Number(d.surah), aN = Number(d.ayah), c = chapter(sN);
+            if (view === 'today') pinAyah();
+            const text = `${verse(sN, aN)}\n${state.worship.prefs.translation ? `${translation(sN, aN)} (${TRANSLATION_SOURCE.name})\n` : ''}${c.name} ${sN}:${aN}`;
+            if (d.action === 'copy-verse') { await navigator.clipboard.writeText(text).then(() => toast(t('copied')), () => toast(t('error'))); break; }
+            const r = await shareText(`${c.name} ${sN}:${aN}`, text).catch(() => null);
+            if (r === 'copied') toast(t('copied'));
             break;
         }
         case 'count-reset':
@@ -1313,7 +1740,7 @@ root.addEventListener('input', e => { const el = e.target as HTMLInputElement; i
     libraryQuery = el.value;
     document.querySelector('#surah-list')!.innerHTML = surahRows();
 } });
-root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind', 'rot-enabled', 'rot-from', 'rot-to'].includes(el.id) && !el.id.startsWith('rot-p-'))
+root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind', 'rot-enabled', 'rot-from', 'rot-to', 'target-input'].includes(el.id) && !el.id.startsWith('rot-p-') && !el.id.startsWith('pref-'))
     return; try {
     if (el.id === 'audio-toggle') {
         if (!el.checked)
@@ -1368,6 +1795,23 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
         if (el.id.startsWith('rot-p-')) { const id = el.id.slice(6); r.phrases = el.checked ? [...r.phrases.filter(p => p !== id), id] : r.phrases.filter(p => p !== id); }
         await commit({ ...state, rotation: r });
         try { await syncRotation(); if (el.id === 'rot-enabled' && el.checked) toast(t('rotationEnabled')); } catch { toast(t('reminderSyncFailed')); }
+        const y = window.scrollY; render(); window.scrollTo(0, y);
+        return;
+    }
+    if (el.id === 'target-input') {
+        const n = Number(el.value), c = counterDef(counterId);
+        if (!Number.isSafeInteger(n) || n < 1 || n > 10000) { toast(t('targetInvalid')); render(); return; }
+        await flushCounts();
+        await commit(setTarget(state, c.id, n === c.sourced ? null : n));
+    }
+    if (el.id.startsWith('pref-')) {
+        const keys: Record<string, 'haptics' | 'sounds' | 'checkIn' | 'tasbihNudge'> = { 'pref-haptics': 'haptics', 'pref-sounds': 'sounds', 'pref-checkin': 'checkIn', 'pref-tasbih-nudge': 'tasbihNudge' };
+        const key = keys[el.id];
+        if (!key) return;
+        const bridge = smartBridge();
+        if (el.checked && (key === 'checkIn' || key === 'tasbihNudge') && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
+        await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, [key]: el.checked } } });
+        if (key === 'checkIn' || key === 'tasbihNudge') await syncSalah();
         const y = window.scrollY; render(); window.scrollTo(0, y);
         return;
     }
@@ -1431,7 +1875,7 @@ window.addEventListener('ayahflow:audio', e => { const detail = (e as CustomEven
 } });
 window.addEventListener('ayahflow:record-limit', () => void finishRecording());
 window.addEventListener('ayahflow:record-error', () => { void finishRecording(); toast(t('micError')); });
-function background(): void { void flushCounts(); stopAudio(); if (recordingActive())
+function background(): void { void flushCounts(); void flushTasbih(); stopAudio(); if (recordingActive())
     void finishRecording(); if (followingActive()) {
     void stopFollowing();
     followOff();
@@ -1460,7 +1904,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { void navigate('prayer'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = dayKey(); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });

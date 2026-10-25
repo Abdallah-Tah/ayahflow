@@ -86,13 +86,27 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         for (const ref of c.also ?? []) also.push(source(ref, await get(ref)));
         counters.push({ id: c.id, title: c.title, steps, total: steps.reduce((n, s) => n + s.count, 0), evidence: c.evidence, source: source(c.countSource, h), also, ...(c.atLeast ? { atLeast: true } : {}), ...(c.perPrayer ? { perPrayer: true } : {}) });
     }
+    // Library: counted adhkar with a target. Text is sliced verbatim from the cited hadith, except entries marked
+    // `wording: 'common'`, whose wording is a widely used formula given in the spec and shown as such (the cited hadith is
+    // then about the virtue, sliced as `virtue`). A `sunnah` target must be backed by `evidence` phrases in the source.
+    const library = [];
+    for (const l of spec.library ?? []) {
+        const h = await get(l.source);
+        for (const ev of l.evidence ?? []) if (!plainKey(h.text).includes(plainKey(ev))) throw new Error(`${l.id}: evidence "${ev}" not in ${l.source}`);
+        if (l.targetKind === 'sunnah' && !l.evidence?.length) throw new Error(`${l.id}: a sunnah target needs evidence`);
+        if (!!l.wording !== !!l.text || (l.wording && l.wording !== 'common')) throw new Error(`${l.id}: only 'common' wording may carry its own text`);
+        const also = [];
+        for (const ref of l.also ?? []) also.push(source(ref, await get(ref)));
+        library.push({ id: l.id, category: l.category, title: l.title, about: l.about, text: l.text ?? slice(h.text, l.start, l.end), ...(l.wording ? { wording: l.wording } : {}), ...(l.virtue ? { virtue: slice(h.text, l.virtue.start, l.virtue.end) } : {}), target: l.target, targetKind: l.targetKind, evidence: l.evidence ?? [], source: source(l.source, h), also, ...(l.quranRef ? { quranRef: l.quranRef } : {}) });
+    }
     // Rotation: single phrases for interval reminders, each sliced verbatim from its cited hadith.
     const rotation = [];
     for (const r of spec.rotation ?? []) rotation.push({ id: r.id, text: slice((await get(r.source)).text, r.start, r.end), source: source(r.source, await get(r.source)) });
     await writeFile(path.join(root, 'content/adhkar/sources.json'), JSON.stringify({ dataset: spec.dataset, url: DATASET, hadiths: sources }, null, 1) + '\n');
-    await writeFile(path.join(root, 'content/adhkar/adhkar.json'), JSON.stringify({ dataset: spec.dataset, reviewStatus: 'awaiting-scholar-review', adhkar, prayer, counters, rotation }, null, 1) + '\n');
+    await writeFile(path.join(root, 'content/adhkar/adhkar.json'), JSON.stringify({ dataset: spec.dataset, reviewStatus: 'awaiting-scholar-review', adhkar, prayer, counters, rotation, library }, null, 1) + '\n');
     console.log(`Built ${adhkar.length} adhkar, ${prayer.length} prayer-surah entries and ${counters.length} counters from ${Object.keys(sources).length} cited hadiths.`);
     for (const a of adhkar) if (a.text) console.log(`${a.id.padEnd(18)} ${a.text}`);
     for (const r of rotation) console.log(`${r.id.padEnd(24)} ${r.text}`);
+    for (const l of library) console.log(`${l.id.padEnd(24)} ${l.text}${l.virtue ? `  [virtue: ${l.virtue}]` : ''}`);
     for (const c of counters) for (const s of c.steps) console.log(`${c.id.padEnd(18)} ×${String(s.count).padEnd(4)} ${s.text}`);
 }

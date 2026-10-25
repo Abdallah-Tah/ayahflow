@@ -1,5 +1,5 @@
 import { SURAH_DATA, chapter, verse } from './data.js';
-import { MOMENTS, ADHKAR_ENTRIES, COUNTERS, ROTATION, type Moment, type SmartEvent } from './adhkar.js';
+import { MOMENTS, ADHKAR_ENTRIES, COUNTERS, ROTATION, LIBRARY, TASBIH_VARIANTS, type Moment, type SmartEvent } from './adhkar.js';
 export type Mode = 'next' | 'previous' | 'listen' | 'recall' | 'locate';
 export const MODES: readonly Mode[] = ['next', 'previous', 'listen', 'recall', 'locate'];
 export type Locale = 'en' | 'fr' | 'ar';
@@ -11,8 +11,9 @@ export type ReadingLayout = 'cards' | 'flow';
  * v6 → v7 added the athan reciter (and a separate Fajr reciter) and an imported recording;
  * v7 → v8 added athan recordings downloaded on request (AlAdhan); v8 → v9 added dhikr counts and the step-tracker setting;
  * v9 → v10 added the user's own counters; v10 → v11 added istighfar reminders (off by default);
- * v11 → v12 added dhikr rotation reminders (off by default). */
-export const STATE_VERSION = 12;
+ * v11 → v12 added dhikr rotation reminders (off by default); v12 → v13 added worship tracking (`worship`: prayers the
+ * user confirmed, post-prayer tasbih, favourites, personal targets, lifetime totals and Quran reading days). */
+export const STATE_VERSION = 13;
 import ATHAN_DATA from './athan-data.js';
 /** Bundled athan recordings (content/athan/sources.json) plus the user's own imported file. */
 export const ATHAN_RECITERS: readonly string[] = ATHAN_DATA.recordings.map(r => r.id);
@@ -56,6 +57,8 @@ export interface CounterCount { id: string; day: string; n: number }
 export interface HealthSettings { steps: boolean; stepGoal: number }
 export const defaultHealth = (): HealthSettings => ({ steps: false, stepGoal: 8000 });
 export const MAX_COUNT = 100000;
+/** Daily counts kept (older days are folded into Worship.archive). */
+export const MAX_COUNTS = 3000;
 /** A counter the user added: their own words and target. Shown as "added by you"; the app never checks or edits the text. */
 export interface CustomCounter { id: string; title: string; text: string; target: number }
 export const MAX_CUSTOM_COUNTERS = 30;
@@ -69,7 +72,101 @@ export function validCustomCounter(c: unknown): c is CustomCounter {
     return !!x && typeof x === 'object' && typeof x.id === 'string' && /^my-[a-z0-9]{1,24}$/.test(x.id) && typeof x.title === 'string' && x.title.length <= 60
         && typeof x.text === 'string' && x.text.trim().length > 0 && x.text.length <= 300 && Number.isSafeInteger(x.target) && x.target >= 1 && x.target <= 10000;
 }
-const counterIds = (state: { myCounters?: CustomCounter[] }) => new Set([...COUNTERS.map(c => c.id), ...(state.myCounters ?? []).map(c => c.id)]);
+const counterIds = (state: { myCounters?: CustomCounter[] }) => new Set([...COUNTERS.map(c => c.id), ...LIBRARY.map(c => c.id), ...(state.myCounters ?? []).map(c => c.id)]);
+// ---- Worship tracking (v13) ---------------------------------------------------------------------------
+/** What the user said about one prayer on one day. A prayer with no record is simply not confirmed: the app never
+ * marks a prayer missed by itself, and a record is the user's own note, not a judgement of the prayer's validity. */
+export type SalahStatus = 'done' | 'missed' | 'madeUp';
+export interface SalahRecord { day: string; prayer: PrayerName; status: SalahStatus; at: number; madeUpAt?: number }
+/** Post-prayer tasbih progress, kept per day, prayer and variant (variants are never mixed). */
+export interface TasbihCount { day: string; prayer: PrayerName; id: string; n: number }
+export interface WorshipPrefs { haptics: boolean; sounds: boolean; translation: boolean; checkIn: boolean; checkInAfter: 20 | 30 | 45 | 60; tasbihNudge: boolean; tasbihVariant: string }
+export interface Worship {
+    salah: SalahRecord[];
+    tasbih: TasbihCount[];
+    favorites: string[];
+    /** Counters used most recently first. */
+    recent: string[];
+    /** The user's own goal for a built-in counter (the sourced count is still shown beside it). */
+    targets: Record<string, number>;
+    /** Totals of daily counts too old to keep, so lifetime totals do not shrink. */
+    archive: Record<string, number>;
+    /** Surahs opened in the reader per local day (opening, not a claim the surah was read). */
+    quran: Record<string, number[]>;
+    prefs: WorshipPrefs;
+}
+export const CHECK_IN_AFTER = [20, 30, 45, 60] as const;
+export const MAX_SALAH = 5 * 800, MAX_TASBIH = 5 * 3 * 90, MAX_QURAN_DAYS = 800;
+export const defaultWorship = (): Worship => ({ salah: [], tasbih: [], favorites: [], recent: [], targets: {}, archive: {}, quran: {}, prefs: { haptics: true, sounds: false, translation: true, checkIn: false, checkInAfter: 45, tasbihNudge: false, tasbihVariant: TASBIH_VARIANTS[0]! } });
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+function validWorship(w: unknown, ids: Set<string>): w is Worship {
+    const x = w as Worship;
+    if (!x || typeof x !== 'object') return false;
+    const p = x.prefs;
+    if (!p || ![p.haptics, p.sounds, p.translation, p.checkIn, p.tasbihNudge].every(v => typeof v === 'boolean') || !(CHECK_IN_AFTER as readonly number[]).includes(p.checkInAfter) || !TASBIH_VARIANTS.includes(p.tasbihVariant)) return false;
+    if (!Array.isArray(x.salah) || x.salah.length > MAX_SALAH || x.salah.some(r => !r || !DAY.test(r.day) || !(PRAYERS as readonly string[]).includes(r.prayer) || !['done', 'missed', 'madeUp'].includes(r.status) || !Number.isFinite(r.at) || !(r.madeUpAt === undefined || (Number.isFinite(r.madeUpAt) && r.status === 'madeUp'))) || new Set(x.salah.map(r => `${r.day}/${r.prayer}`)).size !== x.salah.length) return false;
+    if (!Array.isArray(x.tasbih) || x.tasbih.length > MAX_TASBIH || x.tasbih.some(r => !r || !DAY.test(r.day) || !(PRAYERS as readonly string[]).includes(r.prayer) || !TASBIH_VARIANTS.includes(r.id) || !Number.isSafeInteger(r.n) || r.n < 0 || r.n > MAX_COUNT) || new Set(x.tasbih.map(r => `${r.day}/${r.prayer}/${r.id}`)).size !== x.tasbih.length) return false;
+    const list = (a: unknown) => Array.isArray(a) && a.length <= 200 && a.every(v => typeof v === 'string' && ids.has(v)) && new Set(a).size === a.length;
+    if (!list(x.favorites) || !list(x.recent)) return false;
+    const record = (r: unknown, ok: (k: string, v: unknown) => boolean) => !!r && typeof r === 'object' && !Array.isArray(r) && Object.entries(r).every(([k, v]) => ok(k, v));
+    if (!record(x.targets, (k, v) => ids.has(k) && Number.isSafeInteger(v) && (v as number) >= 1 && (v as number) <= 10000)) return false;
+    if (!record(x.archive, (k, v) => ids.has(k) && Number.isSafeInteger(v) && (v as number) >= 0)) return false;
+    return record(x.quran, (k, v) => DAY.test(k) && Array.isArray(v) && v.length <= 114 && v.every(n => Number.isInteger(n) && n >= 1 && n <= 114)) && Object.keys(x.quran).length <= MAX_QURAN_DAYS;
+}
+/** Set (or with null clear) what the user says about one prayer. Idempotent: the same status twice changes nothing.
+ * 'madeUp' is only reachable from 'missed' (a prayer the user recorded as missed and later made up); clearing a
+ * made-up prayer goes back to 'missed'. Future days are rejected. */
+export function setSalah(state: AppState, day: string, prayer: PrayerName, status: SalahStatus | null, at: number): AppState {
+    if (!DAY.test(day) || !(PRAYERS as readonly string[]).includes(prayer) || !Number.isFinite(at) || day > dayKey(at)) throw new Error('Invalid prayer record');
+    const w = state.worship, old = w.salah.find(r => r.day === day && r.prayer === prayer);
+    if ((old?.status ?? null) === status) return state;
+    if (status === 'madeUp' && old?.status !== 'missed') throw new Error('Only a missed prayer can be made up');
+    let next: SalahRecord | null;
+    if (status === null) next = old?.status === 'madeUp' ? { day, prayer, status: 'missed', at: old.at } : null;
+    else if (status === 'madeUp') next = { day, prayer, status, at: old!.at, madeUpAt: at };
+    else next = { day, prayer, status, at };
+    const rest = w.salah.filter(r => r !== old);
+    const salah = (next ? [...rest, next] : rest).sort((a, b) => a.day.localeCompare(b.day) || PRAYERS.indexOf(a.prayer) - PRAYERS.indexOf(b.prayer)).slice(-MAX_SALAH);
+    return { ...state, worship: { ...w, salah } };
+}
+export function salahStatus(state: AppState, day: string, prayer: PrayerName): SalahStatus | null { return state.worship.salah.find(r => r.day === day && r.prayer === prayer)?.status ?? null; }
+/** Set (not add) the tasbih count of one prayer and variant. */
+export function setTasbih(state: AppState, day: string, prayer: PrayerName, id: string, n: number): AppState {
+    if (!DAY.test(day) || !(PRAYERS as readonly string[]).includes(prayer) || !TASBIH_VARIANTS.includes(id) || !Number.isSafeInteger(n) || n < 0 || n > MAX_COUNT) throw new Error('Invalid tasbih count');
+    const w = state.worship, old = w.tasbih.find(r => r.day === day && r.prayer === prayer && r.id === id);
+    if ((old?.n ?? 0) === n) return state;
+    const rest = w.tasbih.filter(r => r !== old);
+    return { ...state, worship: { ...w, tasbih: (n ? [...rest, { day, prayer, id, n }] : rest).sort((a, b) => a.day.localeCompare(b.day)).slice(-MAX_TASBIH) } };
+}
+export function tasbihOn(state: AppState, day: string, prayer: PrayerName, id: string): number { return state.worship.tasbih.find(r => r.day === day && r.prayer === prayer && r.id === id)?.n ?? 0; }
+export function toggleFavorite(state: AppState, id: string): AppState {
+    if (!counterIds(state).has(id)) throw new Error('Unknown counter');
+    const f = state.worship.favorites;
+    return { ...state, worship: { ...state.worship, favorites: f.includes(id) ? f.filter(x => x !== id) : [...f, id] } };
+}
+export function markRecent(state: AppState, id: string): AppState {
+    if (!counterIds(state).has(id)) throw new Error('Unknown counter');
+    if (state.worship.recent[0] === id) return state;
+    return { ...state, worship: { ...state.worship, recent: [id, ...state.worship.recent.filter(x => x !== id)].slice(0, 8) } };
+}
+/** The user's goal for a built-in counter; null resets it to the sourced or suggested number. */
+export function setTarget(state: AppState, id: string, n: number | null): AppState {
+    if (!counterIds(state).has(id) || state.myCounters.some(c => c.id === id) || !(n === null || (Number.isSafeInteger(n) && n >= 1 && n <= 10000))) throw new Error('Invalid target');
+    const targets = { ...state.worship.targets };
+    if (n === null) delete targets[id]; else targets[id] = n;
+    return { ...state, worship: { ...state.worship, targets } };
+}
+/** Record that a surah was opened in the reader today (once per surah per day). */
+export function noteQuranOpen(state: AppState, surah: number, at: number): AppState {
+    chapter(surah);
+    const day = dayKey(at), list = state.worship.quran[day] ?? [];
+    if (list.includes(surah)) return state;
+    const quran = { ...state.worship.quran, [day]: [...list, surah] };
+    for (const k of Object.keys(quran).sort().slice(0, Math.max(0, Object.keys(quran).length - MAX_QURAN_DAYS))) delete quran[k];
+    return { ...state, worship: { ...state.worship, quran } };
+}
+/** Lifetime total of a counter: kept daily counts plus the archived total of older days. */
+export function lifetimeCount(state: AppState, id: string): number { return (state.worship.archive[id] ?? 0) + state.counts.filter(c => c.id === id).reduce((n, c) => n + c.n, 0); }
 export interface ReviewCard {
     key: string;
     mode: Mode;
@@ -113,7 +210,7 @@ export interface Session {
     kind: 'daily' | 'practice';
 }
 export interface AppState {
-    version: 12;
+    version: 13;
     locale: Locale;
     theme: Theme;
     arabicSize: ArabicSize;
@@ -128,6 +225,7 @@ export interface AppState {
     counts: CounterCount[];
     health: HealthSettings;
     myCounters: CustomCounter[];
+    worship: Worship;
     /** A few istighfar reminders a day until the target is reached. */
     istighfarReminder: boolean;
     rotation: DhikrRotation;
@@ -155,7 +253,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 12, rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 13, worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -263,8 +361,8 @@ export function completedAccuracy(state: AppState): number | null { const a = st
 export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
-    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation'> & { version: number; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
@@ -306,6 +404,8 @@ export function validateState(raw: unknown): AppState {
             || !Array.isArray(r.phrases) || r.phrases.length > 100 || r.phrases.some(p => typeof p !== 'string' || !(ROTATION.some(x => x.id === p) || mine.has(p))) || new Set(r.phrases).size !== r.phrases.length)
             throw new Error('Invalid dhikr rotation settings');
     }
+    if (s.version >= 13 && !validWorship(s.worship, counterIds(s)))
+        throw new Error('Invalid worship data');
     if (s.version >= 11 && typeof s.istighfarReminder !== 'boolean')
         throw new Error('Invalid istighfar reminder setting');
     if (s.version >= 10) {
@@ -315,7 +415,7 @@ export function validateState(raw: unknown): AppState {
     }
     if (s.version >= 9) {
         const c = s.counts, h = s.health, ids = counterIds(s);
-        if (!Array.isArray(c) || c.length > 1000 || c.some(x => !x || !ids.has(x.id) || !/^\d{4}-\d{2}-\d{2}$/.test(x.day) || !Number.isSafeInteger(x.n) || x.n < 0 || x.n > MAX_COUNT) || new Set(c.map(x => `${x.id}@${x.day}`)).size !== c.length)
+        if (!Array.isArray(c) || c.length > MAX_COUNTS || c.some(x => !x || !ids.has(x.id) || !/^\d{4}-\d{2}-\d{2}$/.test(x.day) || !Number.isSafeInteger(x.n) || x.n < 0 || x.n > MAX_COUNT) || new Set(c.map(x => `${x.id}@${x.day}`)).size !== c.length)
             throw new Error('Invalid dhikr counts');
         if (!h || typeof h.steps !== 'boolean' || !Number.isSafeInteger(h.stepGoal) || h.stepGoal < 1000 || h.stepGoal > 50000)
             throw new Error('Invalid step settings');
@@ -355,7 +455,7 @@ export function validateState(raw: unknown): AppState {
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone({ ...s, version: 12, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [] } : s.version < 8 ? { ...s.athan!, downloads: [] } : s.athan!, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    return structuredClone({ ...s, version: 13, worship: s.version < 13 ? defaultWorship() : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [] } : s.version < 8 ? { ...s.athan!, downloads: [] } : s.athan!, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */
@@ -418,7 +518,13 @@ export function setCount(state: AppState, id: string, n: number, at: number): Ap
     if (old?.n === n || (!old && n === 0))
         return state;
     const rest = state.counts.filter(c => c !== old);
-    return { ...state, counts: [...rest, { id, day, n }].sort((a, b) => a.day.localeCompare(b.day)).slice(-1000) };
+    const counts = [...rest, ...(n ? [{ id, day, n }] : [])].sort((a, b) => a.day.localeCompare(b.day));
+    // Days beyond the limit leave the list, but their totals move to the archive so lifetime totals stay whole.
+    const dropped = counts.slice(0, Math.max(0, counts.length - MAX_COUNTS));
+    if (!dropped.length) return { ...state, counts };
+    const archive = { ...state.worship.archive };
+    for (const c of dropped) archive[c.id] = (archive[c.id] ?? 0) + c.n;
+    return { ...state, counts: counts.slice(dropped.length), worship: { ...state.worship, archive } };
 }
 /** The count the user tapped for a counter on a day (0 if none). */
 export function countOn(state: AppState, id: string, day = dayKey()): number { return state.counts.find(c => c.id === id && c.day === day)?.n ?? 0; }
@@ -435,5 +541,7 @@ export function addCounter(state: AppState, c: CustomCounter): AppState {
 export function removeCounter(state: AppState, id: string): AppState {
     if (!state.myCounters.some(x => x.id === id))
         return state;
-    return { ...state, myCounters: state.myCounters.filter(x => x.id !== id), counts: state.counts.filter(x => x.id !== id), rotation: { ...state.rotation, phrases: state.rotation.phrases.filter(p => p !== id) } };
+    const w = state.worship, archive = { ...w.archive };
+    delete archive[id];
+    return { ...state, myCounters: state.myCounters.filter(x => x.id !== id), counts: state.counts.filter(x => x.id !== id), rotation: { ...state.rotation, phrases: state.rotation.phrases.filter(p => p !== id) }, worship: { ...w, favorites: w.favorites.filter(x => x !== id), recent: w.recent.filter(x => x !== id), archive } };
 }

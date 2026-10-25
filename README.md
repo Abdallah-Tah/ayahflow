@@ -48,6 +48,19 @@ Arabic content has source references and structural tests. That is not a substit
 
 All 114 surahs and 6236 ayahs from Tanzil (Uthmani 1.1, CC BY 3.0), verbatim and checksum-pinned, with search, a juz filter, the basmala as a heading, and every practice mode working across the whole text. See `docs/CONTENT-PROVENANCE.md`.
 
+### Daily worship (schema v13)
+
+Five tabs: **Home, Adhkar, Quran, Prayers, Progress.** Memorization practice, the four draft Tajweed lessons (still labelled as drafts) and the recitation studio are kept under **Quran → Memorization and practice**; nothing was removed and saved progress is migrated, not reset.
+
+- **Home** is four compact widgets: the next prayer with a live countdown and the day's five prayers (with what you confirmed), today's prayer tracker (one tap confirms, "3 of 5"), one quick dhikr with a large tap target, and the **Ayah of the Moment** (a new whole ayah every local half hour, with Pickthall's translation, audio, save, copy and share; it stays put while you read it).
+- **Salah tracker** (Prayers tab): statuses are *not confirmed*, *prayed*, *missed* and *made up*; only the user sets them, an unmarked prayer is never treated as missed, and a checkmark is a personal note, not a ruling on the prayer. History calendar, the last 7 days, full-day streak and 30-day figures. Optional check-in and tasbih reminders (off by default, at most one per prayer, ≤ 6 pending).
+- **Guided tasbih after each prayer**: 33·33·33 + the tahlil (Muslim 597), with 33·33·34 (Muslim 596) and 10·10·10 (al-Bukhari 6329) as separate variants; it advances to the next phrase by itself and is saved per prayer and day.
+- **Dhikr library**: 16 sourced adhkar (salawat, tahlil, tasbih, istighfar, Quranic and daily duas) with the hadith's own count or a clearly labelled personal goal, favourites, recently used, personal targets, daily and lifetime totals, copy/share, optional vibration and sound. Your own dhikr stays labelled as added by you and is never edited.
+- **Short Recitations for Salah**: complete passages from longer surahs (e.g. 67:1–5, 55:1–13, 23:1–11, 59:21–24, 76:1–6), offered as suggestions only.
+- **Widgets (iOS)**: the prayer widget shows the prayers you confirmed; a new **Ayah of the Moment** widget follows the half-hour slots the app prepared (WidgetKit decides when it actually redraws).
+
+See `docs/CONTENT-PROVENANCE.md` for every source decision.
+
 ### Adhkar and smart reminders
 
 The **Adhkar** tab has morning, evening, after-prayer, sleep and waking collections, and moments for leaving and entering home, riding, journeys and the mosque. Each text is quoted verbatim from a cited hadith (with grades and a sunnah.com link) or read from the Quran corpus; scholar review is pending. A repeat counter and an explicit "I recited it" are the only things recorded: a reminder is never counted as a recitation.

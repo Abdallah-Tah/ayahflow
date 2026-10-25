@@ -20,6 +20,15 @@ struct SharedTimeline: Decodable {
     let daily: Daily?
     /** The next days' Quranic du'as (src/smart.ts dailyAyahs): the Arabic is the corpus text as it is. */
     let ayahs: [Ayah]?
+    /// Prayers the user confirmed and the Ayah of the Moment for the next half hours (src/smart.ts WidgetWorship).
+    let worship: Worship?
+
+    struct Worship: Decodable {
+        struct Day: Decodable { let day: String; let kept: [String] }
+        struct Moment: Decodable { let at: Double; let surah: Int; let ayah: Int; let ref: String; let text: String; let name: String; let nameAr: String }
+        let salah: [Day]
+        let moments: [Moment]
+    }
 
     struct Ayah: Decodable { let day: String; let surah: Int; let ayah: Int; let to: Int; let ref: String; let text: String; let name: String; let nameAr: String }
 
@@ -62,6 +71,10 @@ struct PrayerEntry: TimelineEntry {
     var page: WidgetPage = .prayer
     /// Today's du'a from the Quran, if the app has shared it.
     var ayah: SharedTimeline.Ayah? = nil
+    /// Today's prayers the user confirmed in the app (their own note; nothing is inferred).
+    var kept: Set<String> = []
+    /// The Ayah of the Moment for this entry's half hour.
+    var momentAyah: SharedTimeline.Worship.Moment? = nil
 }
 
 /// The pages of the medium widget. The chosen page is kept in the widget extension's own defaults.
@@ -128,7 +141,9 @@ struct Provider: TimelineProvider {
         let locale = data?.locale.map { Locale(identifier: $0) } ?? .current
         let daily = data?.daily.flatMap { $0.day == dayKey(date) ? $0 : nil }
         let ayah = data?.ayahs?.first { $0.day == dayKey(date) }
-        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current, ayah: ayah) }
+        let kept = Set(data?.worship?.salah.first { $0.day == dayKey(date) }?.kept ?? [])
+        let momentAyah = data?.worship?.moments.last { $0.at <= date.timeIntervalSince1970 * 1000 + 1000 }
+        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current, ayah: ayah, kept: kept, momentAyah: momentAyah) }
         guard let data, !data.prayers.isEmpty else { return empty(.noData) }
         let ms = date.timeIntervalSince1970 * 1000
         guard let index = data.prayers.firstIndex(where: { $0.at > ms }) else { return empty(.stale) }
@@ -140,7 +155,29 @@ struct Provider: TimelineProvider {
         let inside = { (w: [Double]?) in w.map { $0.count == 2 && ms >= $0[0] && ms < $0[1] } ?? false }
         let moment: (key: String, label: String)? = data.windows.contains { inside($0.morning) } ? (key: "morning", label: data.labels["morning"] ?? "Morning adhkar")
             : data.windows.contains { inside($0.evening) } ? (key: "evening", label: data.labels["evening"] ?? "Evening adhkar") : nil
-        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah)
+        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah, kept: kept, momentAyah: momentAyah)
+    }
+}
+
+/// The Ayah of the Moment: one entry per half hour from the slots the app shared (up to a day ahead), so it changes
+/// without the app. WidgetKit decides exactly when a widget redraws; the app refreshes the list whenever it opens.
+struct MomentProvider: TimelineProvider {
+    func placeholder(in context: Context) -> PrayerEntry { sample() }
+    func getSnapshot(in context: Context, completion: @escaping (PrayerEntry) -> Void) { completion(context.isPreview ? sample() : entries(SharedTimeline.load(), Date()).first!) }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<PrayerEntry>) -> Void) {
+        let list = entries(SharedTimeline.load(), Date())
+        completion(Timeline(entries: list, policy: .after(list.last!.date.addingTimeInterval(1800))))
+    }
+    private func sample() -> PrayerEntry {
+        PrayerEntry(date: Date(), state: .ready, next: nil, since: Date(), today: [], moment: nil, labels: ["momentTab": "Ayah of the moment"], rtl: false, locale: .current, momentAyah: .init(at: Date().timeIntervalSince1970 * 1000, surah: 94, ayah: 6, ref: "94:6", text: "إِنَّ مَعَ ٱلْعُسْرِ يُسْرًا", name: "Ash-Sharh", nameAr: "الشرح"))
+    }
+    private func entries(_ data: SharedTimeline?, _ now: Date) -> [PrayerEntry] {
+        let locale = data?.locale.map { Locale(identifier: $0) } ?? .current, nowMs = now.timeIntervalSince1970 * 1000
+        let moments = data?.worship?.moments ?? []
+        let current = moments.last { $0.at <= nowMs }
+        let upcoming = moments.filter { $0.at > nowMs }
+        func make(_ date: Date, _ m: SharedTimeline.Worship.Moment?) -> PrayerEntry { PrayerEntry(date: date, state: m == nil ? .noData : .ready, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, momentAyah: m) }
+        return [make(now, current)] + upcoming.map { make(Date(timeIntervalSince1970: $0.at / 1000), $0) }
     }
 }
 
@@ -247,6 +284,9 @@ struct PrayerWidgetView: View {
                 HStack(spacing: 8) {
                     Rectangle().fill(isNext ? Palette.gold : (past ? Palette.gold.opacity(0.5) : Palette.line)).frame(width: 6, height: 6).rotationEffect(.degrees(45))
                     Text(p.label).foregroundColor(isNext ? Palette.gold : Palette.text)
+                    if entry.kept.contains(p.key) && dayKey(p.date) == dayKey(entry.date) {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundColor(Palette.green).accessibilityLabel(entry.labels["prayed"] ?? "prayed")
+                    }
                     Spacer(minLength: 4)
                     Text(p.date, style: .time).monospacedDigit().foregroundColor(isNext ? Palette.goldBright : Palette.muted)
                 }.font(font).opacity(past && !isNext ? 0.55 : 1)
@@ -625,10 +665,59 @@ struct AyahWidget: Widget {
     }
 }
 
+struct MomentWidgetView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: PrayerEntry
+    var body: some View {
+        Group {
+            if let a = entry.momentAyah {
+                if #available(iOSApplicationExtension 16.0, *), family == .accessoryRectangular {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("\(entry.rtl ? a.nameAr : a.name) \(a.ref)", systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
+                        Text(a.text).font(.quran(18)).lineLimit(3).minimumScaleFactor(0.5).multilineTextAlignment(.trailing)
+                            .environment(\.layoutDirection, .rightToLeft).frame(maxWidth: .infinity, alignment: .trailing)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    VStack(spacing: 8) {
+                        Text((entry.labels["momentTab"] ?? "Ayah of the moment").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold).lineLimit(1)
+                        Text(a.text)
+                            .font(.quran(family == .systemLarge ? 30 : family == .systemSmall ? 19 : 22))
+                            .foregroundColor(Palette.text).multilineTextAlignment(.center).lineSpacing(6)
+                            .minimumScaleFactor(0.3).frame(maxWidth: .infinity, maxHeight: .infinity)
+                        HStack(spacing: 6) {
+                            Text(a.nameAr).foregroundColor(Palette.goldBright)
+                            Circle().fill(Palette.line).frame(width: 3, height: 3)
+                            Text(a.ref).foregroundColor(Palette.muted).monospacedDigit()
+                        }.font(.system(size: 11, weight: .medium)).lineLimit(1)
+                    }
+                }
+            } else {
+                Text(entry.labels["ayahEmpty"] ?? "Open AyahFlow to load the verses.").font(.caption).foregroundColor(Palette.muted).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .widgetURL(URL(string: entry.momentAyah.map { "ayahflow://ayah/\($0.surah):\($0.ayah)" } ?? "ayahflow://home"))
+        .modifier(WidgetBackground())
+    }
+}
+
+struct MomentWidget: Widget {
+    var families: [WidgetFamily] {
+        if #available(iOSApplicationExtension 16.0, *) { return [.accessoryRectangular, .systemSmall, .systemMedium, .systemLarge] }
+        return [.systemSmall, .systemMedium, .systemLarge]
+    }
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "AyahFlowMoment", provider: MomentProvider()) { MomentWidgetView(entry: $0) }
+            .configurationDisplayName("Ayah of the moment")
+            .description("A different ayah every half hour, in Arabic, from the verses AyahFlow prepared. Tap to read it in its surah.")
+            .supportedFamilies(families)
+    }
+}
+
 @main
 struct AyahFlowWidgets: WidgetBundle {
     var body: some Widget {
         NextPrayerWidget()
+        MomentWidget()
         AyahWidget()
         IstighfarWidget()
         StepsWidget()
