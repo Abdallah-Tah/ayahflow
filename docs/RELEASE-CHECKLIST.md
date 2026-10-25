@@ -1,26 +1,73 @@
 # Release gates — do not mark complete without evidence
 
-## Already verified in the delivery environment
+Status as of 2026-10-25, branch `feature/mushaf-design-locate`. Each tick names its evidence. Browser and unit tests do
+not stand in for native, simulator or device results, and nothing here is a store, privacy or accuracy certification.
 
-- [x] Strict TypeScript web build succeeds.
-- [x] 29 learning/data/localization unit tests pass.
-- [x] 11 browser checks of the real single-file application pass.
-- [x] Questionnaire evidence, self-checks and lesson understanding remain separate.
-- [x] No fabricated AI pronunciation score is displayed.
-- [x] Screenshots captured from the running UI, not generated marketing mockups.
-- [x] No observed horizontal overflow in the four main views across 320/390/412/430/1024-pixel widths during the Arabic-layout test.
-- [x] Microphone workflow exercised with a generated test stream and a real MediaRecorder Blob; tracks end on stop.
-- [x] Temporary preview mode is visibly labelled; it does not claim durable saving.
+## 1. Automated tests (done)
 
-## Native compilation and device testing
+- [x] `npm run typecheck` (strict TypeScript, app and voice worker) passes.
+- [x] `npm test`: 115 Node tests in 5 files pass (engine, adhkar, worship, release, dst-athan). They cover, among others:
+  the corpus checksum and verbatim text, migrations up to schema v13 without reset, idempotent writes, prayer times for
+  every method across both 2026 US DST changes, time-zone changes, Hanafi Asr, the prayer day around midnight,
+  high-latitude Isha after midnight and at or after the next Fajr, unique athan ids for a year at 51–60°N, the Ayah of
+  the Moment changing every 30 elapsed minutes across America/New_York 2026-03-08 and 2026-11-01 (and half-hour /
+  45-minute zones), the widget's bundled verse pool matching the app's, and tracking that never changes by itself.
+- [x] The Swift `MomentClock` (widget) and `slotOf` (app) give identical slots for 15,450 sampled instants in five time
+  zones around their DST changes (compiled on the Mac with `swiftc`, compared line by line; a one-off check, not in `npm test`).
+- [x] Original v0.1 delivery: 11 browser checks of the single-file app (evidence/browser-tests.json); not re-run since.
+- [x] Questionnaire evidence, self-checks and lesson understanding remain separate; no AI pronunciation score is shown.
 
-- [ ] Install dependencies; review resolved versions and generate a lockfile.
-- [ ] Run a dependency audit and review vulnerabilities before distribution.
-- [ ] Generate the iOS/Android platform projects and confirm native bridge bundling.
-- [ ] Compile an iOS development build in Xcode and an Android development build in Android Studio.
-- [ ] Test on at least one physical iPhone and one physical Android phone, not only emulators.
-- [ ] Confirm durable Preferences state and Filesystem audio across relaunch, force-stop and upgrade.
+## 2. Native builds (done for iOS only)
+
+- [x] Dependencies installed from `package-lock.json`; `npm run native:sync` copies the web build into the iOS project.
+- [x] iOS Debug build for a physical iPhone (Xcode 27.0, `xcodebuild … -configuration Debug -destination id=<iPhone>`):
+  BUILD SUCCEEDED for the app and the AyahFlowWidget extension at commit 170a765.
+- [x] Signing: app and widget are signed by team KFHK4QSUC6 (development, `get-task-allow`); `codesign --verify --deep --strict`
+  passes; both carry the keychain group `KFHK4QSUC6.com.buildwithabdallah.ayahflow.shared`, and both Info.plists resolve
+  `AyahFlowSharedKeychain` to that group. `AyahMoments.json` in the built widget is byte-identical to the repository's.
+- [ ] Android development build in this QA round (not built; an older `android/app/build` output exists but was not checked).
+- [ ] Release (not Debug) configuration and distribution signing.
+- [ ] Dependency audit (`npm audit`) reviewed before distribution.
+
+## 3. Simulator tests
+
+- [x] iPhone 16e simulator: the app launches and the Home screen renders (read-only `simctl` screenshot, previous QA round).
+- [ ] Widgets on the simulator: not tested (adding widgets needs interaction that was not available).
+
+## 4. Real iPhone tests (iPhone 16 Pro, development build)
+
+- [x] In-place update installed with `devicectl device install app` and launched (`devicectl device process launch`),
+  built from the clean tracked tree at 170a765 (the device reports only version 1.0 (1), not a commit).
+- [x] Saved data survives the update: schema 13, the chosen calculation method unchanged, athan on, Home saved,
+  salah records, dhikr counts and XP present (read from the app's own data container, local copy then deleted).
+- [x] Lock Screen rectangular Du'a widget showed only the reference before c40ea6f (user screenshot). The fix is
+  measured on the Mac (48/58 du'as and 390/517 moment ayahs fit whole); **not yet confirmed on the phone**.
+- [ ] Everything below in section 5.
+
+## 5. Not yet done (needs a person with the phone, or later work)
+
+Widgets (iPhone, after 170a765):
+- [ ] Prayer widget small/medium/large and Lock Screen: next prayer, countdown, Hijri and Gregorian dates, light and dark.
+- [ ] Checkmarks update after marking a prayer in the app; before Fajr the previous day's prayers are shown.
+- [ ] Ayah of the Moment widget changes without opening the app for more than a day (the extension now computes it; WidgetKit
+  decides when it redraws, so a change can come a little after the half hour).
+- [ ] Arabic text in each size, in light and dark appearance; the reference shown instead when a verse does not fit.
+- [ ] A widget write failure is shown on the Prayers page (simulate only if a safe way exists; otherwise review Console logs,
+  subsystem `com.buildwithabdallah.ayahflow`, category `widget`).
+
+App on the iPhone:
+- [ ] Dhikr counters and guided tasbih: counts survive force-quit and relaunch; no double counting.
+- [ ] Athan and reminders: each prayer fires once, at the right minute, with the chosen sound; nothing duplicated after
+  reopening the app; behaviour after a time-zone change and the next DST change.
+- [ ] Offline use (airplane mode): prayer times, Quran, adhkar and widgets.
+
+Native compilation and device testing (carried over):
+- [ ] Test on at least one physical Android phone, not only emulators.
+- [ ] Confirm durable Preferences state and Filesystem audio across relaunch, force-stop and upgrade on Android.
 - [ ] Confirm ordinary-browser localStorage / IndexedDB persistence and export/restore separately from the temporary preview test.
+
+## Native audio, storage and platform behaviour (not yet done)
+
 - [ ] Test microphone grant, denial, revocation, restricted device, first use and repeat use.
 - [ ] Test successful recording/playback with each platform's actual MIME type; reject unsupported recording reliably.
 - [ ] Test incoming calls, Siri/assistant interruption, Bluetooth, headphones, screen lock, app switching and device rotation.
@@ -69,7 +116,7 @@
 - [ ] Verify PrivacyInfo.xcprivacy is included in the correct Xcode target; reassess declarations when plugins or network services change.
 - [ ] Review OS backup inclusion/exclusion, restoration and recording retention policy.
 - [ ] Test corrupt/missing saves and explicit import without accidental overwrite.
-- [ ] Add versioned migrations before changing the state schema.
+- [x] Versioned migrations (schema v13) with tests; saved data is migrated, never reset.
 - [ ] Add native file/index reconciliation or transactional storage before claiming crash consistency.
 - [ ] Introduce an appropriate database before large-corpus/history/sync growth; Preferences is not a database.
 - [ ] Review browser CSP and HTTPS deployment headers.
@@ -81,7 +128,7 @@
 
 - [ ] Confirm the AyahFlow name and bundle/application ID can be used for the intended release.
 - [ ] Replace development signing with the owner's provisioning/signing workflow.
-- [ ] Run TestFlight/internal Android testing and resolve device issues.
+- [ ] Run TestFlight/internal Android testing and resolve device issues (only with the owner's approval).
 - [ ] Prepare actual store screenshots and accurate capability descriptions.
 - [ ] Review account/child/subscription obligations only when those capabilities are implemented.
 - [ ] Build signed distribution artifacts and submit through the owner's developer accounts.

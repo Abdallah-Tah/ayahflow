@@ -4,9 +4,19 @@
 
 ![Actual AyahFlow prototype screens](evidence/showcase.png)
 
-A working, local-first mobile application prototype with a charcoal-and-gold interface. Written in strict TypeScript with a small web runtime and a Capacitor 8 native adapter for iOS and Android.
+A local-first mobile app with a charcoal-and-gold interface: the whole Quran, daily adhkar, prayer times with a Salah tracker, and iOS widgets. Written in strict TypeScript with a small web runtime and a Capacitor 8 native adapter for iOS and Android.
 
-**Delivery status: v0.1 prototype, not an App Store / Google Play release.** The learning engine and browser interface were built and tested. Native dependency installation, Xcode/Gradle compilation, hardware behavior, signing, and store submission were not performed in the delivery environment.
+**Status: v0.1, not an App Store / Google Play release.** What has and has not been verified, by kind of evidence:
+
+| Evidence | Status |
+| --- | --- |
+| Automated tests | `npm run typecheck` and `npm test` (115 Node tests) pass |
+| Native builds | iOS Debug build of the app and widget extension succeeds (Xcode 27) and is development-signed; Android not built in the latest round |
+| Simulator | The app launches and renders Home; widgets not tested on the simulator |
+| Real iPhone | Development build installed as an in-place update and launched; saved data (schema v13) kept |
+| Not yet done | Widgets, notifications, counters and offline use checked by hand on the iPhone; any Android device; Release signing; TestFlight; store review |
+
+Details and the open items: `docs/RELEASE-CHECKLIST.md`.
 
 ## Try the build
 
@@ -30,15 +40,13 @@ Open `http://localhost:4173`. The precompiled `www/` folder is included. This ro
 | Today | Adaptive session, 3/7/10-minute guides, due reviews, genuine practice points and calendar streaks |
 | Memory | Next ayah, previous ayah, listen-and-identify the surah, hidden-text self-recall |
 | Review engine | Per-mode cards, missed-answer priority, spaced intervals, stable question seeds, pause/resume, idempotent answer events |
-| Quran library | Eight complete Arabic surahs, 37 ayahs, search, bookmarks, reading position, external translation/tafsir links |
+| Quran library | All 114 surahs (Tanzil Uthmani, verbatim), search, juz filter, bookmarks, reading position, Pickthall's English translation, external tafsir links |
 | Tajweed | Four draft lessons, highlighted source phrases, rule explanations, knowledge checks, reference playback controls |
 | Voice practice | Record, stop, replay, explicitly save, delete with confirmation, and explicit export/share; 90-second clip limit |
 | Progress | Quiz accuracy separated from self-assessed recall, missed-card practice, review retention criterion, chapter practice counts |
 | Language/accessibility | English, French, Arabic RTL, reduced-motion option, labelled controls, responsive layout |
 | Privacy | No account, ads, analytics SDK, application audio upload, or embedded secret keys; progress export/restore and delete controls |
 | Native foundation | Capacitor configuration, native storage/share/notification/haptic adapters, permission helper, privacy-manifest draft, launcher icon assets |
-
-**Scope of the starter corpus:** Al-Fatihah (1), Al-'Asr (103), Al-Kawthar (108), Al-Kafirun (109), An-Nasr (110), Al-Ikhlas (112), Al-Falaq (113), An-Nas (114).
 
 **Tajweed lesson drafts:** Ikhfa, ghunnah on a doubled noon, qalqalah when stopping, natural madd. These are not a complete Tajweed curriculum. Qualified teacher review is pending and is labelled inside the app.
 
@@ -57,7 +65,7 @@ Five tabs: **Home, Adhkar, Quran, Prayers, Progress.** Memorization practice, th
 - **Guided tasbih after each prayer**: 33·33·33 + the tahlil (Muslim 597), with 33·33·34 (Muslim 596) and 10·10·10 (al-Bukhari 6329) as separate variants; it advances to the next phrase by itself and is saved per prayer and day.
 - **Dhikr library**: 16 sourced adhkar (salawat, tahlil, tasbih, istighfar, Quranic and daily duas) with the hadith's own count or a clearly labelled personal goal, favourites, recently used, personal targets, daily and lifetime totals, copy/share, optional vibration and sound. Your own dhikr stays labelled as added by you and is never edited.
 - **Short Recitations for Salah**: complete passages from longer surahs (e.g. 67:1–5, 55:1–13, 23:1–11, 59:21–24, 76:1–6), offered as suggestions only.
-- **Widgets (iOS)**: the prayer widget shows the prayers you confirmed; a new **Ayah of the Moment** widget follows the half-hour slots the app prepared (the next 24 hours; WidgetKit decides when it actually redraws). A widget too small for an ayah names it instead of cutting it. Between midnight and Fajr the tracker still shows the previous day, so a late Isha is noted on its own day.
+- **Widgets (iOS)**: the prayer widget shows the prayers you confirmed; the **Ayah of the Moment** widget works out the rotation itself from a verse pool bundled in the extension (`ios/App/AyahFlowWidget/AyahMoments.json`, generated from the corpus by `npm run build`), so it keeps going without the app being opened. Slots last 30 elapsed minutes and start on :00 and :30, also across daylight saving changes. WidgetKit decides when a widget actually redraws, so a change can show a little late. A widget too small for an ayah names it instead of cutting it. Between midnight and Fajr the tracker still shows the previous day, so a late Isha is noted on its own day. Widget data is shared through a keychain access group; a failed write is logged and shown on the Prayers page. **Widget appearance after the latest changes has not yet been checked on the phone.**
 
 See `docs/CONTENT-PROVENANCE.md` for every source decision.
 
@@ -98,9 +106,9 @@ Builds without the model hide the feature. The single-file preview never include
 
 ### Intentionally not claimed
 
-There is **no automatic Tajweed or makhraj scoring**, speech-to-text, phoneme assessment, AI teacher, or certification. “Hidden-text recall” is the learner's own assessment. Multiple-choice success does not establish correct pronunciation or complete memorization.
+There is **no automatic Tajweed or makhraj scoring**, transcript, phoneme assessment, AI teacher, or certification. Voice following only tracks your place. “Hidden-text recall” is the learner's own assessment. Multiple-choice success does not establish correct pronunciation or complete memorization.
 
-The entire Quran, licensed offline recitation downloads, integrated translations/tafsir, mutashabihat curriculum, word-level audio alignment, child/family accounts, teacher dashboard, cloud sync, subscriptions, and social features are not implemented. Sharing a saved recording opens a share/export action; it does not deliver it to a connected teacher service.
+Licensed offline recitation downloads, integrated tafsir, a mutashabihat curriculum, word-level audio alignment, child/family accounts, a teacher dashboard, cloud sync, subscriptions and social features are not implemented. Sharing a saved recording opens a share/export action; it does not deliver it to a connected teacher service.
 
 ## Develop
 
@@ -112,7 +120,7 @@ npm test
 npm run dev
 ```
 
-`npm install` needs internet. There is no included lockfile because dependency resolution was unavailable in the build container. Generate and review `package-lock.json` on the first successful installation; thereafter use `npm ci` for reproducible builds. Do not infer that dependency installation or a security audit has passed from the browser tests.
+`npm install` needs internet. `package-lock.json` is committed; use `npm ci` for reproducible builds. A dependency audit has not been reviewed yet.
 
 The web UI has no third-party runtime dependency. `npm run build` uses TypeScript to produce `www/` and regenerates the single-file preview. The native bridge is bundled separately by `npm run native:prepare` after dependencies are installed.
 
@@ -173,13 +181,14 @@ See `docs/ARCHITECTURE.md` for the exact scheduler, failure behavior, and migrat
 
 ## Verification included
 
-- **29 Node tests passed:** boundaries, 37-ayah integrity, unique canonical answer options, repeated-ayah ambiguity, deterministic questions, due prioritization, idempotency, scheduling, separated evidence, date arithmetic, backups and localization.
-- **11 browser integration checks passed:** actual single-file UI, navigation, reader/search/bookmarks, consent gate, five-question session, pause/resume, progress, Tajweed quiz, generated-stream recording/save/delete, French/Arabic/reduced motion, responsive widths.
-- **Strict TypeScript build passed.**
+- **`npm test`: 115 Node tests pass** (`tests/*.test.mjs`): the corpus and translation checksums and verbatim text, the learning engine, migrations to schema v13, adhkar sources, the Salah tracker, prayer times for every method across DST and time-zone changes, the prayer day around midnight, high-latitude Isha, unique athan ids, the Ayah of the Moment across DST, and the widget's verse pool.
+- **Strict TypeScript build passes** (`npm run typecheck`).
+- **iOS:** Debug build for a physical iPhone succeeds; the development build is installed and launches (see `docs/RELEASE-CHECKLIST.md` for exactly what was and was not checked on the phone).
+- **Original v0.1 delivery only:** 11 browser integration checks (`evidence/browser-tests.json`) with a synthetic microphone stream; not re-run since.
 
-The browser environment forbids network navigation and real microphone capture. Tests rendered the local file using Playwright `set_content`, exercising the app's labelled temporary-storage mode. No browser security policy was changed. Audio was a synthetic Web Audio stream recorded by a real `MediaRecorder`, not a human recitation. Durable localStorage/IndexedDB, native adapters, live audio, real hardware and store builds are **not covered** by these results.
+Unit and browser tests do not cover native behaviour, notifications, widgets on a device, live audio or store builds.
 
-Evidence: `evidence/unit-tests.tap`, `evidence/browser-tests.json`, `evidence/browser-tests.log`, and actual UI screenshots.
+Evidence: `evidence/unit-tests.tap` (original delivery), `evidence/browser-tests.json`, `evidence/browser-tests.log`, and actual UI screenshots.
 
 The optional UI test runner requires Python + Playwright and a Chromium installation. Its Chromium path is adjustable in `tests/ui-smoke.py`.
 
@@ -189,7 +198,9 @@ The optional UI test runner requires Python + Playwright and a Chromium installa
 src/
   app.ts       Screens, navigation, user actions
   engine.ts    Pure learning model, scheduler, validation
-  data.ts      Source-indexed Arabic starter corpus and draft lessons
+  data.ts      Quran corpus access (Tanzil), surah metadata and draft lessons
+  smart.ts     Prayer times, athan plan, reminders and widget data
+  worship.ts   Ayah of the Moment, Salah tracker and progress
   i18n.ts      English / French / Arabic interface copy
   storage.ts   Web/native storage boundary and explicit temporary mode
   audio.ts     Recitation player and local recording lifecycle
