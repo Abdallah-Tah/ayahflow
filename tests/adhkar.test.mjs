@@ -124,7 +124,7 @@ test('Version 5 saves validate places and settings; exports never contain coordi
     const fresh = initialState();
     assert.equal(fresh.smart.location || fresh.smart.vehicle || fresh.smart.timed, false); // nothing is on until the user turns it on
 });
-import { nativeConfig, timedReminders, timedId, enabledMoments, mergeDetections, momentPreview, momentDone, athanSchedule, athanId, nextPrayer, prayersFrom, widgetData } from '../www/js/smart.js';
+import { nativeConfig, timedReminders, timedId, enabledMoments, mergeDetections, momentPreview, momentDone, athanSchedule, athanId, nextPrayer, prayerDayView, prayersFrom, widgetData } from '../www/js/smart.js';
 const copy = m => ({ title: m, body: momentPreview(m) ?? 'general' });
 const NOW = new Date(2026, 9, 22, 5, 0).getTime();
 const withHome = (smart = {}) => ({ ...initialState(), places: { home: { lat: 21.4225, lng: 39.8262, radius: 150 }, work: null, mosque: null }, smart: { ...initialState().smart, ...smart } });
@@ -193,6 +193,18 @@ test('Next prayer is the first one after now, rolling to tomorrow', () => {
     assert.equal(nextPrayer(s, today[1].at - 1).prayer, 'dhuhr');
     const late = nextPrayer(s, today[4].at + 60000);
     assert.equal(late.prayer, 'fajr'); assert(late.at > today[4].at);
+});
+test('Today card: the big time and the timeline come from the same day (tomorrow after Isha)', () => {
+    const s = withHome();
+    const today = prayersFrom(s, NOW, 1);
+    const day = prayerDayView(s, today[1].at - 1);
+    assert.equal(day.tomorrow, false); assert.equal(day.next.at, day.times.dhuhr);
+    const late = prayerDayView(s, today[4].at + 60000);
+    assert.equal(late.tomorrow, true); assert.equal(late.next.prayer, 'fajr');
+    assert.equal(late.next.at, late.times.fajr, 'big time must equal the timeline Fajr');
+    assert.notEqual(late.times.fajr, today[0].at); // tomorrow's schedule, not today's
+    assert(Object.values(late.times).every(at => at > today[4].at));
+    assert.equal(prayerDayView(initialState(), NOW), null);
 });
 test('Widget data carries a week of prayers and windows, without coordinates', () => {
     const w = widgetData(withHome(), k => k, NOW);

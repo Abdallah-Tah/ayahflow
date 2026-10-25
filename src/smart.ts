@@ -227,6 +227,19 @@ export function prayersFrom(state: AppState, now = Date.now(), days = 7): Prayer
     return out;
 }
 export function nextPrayer(state: AppState, now = Date.now()): PrayerAt | null { return prayersFrom(state, now, 2).find(p => p.at > now) ?? null; }
+/** The day the Today card shows: the day of the next prayer, so the big time and the timeline always agree. After Isha
+ * that is tomorrow's schedule (as the usual prayer apps do), flagged so the card can say so. */
+export function prayerDayView(state: AppState, now = Date.now()): { next: PrayerAt; times: Times; tomorrow: boolean } | null {
+    const next = nextPrayer(state, now);
+    if (!next) return null;
+    // The same day offsets prayersFrom uses, so this holds even when the place's time zone differs from the device's.
+    for (let i = 0; i < 2; i++) {
+        const d = new Date(now); d.setDate(d.getDate() + i);
+        const times = timesFor(state, d);
+        if (times && PRAYERS.some(p => times[p] === next.at)) return { next, times, tomorrow: i > 0 };
+    }
+    return null;
+}
 /** `reciter` is a bundled recording id or 'custom'; null means the gentle system alert. */
 export interface AthanAlert { id: number; at: number; prayer: PrayerName; title: string; body: string; reciter: string | null; customVersion: number | null }
 /** Athan alerts for the next week (35 at most, within iOS's 64 pending notifications together with adhkar reminders). */

@@ -226,3 +226,9 @@ test('iOS plays recitation with the Ring/Silent switch on silent (playback audio
     assert.match(app, /import AVFoundation/);
     assert.match(app, /AVAudioSession\.sharedInstance\(\)\.setCategory\(\.playback/);
 });
+test('Today cards keep value and goal on one line ("1,737 / 8,000"), sized to the text column', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const css = await readFile('public/style.css', 'utf8');
+    assert.match(css, /\.pulse-card strong\{display:block;white-space:nowrap;font:min\(20px,\d+(\.\d+)?cqi\)/);
+    assert.match(css, /\.pulse-card \.grow\{min-width:0;container-type:inline-size\}/);
+});
