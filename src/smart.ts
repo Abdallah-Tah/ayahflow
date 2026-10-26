@@ -4,6 +4,7 @@ import { RULES, ONCE_PER_DAY, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassage
 import { prayerTimes, dayWindows, type Times } from './prayer.js';
 import { chapter, verse } from './data.js';
 import { QURANIC_DUAS } from './duas.js';
+import { LOCK_DUAS } from './lock-duas.js';
 import { dayKey, completedToday, PRAYERS, type AppState, type Detection, type PrayerName, type PrayerMethod } from './engine.js';
 export interface SmartStatus { location: 'always' | 'whenInUse' | 'denied' | 'restricted' | 'prompt'; motion: 'granted' | 'denied' | 'restricted' | 'prompt' | 'unavailable'; monitoring: string[]; precise: boolean; backgroundRefresh?: 'on' | 'off' | 'restricted'; lowPower?: boolean; vehicleWatch?: boolean; configSaved?: boolean; tripWatch?: boolean; backgroundLocation?: boolean; home?: 'in' | 'out' | 'unknown' }
 export interface SmartBridge {
@@ -122,12 +123,24 @@ export function istighfarReminders(state: AppState, today: number, target: numbe
 }
 export function timedId(moment: Moment, day: string): number { return CODE[moment]! * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
 // ---- Ayah of the day (a Quranic du'a) ----------------------------------------------------------
-/** Longest du'a (in letters, marks ignored) that stays legible whole on the Lock Screen: the text is never cut, so
- * longer ones (2:286, 60:4, 46:15…) are left out of the daily pick rather than shown in part. */
+/** Longest du'a (in letters, marks ignored) considered for the daily pick; long ones (2:286, 60:4, 46:15…) are left out
+ * rather than shown in part. */
 export const DUA_MAX_LETTERS = 100;
 const letters = (s: string) => s.replace(/[^\u0621-\u064A\u0671]/g, '').length;
+/** "2:250" or "20:25-28": the key the Lock Screen measurement (src/lock-duas.ts) uses. */
+export const duaKey = ([s, a, b]: readonly [number, number, number]) => `${s}:${a}${b > a ? `-${b}` : ''}`;
+const duaText = ([s, a, b]: readonly [number, number, number]) => Array.from({ length: b - a + 1 }, (_, k) => verse(s, a + k)).join(' ');
+/** FNV-1a of the measured du'as' text, so a corpus or list change without re-measuring fails the tests. */
+export function duaTextHash(keys: readonly string[]): string {
+    let h = 2166136261;
+    const text = keys.map(k => { const d = QURANIC_DUAS.find(x => duaKey(x) === k); if (!d) throw Error(`Unknown du'a ${k}`); return duaText(d); }).join('\n');
+    for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+    return (h >>> 0).toString(16);
+}
 let duaPool: (readonly [number, number, number])[] | null = null;
-const dailyDuas = () => duaPool ??= QURANIC_DUAS.filter(([s, a, b]) => { let n = 0; for (let i = a; i <= b; i++) n += letters(verse(s, i)); return n <= DUA_MAX_LETTERS; });
+/** Only du'as measured to fit the Lock Screen rectangle whole (scripts/measure-lock-duas.mjs): a letter count alone let
+ * 2:250 through, and on an iPhone 16 Pro it showed only its reference. */
+const dailyDuas = () => duaPool ??= QURANIC_DUAS.filter(d => LOCK_DUAS.includes(duaKey(d)) && letters(duaText(d)) <= DUA_MAX_LETTERS);
 /** One Quranic du'a per local day, the same on every device: a fixed hash of the date picks from the du'as that fit. */
 export function ayahOfDay(day: string): { surah: number; ayah: number; to: number } {
     let h = 2166136261;

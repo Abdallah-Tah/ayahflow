@@ -692,9 +692,10 @@ struct FittedAyah: View {
     }
 }
 
-/// The Lock Screen rectangle (about 160×72 pt): the reference line with the ayah under it at 13–10 pt; if it does not
-/// fit, the ayah alone filling the rectangle at 15–10 pt; only then the reference and "Read it in its surah". Sizes were
-/// measured against every du'a and Ayah of the Moment with this font; the text is never cut off.
+/// The Lock Screen rectangle (about 145–172 × 56–76 pt): the reference line with the ayah under it at 13–10 pt; if it
+/// does not fit, the ayah alone filling the rectangle at 15–10 pt. Daily du'as are only those measured to fit whole
+/// (src/lock-duas.ts). A longer ayah (some Ayahs of the Moment) shows the reference and its opening words, unchanged,
+/// with iOS's "…" marking that it continues; tapping opens it whole. The Arabic is never left out.
 @available(iOSApplicationExtension 16.0, *)
 struct LockScreenAyah: View {
     let text: String
@@ -704,13 +705,20 @@ struct LockScreenAyah: View {
         ViewThatFits(in: .vertical) {
             titled(13); titled(11.5); titled(10)
             line(15); line(13); line(11.5); line(10)
-            VStack(alignment: .leading, spacing: 2) { header; Label(caption, systemImage: "book").font(.system(size: 13)) }
+            VStack(alignment: .leading, spacing: 1) { header; opening(2) }
+            opening(2)
         }
+        .accessibilityElement(children: .combine).accessibilityHint(Text(caption))
     }
     private var header: some View {
         Label(title, systemImage: "book.closed.fill").font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8).widgetAccentable()
     }
     private func titled(_ s: CGFloat) -> some View { VStack(alignment: .leading, spacing: 1) { header; line(s) } }
+    /// The first lines of the ayah as stored (never edited); the tail truncation adds the "…".
+    private func opening(_ lines: Int) -> some View {
+        Text(text).font(.quran(10)).multilineTextAlignment(.trailing).lineLimit(lines).truncationMode(.tail)
+            .environment(\.layoutDirection, .rightToLeft).frame(maxWidth: .infinity, alignment: .trailing)
+    }
     private func line(_ s: CGFloat) -> some View {
         Text(text).font(.quran(s)).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
             .environment(\.layoutDirection, .rightToLeft).frame(maxWidth: .infinity, alignment: .trailing)
