@@ -43,7 +43,9 @@ async function beforeChannel() { if (ANDROID) await LocalNotifications.createCha
 /** Sound and channel of an athan alert: the chosen recording's ≤30 s alert, or the chime for the gentle alert. */
 const isLocal = (r) => r === 'custom' || r.startsWith('online-');
 const athanSoundName = (n) => n.reciter === null ? (ANDROID ? null : CHIME_SOUND) : ANDROID ? (isLocal(n.reciter) ? null : `ayahflow_athan_${n.reciter}.mp3`) : n.reciter === 'custom' ? 'ayahflow-athan-custom.wav' : n.reciter.startsWith('online-') ? `ayahflow-athan-${n.reciter}.wav` : `ayahflow-athan-${n.reciter}.caf`;
-const athanContent = (n) => { const sound = athanSoundName(n); return { ...(sound ? { sound } : {}), channelId: n.reciter === null ? 'ayahflow-prayer' : n.reciter === 'custom' ? `ayahflow-athan-custom-${n.customVersion}` : `ayahflow-athan-${n.reciter}` }; }; // online: ayahflow-athan-online-<id>
+/** iOS: re-sounds pending home-only athan alerts for where the phone is now (the plugin also does this on Home entry/exit). */
+const placeAthan = () => ANDROID ? Promise.resolve() : Smart.placeAthan().catch(() => { });
+const athanContent = (n) => { const sound = athanSoundName(n); return { ...(sound ? { sound } : {}), extra: { url: 'ayahflow://prayer', ...(n.homeOnly && !ANDROID && sound ? { homeOnly: true, athanSound: sound, awaySound: CHIME_SOUND } : {}) }, channelId: n.reciter === null ? 'ayahflow-prayer' : n.reciter === 'custom' ? `ayahflow-athan-custom-${n.customVersion}` : `ayahflow-athan-${n.reciter}` }; }; // online: ayahflow-athan-online-<id>
 async function athanChannels(list) {
     if (!ANDROID) return;
     await LocalNotifications.createChannel({ id: 'ayahflow-prayer', name: 'Prayer times', description: 'A quiet alert at prayer times', importance: 4, visibility: 1 });
@@ -103,7 +105,8 @@ export const bridge = {
             if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
             if (n.kind === 'before') await beforeChannel(); else await athanChannels([n]);
             const at = Date.now() + seconds * 1000, content = n.kind === 'before' ? beforeContent() : athanContent(n);
-            await LocalNotifications.schedule({ notifications: [{ id: n.id, title: n.title, body: n.body, ...content, schedule: { at: new Date(at), allowWhileIdle: true }, extra: { url: 'ayahflow://prayer' }, smallIcon: 'ic_stat_ayahflow' }] });
+            await LocalNotifications.schedule({ notifications: [{ id: n.id, title: n.title, body: n.body, extra: { url: 'ayahflow://prayer' }, ...content, schedule: { at: new Date(at), allowWhileIdle: true }, smallIcon: 'ic_stat_ayahflow' }] });
+            if (n.homeOnly) await placeAthan();
             const pending = (await LocalNotifications.getPending()).notifications.some(p => Number(p.id) === n.id);
             return { at, pending, sound: content.sound ?? null };
         },
@@ -129,7 +132,8 @@ export const bridge = {
         if (!list.length) return;
         if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
         await athanChannels(list);
-        await LocalNotifications.schedule({ notifications: list.filter(n => ATHAN(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, ...athanContent(n), extra: { url: 'ayahflow://prayer' }, smallIcon: 'ic_stat_ayahflow' })) });
+        await LocalNotifications.schedule({ notifications: list.filter(n => ATHAN(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true }, ...athanContent(n), smallIcon: 'ic_stat_ayahflow' })) });
+        if (list.some(n => n.homeOnly)) await placeAthan();
     },
     /** Saves an imported athan: the full file for in-app playback (and Android's channel) and a ≤30 s WAV alert in
      * Library/Sounds for iOS. Stays on this device; never exported. */

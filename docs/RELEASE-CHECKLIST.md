@@ -6,15 +6,17 @@ not stand in for native, simulator or device results, and nothing here is a stor
 ## 1. Automated tests (done)
 
 - [x] `npm run typecheck` (strict TypeScript, app and voice worker) passes.
-- [x] `npm test`: 124 Node tests in 7 files pass (engine, adhkar, worship, release, dst-athan, before-prayer, places). They
-  cover, among others: the corpus checksum and verbatim text, migrations up to schema v14 without reset, idempotent writes, prayer times for
+- [x] `npm test`: 130 Node tests in 8 files pass (engine, adhkar, worship, release, dst-athan, before-prayer, places, athan-home). They
+  cover, among others: the corpus checksum and verbatim text, migrations up to schema v15 without reset, idempotent writes, prayer times for
   every method across both 2026 US DST changes, time-zone changes, Hanafi Asr, the prayer day around midnight,
   high-latitude Isha after midnight and at or after the next Fajr, unique athan ids for a year at 51–60°N, the Ayah of
   the Moment changing every 30 elapsed minutes across America/New_York 2026-03-08 and 2026-11-01 (and half-hour /
   45-minute zones), the widget's bundled verse pool matching the app's, and tracking that never changes by itself;
   the reminder before prayer (exactly N minutes before each chosen prayer, never sunrise, both 2026 New York DST changes,
   Oslo Isha after midnight, ids 18–22 × 10⁶ clear of every other kind, re-planning without duplicates, the 64-notification
-  budget with athans first, the requested EN/FR/AR wording) and the saved-place cards (one button per area, invalid areas ignored).
+  budget with athans first, the requested EN/FR/AR wording), the saved-place cards (one button per area, invalid areas ignored)
+  and the athan at Home only (off after migration; needs athan sound, the switch and a saved Home; same alerts and times;
+  the iOS swap plays the athan only when Home is known to be inside).
 - [x] The Swift `MomentClock` (widget) and `slotOf` (app) give identical slots for 15,450 sampled instants in five time
   zones around their DST changes (compiled on the Mac with `swiftc`, compared line by line; a one-off check, not in `npm test`).
 - [x] Original v0.1 delivery: 11 browser checks of the single-file app (evidence/browser-tests.json); not re-run since.
@@ -72,6 +74,18 @@ Widgets (iPhone, after 170a765):
   rotation; WidgetKit decides when it redraws, so a change can come a little after the half hour).
 - [ ] A widget write failure is shown on the Prayers page (simulate only if a safe way exists; otherwise review Console logs,
   subsystem `com.buildwithabdallah.ayahflow`, category `widget`).
+
+- [x] Build with "Soft beep away from Home" (Debug, iPhone 16 Pro, 2026-10-26): BUILD SUCCEEDED, `codesign --verify
+  --deep` passes, installed in place with `devicectl`. Launch was refused because the phone was locked, so the v15
+  migration on the device and the console were not checked yet.
+
+Athan at Home only (iPhone, build of 2026-10-26):
+- [ ] Open the app once (migrates to v15; the new switch is off). Prayers → Times & Athan → Athan sound → turn on
+  "Soft beep away from Home"; location must be Always. "Right now" shows at Home / away.
+- [ ] At Home, "Test athan sound" plays the reciter; away from Home (past the Home area, a few minutes later) it plays the
+  soft beep. Only the user can confirm what is heard.
+- [ ] A real prayer while away gives the beep; at Home the athan. Times and taps unchanged.
+- [ ] Android: not implemented (the switch is hidden there; Android takes the sound from the notification channel).
 
 Reminder before prayer and notification sounds (iPhone, build of 2026-10-25 ~19:56):
 - [ ] Places screen on the phone: Home card shows 100/150/200/300/500 m as separate buttons, gold on the chosen one.
@@ -146,7 +160,7 @@ Native compilation and device testing (carried over):
 - [ ] Verify PrivacyInfo.xcprivacy is included in the correct Xcode target; reassess declarations when plugins or network services change.
 - [ ] Review OS backup inclusion/exclusion, restoration and recording retention policy.
 - [ ] Test corrupt/missing saves and explicit import without accidental overwrite.
-- [x] Versioned migrations (schema v14) with tests; saved data is migrated, never reset.
+- [x] Versioned migrations (schema v15) with tests; saved data is migrated, never reset.
 - [ ] Add native file/index reconciliation or transactional storage before claiming crash consistency.
 - [ ] Introduce an appropriate database before large-corpus/history/sync growth; Preferences is not a database.
 - [ ] Review browser CSP and HTTPS deployment headers.

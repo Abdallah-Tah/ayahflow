@@ -5,7 +5,7 @@ import { prayerTimes, dayWindows, type Times } from './prayer.js';
 import { chapter, verse } from './data.js';
 import { QURANIC_DUAS } from './duas.js';
 import { dayKey, completedToday, PRAYERS, type AppState, type Detection, type PrayerName, type PrayerMethod } from './engine.js';
-export interface SmartStatus { location: 'always' | 'whenInUse' | 'denied' | 'restricted' | 'prompt'; motion: 'granted' | 'denied' | 'restricted' | 'prompt' | 'unavailable'; monitoring: string[]; precise: boolean; backgroundRefresh?: 'on' | 'off' | 'restricted'; lowPower?: boolean; vehicleWatch?: boolean; configSaved?: boolean; tripWatch?: boolean; backgroundLocation?: boolean }
+export interface SmartStatus { location: 'always' | 'whenInUse' | 'denied' | 'restricted' | 'prompt'; motion: 'granted' | 'denied' | 'restricted' | 'prompt' | 'unavailable'; monitoring: string[]; precise: boolean; backgroundRefresh?: 'on' | 'off' | 'restricted'; lowPower?: boolean; vehicleWatch?: boolean; configSaved?: boolean; tripWatch?: boolean; backgroundLocation?: boolean; home?: 'in' | 'out' | 'unknown' }
 export interface SmartBridge {
     status(): Promise<SmartStatus>;
     currentPosition(): Promise<{ lat: number; lng: number; accuracy: number }>;
@@ -35,7 +35,7 @@ export interface SmartBridge {
     /** Steps per local day from the device pedometer, read live and never saved by the app. */
     steps(days: number): Promise<StepReading>;
 }
-export interface TestNotification { id: number; kind: 'before' | 'athan'; title: string; body: string; reciter: string | null; customVersion: number | null }
+export interface TestNotification { id: number; kind: 'before' | 'athan'; title: string; body: string; reciter: string | null; customVersion: number | null; homeOnly?: boolean }
 type Setting = 'on' | 'off' | 'unsupported';
 export interface NotificationCheck { authorization?: 'granted' | 'provisional' | 'ephemeral' | 'denied' | 'prompt'; alert?: Setting; sound?: Setting; lockScreen?: Setting; files?: Record<string, 'library' | 'bundle' | 'missing'> }
 /** iOS: CMPedometer (up to 7 days of history, kept by the system). Android: the step-counter sensor, sampled when the app
@@ -52,6 +52,8 @@ export interface NativeConfig {
     enabled: Moment[];
     completedDay: Partial<Record<Moment, string>>;
     timedIds: Partial<Record<Moment, Record<string, number>>>;
+    /** Athan alerts marked homeOnly play the athan inside the Home region and a chime elsewhere; iOS watches Home for it. */
+    athanHome: boolean;
 }
 export interface TimedReminder { id: number; at: number; title: string; body: string; url: string; moment: Moment }
 const CODE: Partial<Record<Moment, number>> = { morning: 1, evening: 2, sleep: 3 };
@@ -199,7 +201,7 @@ export function nativeConfig(state: AppState, copy: (m: Moment) => { title: stri
         oncePerDay: [...ONCE_PER_DAY],
         windows: days.map(d => { const w = windowsFor(state, d); return { day: w.day, morning: w.morning, evening: w.evening }; }),
         copy: Object.fromEntries(MOMENTS.map(m => [m, copy(m)])),
-        enabled: enabledMoments(state), completedDay, timedIds,
+        enabled: enabledMoments(state), completedDay, timedIds, athanHome: athanHomeOnly(state),
     };
 }
 /** Morning (Fajr + 20 min), evening (Asr + 20 min) and sleep reminders for the next week. Without a saved place,
@@ -272,11 +274,13 @@ export function prayerDayView(state: AppState, now = Date.now()): { next: Prayer
     return null;
 }
 /** `reciter` is a bundled recording id or 'custom'; null means the gentle system alert. */
-export interface AthanAlert { id: number; at: number; prayer: PrayerName; title: string; body: string; reciter: string | null; customVersion: number | null }
+export interface AthanAlert { id: number; at: number; prayer: PrayerName; title: string; body: string; reciter: string | null; customVersion: number | null; homeOnly: boolean }
+/** The athan plays only at Home (soft chime elsewhere): needs the athan sound, the switch and a saved Home. */
+export function athanHomeOnly(state: AppState): boolean { const a = state.athan; return a.enabled && a.sound === 'athan' && a.awayChime && state.places.home !== null; }
 /** Athan alerts for the next PLAN_DAYS days (ATHAN_MAX at most, the soonest, within iOS's 64 pending notifications). */
 export function athanSchedule(state: AppState, label: (p: PrayerName, at: number) => { title: string; body: string }, now = Date.now()): AthanAlert[] {
     if (!state.athan.enabled) return [];
-    return prayersFrom(state, now, PLAN_DAYS).filter(p => p.at > now && state.athan.prayers[p.prayer]).slice(0, ATHAN_MAX).map(p => ({ id: athanId(p.prayer, p.day), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
+    return prayersFrom(state, now, PLAN_DAYS).filter(p => p.at > now && state.athan.prayers[p.prayer]).slice(0, ATHAN_MAX).map(p => ({ id: athanId(p.prayer, p.day), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null, homeOnly: athanHomeOnly(state) }));
 }
 // ---- Reminder before a prayer -------------------------------------------------------------------
 const BEFORE_CODE: Record<PrayerName, number> = { fajr: 18, dhuhr: 19, asr: 20, maghrib: 21, isha: 22 };

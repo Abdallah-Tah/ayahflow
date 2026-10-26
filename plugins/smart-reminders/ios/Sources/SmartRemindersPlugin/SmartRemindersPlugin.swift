@@ -24,7 +24,8 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setWidgetData", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "downloadAthan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "steps", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "notificationCheck", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "notificationCheck", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "placeAthan", returnType: CAPPluginReturnPromise)
     ]
     private var engine: SmartReminders { SmartReminders.shared }
     private let pedometer = CMPedometer()
@@ -55,6 +56,11 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             do { try self.engine.configure(data); call.resolve(self.engine.status()) } catch { call.reject("invalid config: \(error.localizedDescription)") }
         }
+    }
+
+    /// Re-sounds pending home-only athan alerts for the current Home state; resolves with how many changed.
+    @objc func placeAthan(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { self.engine.placeAthan { n in call.resolve(["changed": n, "home": self.engine.status()["home"] ?? "unknown"]) } }
     }
 
     @objc func takeEvents(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(["events": self.engine.takeLog()]) } }

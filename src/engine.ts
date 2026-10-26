@@ -14,7 +14,7 @@ export type ReadingLayout = 'cards' | 'flow';
  * v11 → v12 added dhikr rotation reminders (off by default); v12 → v13 added worship tracking (`worship`: prayers the
  * user confirmed, post-prayer tasbih, favourites, personal targets, lifetime totals and Quran reading days);
  * v13 → v14 added the reminder before each prayer (`athan.before`, off by default). */
-export const STATE_VERSION = 14;
+export const STATE_VERSION = 15;
 import ATHAN_DATA from './athan-data.js';
 /** Bundled athan recordings (content/athan/sources.json) plus the user's own imported file. */
 export const ATHAN_RECITERS: readonly string[] = ATHAN_DATA.recordings.map(r => r.id);
@@ -33,8 +33,10 @@ export type BeforeMinutes = typeof BEFORE_MINUTES[number];
 /** A gentle notification shortly before each chosen prayer (never the athan itself). Off until the user turns it on. */
 export interface BeforePrayer { enabled: boolean; minutes: BeforeMinutes }
 export const defaultBefore = (): BeforePrayer => ({ enabled: false, minutes: 15 });
-export interface AthanSettings { enabled: boolean; prayers: Record<PrayerName, boolean>; sound: 'athan' | 'chime'; reciter: string; fajrReciter: string; custom: CustomAthan | null; downloads: string[]; before: BeforePrayer }
-export const defaultAthan = (): AthanSettings => ({ enabled: false, prayers: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true }, sound: 'athan', reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() });
+/** `awayChime`: with the athan sound chosen, alerts play the athan only while the phone is inside the saved Home area and a
+ * soft chime anywhere else (or when the location is unknown). Off until the user turns it on. */
+export interface AthanSettings { enabled: boolean; prayers: Record<PrayerName, boolean>; sound: 'athan' | 'chime'; reciter: string; fajrReciter: string; custom: CustomAthan | null; downloads: string[]; before: BeforePrayer; awayChime: boolean }
+export const defaultAthan = (): AthanSettings => ({ enabled: false, prayers: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true }, sound: 'athan', reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore(), awayChime: false });
 export const PRAYER_METHODS = ['MuslimWorldLeague', 'Egyptian', 'Karachi', 'UmmAlQura', 'Dubai', 'MoonsightingCommittee', 'NorthAmerica', 'Kuwait', 'Qatar', 'Singapore', 'Tehran', 'Turkey'] as const;
 export type PrayerMethod = typeof PRAYER_METHODS[number];
 /** A saved place. Stored on this device only and excluded from progress exports. */
@@ -217,7 +219,7 @@ export interface Session {
     kind: 'daily' | 'practice';
 }
 export interface AppState {
-    version: 14;
+    version: 15;
     locale: Locale;
     theme: Theme;
     arabicSize: ArabicSize;
@@ -260,7 +262,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 14, worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 15, worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -369,7 +371,7 @@ export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
     const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
@@ -410,6 +412,7 @@ export function validateState(raw: unknown): AppState {
         if (!b || typeof b !== 'object' || typeof b.enabled !== 'boolean' || !(BEFORE_MINUTES as readonly number[]).includes(b.minutes) || Object.keys(b).length !== 2)
             throw new Error('Invalid reminder before prayer');
     }
+    if (s.version >= 15 && typeof s.athan!.awayChime !== 'boolean') throw new Error('Invalid athan away setting');
     if (s.version >= 12) {
         const r = s.rotation, mine = new Set((s.myCounters ?? []).map(c => c.id));
         if (!r || typeof r.enabled !== 'boolean' || !(ROTATION_INTERVALS as readonly number[]).includes(r.every) || !HHMM.test(r.from) || !HHMM.test(r.to) || r.from >= r.to
@@ -467,7 +470,7 @@ export function validateState(raw: unknown): AppState {
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone({ ...s, version: 14, worship: s.version < 13 ? defaultWorship() : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    return structuredClone({ ...s, version: 15, worship: s.version < 13 ? defaultWorship() : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */

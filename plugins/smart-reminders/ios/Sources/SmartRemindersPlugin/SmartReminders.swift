@@ -22,6 +22,9 @@ public struct SmartConfig: Codable {
     var completedDay: [String: String]
     /// Pending timed notification ids by moment and day, cancelled when a grouped reminder already covered them.
     var timedIds: [String: [String: Int]]
+    /// Home-only athan: Home is watched (even with place reminders off) so pending athan alerts can be re-sounded.
+    /// Optional so configurations saved by earlier builds still decode.
+    var athanHome: Bool?
 }
 
 private struct History: Codable {
@@ -47,7 +50,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     private var fastFixes = 0
     private var tripTask: UIBackgroundTaskIdentifier = .invalid
     private var significantOn = false
-    private let lastWakeKey = "ayahflow.smart.lastwake"
+    private let lastWakeKey = "ayahflow.smart.lastwake", homeKey = "ayahflow.smart.home"
     private static let tripSeconds: TimeInterval = 240, vehicleSpeed: CLLocationSpeed = 6 // m/s ≈ 22 km/h
     private var canRunInBackground: Bool { (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("location") ?? false }
 
@@ -76,7 +79,8 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     func applyMonitoring() {
         let cfg = config
         let canMonitor = CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) && manager.authorizationStatus == .authorizedAlways
-        let wanted = (cfg?.location ?? false) && canMonitor ? (cfg?.regions ?? []) : []
+        let athanHome = canMonitor && cfg?.athanHome == true
+        let wanted = !canMonitor ? [] : (cfg?.location ?? false) ? (cfg?.regions ?? []) : athanHome ? (cfg?.regions ?? []).filter { $0.id == "home" } : []
         for region in manager.monitoredRegions where !wanted.contains(where: { $0.id == region.identifier }) {
             manager.stopMonitoring(for: region)
         }
@@ -86,7 +90,10 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
             region.notifyOnEntry = true
             region.notifyOnExit = true
             manager.startMonitoring(for: region) // Replaces any region with the same identifier.
+            if r.id == "home" && athanHome { manager.requestState(for: region) }
         }
+        // A remembered Home state is only trusted while Home is watched; otherwise alerts fall back to the chime.
+        if !wanted.contains(where: { $0.id == "home" }) { setHome(nil) }
         // Significant-change wakes drive vehicle checks; speed is estimated from successive wakes, so motion data is optional.
         if (cfg?.vehicle ?? false) && manager.authorizationStatus == .authorizedAlways && CLLocationManager.significantLocationChangeMonitoringAvailable() {
             manager.startMonitoringSignificantLocationChanges()
@@ -123,7 +130,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         default: refresh = "restricted"
         }
         return ["location": loc, "motion": mot, "monitoring": manager.monitoredRegions.map { $0.identifier }, "precise": manager.accuracyAuthorization == .fullAccuracy,
-                "backgroundRefresh": refresh, "lowPower": ProcessInfo.processInfo.isLowPowerModeEnabled, "vehicleWatch": significantOn,
+                "home": defaults.string(forKey: homeKey) ?? "unknown", "backgroundRefresh": refresh, "lowPower": ProcessInfo.processInfo.isLowPowerModeEnabled, "vehicleWatch": significantOn,
                 "configSaved": config != nil, "tripWatch": tripUntil != nil, "backgroundLocation": canRunInBackground]
     }
 
@@ -272,13 +279,56 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     public func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) { regionEvent("ENTER", region.identifier) }
     public func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) { regionEvent("EXIT", region.identifier) }
 
+    public func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
+        guard region.identifier == "home" else { return }
+        setHome(state == .inside ? "in" : state == .outside ? "out" : nil)
+    }
+
     private func regionEvent(_ kind: String, _ id: String) {
         guard ["home", "work", "mosque"].contains(id) else { return }
+        if id == "home" { setHome(kind == "ENTER" ? "in" : "out") }
+        // Home may be watched only for the athan sound; place reminders then stay quiet.
+        guard config?.location == true else { return }
         let event = "\(kind)_\(id.uppercased())"
         guard kind == "EXIT", config?.vehicle == true else { handle([event]); return }
         // Leaving a saved place: include a vehicle already under way, then keep watching the next few minutes.
         vehicleCheck(reason: "LEFT_CHECK", speed: nil, lookback: 5 * 60, alsoEvents: [event])
         startTrip()
+    }
+
+    // MARK: Home-only athan
+    private func setHome(_ state: String?) {
+        if defaults.string(forKey: homeKey) != state { if let state { defaults.set(state, forKey: homeKey) } else { defaults.removeObject(forKey: homeKey) } }
+        placeAthan()
+    }
+
+    /// Re-adds pending athan alerts marked homeOnly (by native/bridge.mjs) with the athan sound inside Home and the chime
+    /// anywhere else, including when the place is unknown. Same identifier and trigger, so iOS replaces each one in place.
+    func placeAthan(_ done: ((Int) -> Void)? = nil) {
+        let atHome = defaults.string(forKey: homeKey) == "in", center = UNUserNotificationCenter.current()
+        var task = UIBackgroundTaskIdentifier.invalid
+        task = UIApplication.shared.beginBackgroundTask(withName: "ayahflow.athan.place") { UIApplication.shared.endBackgroundTask(task); task = .invalid }
+        center.getPendingNotificationRequests { requests in
+            var changed = 0
+            for r in requests {
+                guard var extra = r.content.userInfo["cap_extra"] as? [String: Any], extra["homeOnly"] as? Bool == true,
+                      let athan = extra["athanSound"] as? String, let away = extra["awaySound"] as? String,
+                      let content = r.content.mutableCopy() as? UNMutableNotificationContent else { continue }
+                let want = atHome ? athan : away
+                if extra["playing"] as? String == want { continue }
+                extra["playing"] = want
+                content.sound = UNNotificationSound(named: UNNotificationSoundName(want))
+                var info = content.userInfo
+                info["cap_extra"] = extra
+                content.userInfo = info
+                center.add(UNNotificationRequest(identifier: r.identifier, content: content, trigger: r.trigger))
+                changed += 1
+            }
+            DispatchQueue.main.async {
+                done?(changed)
+                if task != .invalid { UIApplication.shared.endBackgroundTask(task); task = .invalid }
+            }
+        }
     }
 
     // MARK: Rules (same steps as src/adhkar.ts decide)
@@ -350,6 +400,6 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     func reset() {
         for region in manager.monitoredRegions { manager.stopMonitoring(for: region) }
         manager.stopMonitoringSignificantLocationChanges()
-        [configKey, historyKey, logKey].forEach { defaults.removeObject(forKey: $0) }
+        [configKey, historyKey, logKey, homeKey].forEach { defaults.removeObject(forKey: $0) }
     }
 }

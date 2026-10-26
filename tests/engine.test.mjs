@@ -99,9 +99,9 @@ test('Shuffling is deterministic and does not mutate its input', () => { const a
 
 const legacy = (version) => { const s = advance(initialState(), item(), true, 0, 'legacy'); s.version = version; if (version < 6) delete s.athan; if (version < 5) { delete s.places; delete s.smart; delete s.adhkarLog; delete s.detections; } if (version < 4) delete s.voiceFollowConsent; if (version < 3) { delete s.arabicSize; delete s.readingLayout; } if (version < 2) delete s.theme; return JSON.parse(JSON.stringify(s)); };
 test('Version 1 and 2 saves migrate to the current schema without losing progress', () => {
-    assert.equal(STATE_VERSION, 14);
+    assert.equal(STATE_VERSION, 15);
     const v1 = validateState(legacy(1));
-    assert.equal(v1.version, 14); assert.equal(v1.athan.enabled, false); assert.equal(v1.voiceFollowConsent, false); assert.equal(v1.theme, 'system'); assert.equal(v1.arabicSize, 'm'); assert.equal(v1.readingLayout, 'cards');
+    assert.equal(v1.version, 15); assert.equal(v1.athan.enabled, false); assert.equal(v1.voiceFollowConsent, false); assert.equal(v1.theme, 'system'); assert.equal(v1.arabicSize, 'm'); assert.equal(v1.readingLayout, 'cards');
     assert.equal(v1.xp, 10); assert.equal(v1.attempts.length, 1); assert(v1.cards[item().key]);
     const v2 = legacy(2); v2.theme = 'light';
     const m2 = validateState(v2);
@@ -162,7 +162,7 @@ test('Session recap reads only that session\'s saved evidence, in order', () => 
 test('Voice-following consent is never granted by migration and must be a boolean', () => {
     const v3 = legacy(3); v3.arabicSize = 'l';
     const m = validateState(v3);
-    assert.equal(m.version, 14); assert.equal(m.voiceFollowConsent, false); assert.equal(m.arabicSize, 'l'); assert.deepEqual(m.cards, validateState(legacy(1)).cards);
+    assert.equal(m.version, 15); assert.equal(m.voiceFollowConsent, false); assert.equal(m.arabicSize, 'l'); assert.deepEqual(m.cards, validateState(legacy(1)).cards);
     assert.equal(validateState({ ...initialState(), voiceFollowConsent: true }).voiceFollowConsent, true);
     assert.throws(() => validateState({ ...initialState(), voiceFollowConsent: 'yes' }), /voice/);
     assert.equal(initialState().voiceFollowConsent, false);

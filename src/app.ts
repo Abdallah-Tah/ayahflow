@@ -1,6 +1,6 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, translation, TRANSLATION_SOURCE, type RuleId } from './data.js';
 import { COUNTERS, ROTATION, ROTATION_GROUPS, LIBRARY, LIBRARY_CATEGORIES, TASBIH_VARIANTS, counter, counterPosition, type DhikrCounter, type LibraryDhikr, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
-import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
+import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, athanHomeOnly, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber, beforeCopy } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
@@ -508,10 +508,21 @@ function prayerView(): string {
     const reciters = [...ATHAN_RECORDINGS.map(r => r.id), ...ONLINE_RECORDINGS.filter(r => !r.fajrOnly && state.athan.downloads.includes(r.id)).map(r => `online-${r.id}`), ...(state.athan.custom ? ['custom'] : [])];
     const fajrChoices = [...reciters, ...ONLINE_RECORDINGS.filter(r => r.fajrOnly && state.athan.downloads.includes(r.id)).map(r => `online-${r.id}`)];
     const own = `<div class="own-athan"><label class="button secondary full" for="athan-file">${ic('upload', 16)} ${t(state.athan.custom ? 'replaceOwn' : 'useOwn')}</label><input type="file" id="athan-file" accept="audio/*" hidden>${state.athan.custom ? actionButton('athan-remove-own', t('removeOwn'), 'text-button danger-text') : ''}<p class="tiny muted mt12">${t('ownNote')}</p></div>`;
-    const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div></section>${beforeSection()}<section class="settings-section"><h2>${t('reciter')}</h2><p class="picker-label">${t('onDevice')}</p><div class="stack">${[...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])].map(reciterCard).join('')}</div>${own}<p class="picker-label mt20">${t('moreReciters')}</p><p class="tiny muted mb16">${t('moreRecitersNote')} <a href="${ONLINE_PROVIDER.page}" target="_blank" rel="noopener noreferrer">${escapeHtml(ONLINE_PROVIDER.provider)}${ic('link', 11)}</a>${smartBridge() ? '' : `<br>${t('appOnlyDownload')}`}</p><div class="stack">${ONLINE_RECORDINGS.map(onlineCard).join('')}</div><label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${fajrChoices.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
+    const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div>${awaySection()}</section>${beforeSection()}<section class="settings-section"><h2>${t('reciter')}</h2><p class="picker-label">${t('onDevice')}</p><div class="stack">${[...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])].map(reciterCard).join('')}</div>${own}<p class="picker-label mt20">${t('moreReciters')}</p><p class="tiny muted mb16">${t('moreRecitersNote')} <a href="${ONLINE_PROVIDER.page}" target="_blank" rel="noopener noreferrer">${escapeHtml(ONLINE_PROVIDER.provider)}${ic('link', 11)}</a>${smartBridge() ? '' : `<br>${t('appOnlyDownload')}`}</p><div class="stack">${ONLINE_RECORDINGS.map(onlineCard).join('')}</div><label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${fajrChoices.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
     return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}<section class="settings-section">${widgetError ? `<div class="notice warning" role="status">${ic('info', 18)}<p>${t('widgetSaveFailed').replace('{code}', escapeHtml(widgetError))}</p></div>` : ''}${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
 }
 /** The last notification test: what was checked and what iOS reported, shown until the next test or reload. */
+/** Athan at Home only: the switch and, when on, what is missing or where iOS last saw the phone. iPhone only: Android
+ * takes an alert's sound from its notification channel, which cannot change once the alert is planned. */
+function awaySection(): string {
+    if (state.athan.sound !== 'athan' || platform() === 'android') return '';
+    const on = state.athan.awayChime, home = smartStatus?.home ?? 'unknown';
+    const warn = (key: string, button = '') => `<div class="notice warning mt12">${ic('info', 18)}<p>${t(key)}</p></div>${button}`;
+    const detail = !on ? '' : !state.places.home ? warn('awayNeedHome', actionButton('nav', `${ic('pin', 15)} ${t('awayOpenPlaces')}`, 'button subtle mt12', 'data-view="reminders"'))
+        : smartStatus && smartStatus.location !== 'always' ? warn('awayNeedAlways', actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'button subtle mt12'))
+        : `<p class="small mt12">${t('awayNow')}: <strong>${t(home === 'in' ? 'awayAtHome' : home === 'out' ? 'awayAway' : 'awayUnknown')}</strong></p><p class="tiny muted">${t('awayDelay')}</p>`;
+    return `<label class="setting-row mt12"><span><strong>${t('awayToggle')}</strong><p>${t('awayNote')}</p></span><input type="checkbox" id="athan-away" ${on ? 'checked' : ''} aria-label="${t('awayToggle')}"></label>${detail}`;
+}
 let testReport: { kind: 'before' | 'athan'; rows: [string, string, boolean | null][]; notes: string[]; ok: boolean } | null = null;
 /** Reminder before prayer: the switch, how long before, the next one planned, and the two sound tests. */
 function beforeSection(): string {
@@ -529,7 +540,7 @@ async function runNotificationTest(kind: 'before' | 'athan'): Promise<void> {
     const a = state.athan, next = nextPrayer(state)?.prayer ?? 'asr';
     const n: TestNotification = kind === 'before'
         ? { id: TEST_BEFORE_ID, kind, title: beforeCopy(next, a.before.minutes, state.locale).title, body: t('testBeforeBody'), reciter: null, customVersion: null }
-        : { id: TEST_ATHAN_ID, kind, title: `${t('athan')} · ${a.sound === 'chime' ? t('soundChime') : reciterName(a.reciter)}`, body: t('testAthanBody'), reciter: a.sound === 'chime' ? null : a.reciter, customVersion: a.custom?.version ?? null };
+        : { id: TEST_ATHAN_ID, kind, title: `${t('athan')} · ${a.sound === 'chime' ? t('soundChime') : reciterName(a.reciter)}`, body: t('testAthanBody'), reciter: a.sound === 'chime' ? null : a.reciter, customVersion: a.custom?.version ?? null, homeOnly: athanHomeOnly(state) };
     const rows: [string, string, boolean | null][] = [], notes: string[] = [];
     let ok = true;
     const permission = await bridge.notificationPermission(true).catch(() => 'denied' as const);
@@ -1798,7 +1809,7 @@ root.addEventListener('input', e => { const el = e.target as HTMLInputElement; i
     libraryQuery = el.value;
     document.querySelector('#surah-list')!.innerHTML = surahRows();
 } });
-root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'before-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind', 'rot-enabled', 'rot-from', 'rot-to', 'target-input'].includes(el.id) && !el.id.startsWith('rot-p-') && !el.id.startsWith('pref-'))
+root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-away', 'before-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind', 'rot-enabled', 'rot-from', 'rot-to', 'target-input'].includes(el.id) && !el.id.startsWith('rot-p-') && !el.id.startsWith('pref-'))
     return; try {
     if (el.id === 'audio-toggle') {
         if (!el.checked)
@@ -1885,6 +1896,13 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
         await commit({ ...state, athan: { ...state.athan, before: { ...state.athan.before, enabled: el.checked } } });
         await syncSmart();
         if (el.checked) toast(t('beforeOn').replace('{n}', num(state.athan.before.minutes)));
+    }
+    if (el.id === 'athan-away') {
+        const bridge = smartBridge();
+        // Home entry and exit need location set to Always; ask once here, and show what is missing if it is not given.
+        if (el.checked && bridge && platform() === 'ios' && smartStatus?.location !== 'always') smartStatus = await bridge.requestAlways().catch(() => smartStatus);
+        await commit({ ...state, athan: { ...state.athan, awayChime: el.checked } });
+        await syncSmart();
     }
     if (el.id === 'athan-enabled') {
         const bridge = smartBridge();
