@@ -28,6 +28,23 @@ export const QURAN_SOURCE = { name: QURAN.source, licence: QURAN.licence, url: Q
 export const JUZ_STARTS: readonly (readonly [number, number])[] = QURAN.juz;
 /** First ayah of each ruku' (the traditional thematic sections in Tanzil's metadata), [surah, ayah]. */
 export const RUKU_STARTS: readonly (readonly [number, number])[] = QURAN.ruku;
+/** First ayah of each Madani Mushaf page, [surah, ayah] (Tanzil quran-data.xml: page boundaries only, not the printed line layout). */
+export const PAGE_STARTS: readonly (readonly [number, number])[] = QURAN.pages;
+export const PAGE_COUNT = PAGE_STARTS.length;
+const before = (s: number, a: number, [ps, pa]: readonly [number, number]) => ps < s || (ps === s && pa <= a);
+/** The page (1–604) an ayah is on. */
+export function pageOf(surah: number, ayah: number): number { let lo = 0, hi = PAGE_STARTS.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (before(surah, ayah, PAGE_STARTS[mid]!)) lo = mid; else hi = mid - 1; } return lo + 1; }
+/** Every ayah on a page in order, [surah, ayah]; a page can hold the end of one surah and the start of the next. */
+export function pageAyahs(page: number): [number, number][] {
+    if (!Number.isInteger(page) || page < 1 || page > PAGE_COUNT) throw new Error(`Unknown page ${page}`);
+    const [s0, a0] = PAGE_STARTS[page - 1]!, next = PAGE_STARTS[page], out: [number, number][] = [];
+    for (let s = s0, a = a0; s <= 114;) {
+        if (next && s === next[0] && a === next[1]) break;
+        out.push([s, a]);
+        if (a < QURAN.surahs[s - 1]!.verses.length) a++; else { s++; a = 1; }
+    }
+    return out;
+}
 export function juzOf(surah: number, ayah: number): number { let j = 1; JUZ_STARTS.forEach(([s, a], i) => { if (s < surah || (s === surah && a <= ayah)) j = i + 1; }); return j; }
 let global = 1;
 export const SURAH_DATA: readonly Surah[] = QURAN.surahs.map(s => { const surah: Surah = { id: s.id, name: s.name, ar: s.ar, en: s.en, type: s.type, count: s.verses.length, juz: 0, firstGlobal: global, bismillah: s.bismillah, verses: s.verses, source: `https://tanzil.net/#${s.id}:1` }; global += s.verses.length; return surah; });

@@ -1,6 +1,7 @@
-import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, QURAN_SOURCE, translation, TRANSLATION_SOURCE, type RuleId } from './data.js';
+import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, pageOf, pageAyahs, QURAN_SOURCE, translation, TRANSLATION_SOURCE, type RuleId } from './data.js';
 import { COUNTERS, ROTATION, ROTATION_GROUPS, LIBRARY, LIBRARY_CATEGORIES, TASBIH_VARIANTS, counter, counterPosition, type DhikrCounter, type LibraryDhikr, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
 import { nativeConfig, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, athanHomeOnly, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
+import { setHighlight, setNote, HIGHLIGHT_COLORS, NOTE_MAX, type HighlightColor } from './engine.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber, beforeCopy } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, surahFrame, starEmblem } from './icons.js';
@@ -8,6 +9,7 @@ import { initializeBridge, loadState, saveState, listRecordings, putRecording, d
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { placeCard, setPlaceRadius } from './places.js';
+import { pageView, mushafChooser, startPage, clampPage, toEndOfJuz, type MushafEdition } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
 type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations';
@@ -16,6 +18,10 @@ let view: View = 'today';
 let selectedOption: string | null = null;
 let revealed = false;
 let readerSurah = 112;
+/** Page shown in the page layout (0 until opened), the chooser state, and the verse whose menu is open. */
+let readerPage = 0, mushafOpen = false, mushafTab: MushafEdition['script'] = 'uthmani', menuVerse: string | null = null;
+/** What a verse queue is playing, for the audio banner ("7:24 · to the end of Juz' 8"). */
+let queueLabel = '';
 let lessonId: RuleId = 'ikhfa';
 let reciteSurah = 112;
 let reciteAyah = 1;
@@ -169,14 +175,95 @@ function onFollow(e: FollowEvent): void {
     if (readerSurah !== e.surah) { readerSurah = e.surah; render(); }
     applyFollow(moved);
 }
+const hlClass = (s: number, a: number) => { const h = state.highlights.find(x => x.key === `${s}:${a}`); return h ? ` hl hl-${h.color}` : ''; };
+/** The page to show: the current one while it still holds the open surah, else where the user last read in it. */
+function currentPage(): number {
+    if (readerPage && pageAyahs(readerPage).some(([s]) => s === readerSurah)) return readerPage;
+    return state.readPosition.surah === readerSurah ? startPage(state) : pageOf(readerSurah, 1);
+}
+/** Turns to a page and keeps the place (the page's first ayah), so the reader reopens there. */
+async function goToPage(n: number): Promise<void> {
+    const page = clampPage(n);
+    if (page === readerPage) return;
+    const [s, a] = pageAyahs(page)[0]!;
+    readerPage = page; readerSurah = s; menuVerse = null;
+    await commit({ ...state, readPosition: { surah: s, ayah: a } });
+    render();
+    window.scrollTo(0, 0);
+}
+/** Plays verses one after another until the list ends or the user stops it. */
+function playQueue(list: [number, number][], label: string): void {
+    const step = (i: number) => {
+        const item = list[i];
+        if (!item) { queueLabel = ''; return; }
+        queueLabel = `${item[0]}:${item[1]} · ${label}`;
+        void playAudio(audioUrl(item[0], item[1]), 1, false, () => step(i + 1)).catch(() => { queueLabel = ''; });
+    };
+    step(0);
+}
+/** The verse menu: play to the end of the juz', repeat, highlight, note, translation, copy, share and bookmark. */
+function openVerseMenu(s: number, a: number, mode: 'menu' | 'note' | 'translation' = 'menu'): void {
+    let dialog = document.querySelector<HTMLDialogElement>('#verse-sheet');
+    if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'verse-sheet'; dialog.className = 'sheet verse-sheet'; document.body.append(dialog); }
+    const key = `${s}:${a}`, c = chapter(s), juz = juzOf(s, a), hl = state.highlights.find(h => h.key === key)?.color ?? null;
+    const note = state.notes.find(n => n.key === key)?.text ?? '', saved = state.bookmarks.includes(key);
+    const opt = (act: string, icon: string, label: string, sub = '', extra = '') => `<button class="sheet-option" data-verse="${act}" ${extra}>${ic(icon, 18)}<span class="grow">${label}${sub ? ` <span class="tiny muted">${sub}</span>` : ''}</span></button>`;
+    const head = `<h2><span class="arabic" lang="ar">${escapeHtml(c.ar)}</span> <bdi class="small muted">${escapeHtml(c.name)} ${s}:${a}</bdi></h2><p class="small muted">${t('pageN').replace('{n}', num(pageOf(s, a)))} · ${t('juzN').replace('{n}', num(juz))}</p><p class="arabic verse-preview" lang="ar" dir="rtl">${escapeHtml(verse(s, a))}</p>`;
+    let body: string;
+    if (mode === 'note') body = `<label class="small" for="note-text">${t(note ? 'editNote' : 'addNote')}</label><textarea id="note-text" class="note-input" maxlength="${NOTE_MAX}" rows="5" dir="auto">${escapeHtml(note)}</textarea><p class="tiny muted">${t('noteLocal')}</p><div class="row gap8 mt12">${note ? `<button class="button subtle" data-verse="note-delete">${ic('trash', 15)} ${t('delete')}</button>` : ''}<button class="button primary grow" data-verse="note-save">${t('saveNote')}</button></div><button class="button secondary full" data-verse="menu">${t('back')}</button>`;
+    else if (mode === 'translation') body = `<p class="ayah-translation" lang="en" dir="ltr">${escapeHtml(translation(s, a))}</p><p class="tiny muted">${t('translationCredit')} · ${escapeHtml(TRANSLATION_SOURCE.name)}</p><div class="notice warning mt12">${ic('info', 18)}<p>${t('tafsirUnavailable')}</p></div><button class="button secondary full" data-verse="menu">${t('back')}</button>`;
+    else body = `<div class="sheet-options">${opt('play-juz', 'play', t('playToJuzEnd'), t('juzN').replace('{n}', num(juz)))}${opt('repeat', 'loop', t('repeatVerse'))}${opt('highlight', 'star', t(hl ? 'removeHighlight' : 'highlight'), '', hl ? `aria-pressed="true"` : '')}<div class="swatches" role="group" aria-label="${t('highlightColour')}">${HIGHLIGHT_COLORS.map(col => `<button class="swatch hl-${col} ${hl === col ? 'active' : ''}" data-verse="colour" data-colour="${col}" aria-label="${t('hl_' + col)}" aria-pressed="${hl === col}"></button>`).join('')}</div>${opt('note', 'type', t(note ? 'editNote' : 'addNote'), note ? escapeHtml(note.length > 40 ? note.slice(0, 39) + '…' : note) : '')}${opt('translation', 'globe', t('translationTafsir'))}${opt('copy', 'copy', t('copy'))}${opt('share', 'share', t('shareVerseMenu'))}${opt('bookmark', 'bookmark', t(saved ? 'removeBookmark' : 'bookmark'))}</div><button class="button secondary full" data-verse="close">${t('close')}</button>`;
+    dialog.innerHTML = head + body;
+    const d = dialog;
+    const done = () => { if (d.open) d.close(); menuVerse = null; const y = window.scrollY; render(); window.scrollTo(0, y); };
+    d.onclick = async e => {
+        const b = (e.target as Element).closest<HTMLButtonElement>('[data-verse]');
+        if (!b) { if (e.target === d) done(); return; }
+        const act = b.dataset.verse!;
+        if (act === 'close') return done();
+        if (act === 'menu' || act === 'note' || act === 'translation') return openVerseMenu(s, a, act);
+        if (act === 'play-juz' || act === 'repeat') {
+            if (!state.audioConsent) { toast(t('audioDisabled')); return; }
+            if (recordingActive() || followingActive()) return;
+            if (act === 'repeat') { queueLabel = `${s}:${a} · ${t('repeatVerse')}`; void playAudio(audioUrl(s, a), 1, true).catch(() => { }); }
+            else playQueue(toEndOfJuz(s, a), t('toJuzEnd').replace('{n}', num(juz)));
+            return done();
+        }
+        if (act === 'highlight' || act === 'colour') {
+            const col = act === 'colour' ? b.dataset.colour as HighlightColor : hl ? null : 'gold';
+            await commit(setHighlight(state, s, a, act === 'colour' && hl === col ? null : col, Date.now()));
+            return done();
+        }
+        if (act === 'note-save' || act === 'note-delete') {
+            const text = act === 'note-delete' ? '' : d.querySelector<HTMLTextAreaElement>('#note-text')!.value;
+            try { await commit(setNote(state, s, a, text, Date.now())); toast(t(text.trim() ? 'noteSaved' : 'noteDeleted')); } catch { toast(t('error')); return; }
+            return done();
+        }
+        if (act === 'copy' || act === 'share') {
+            const text = `${verse(s, a)}\n${c.name} ${s}:${a}`;
+            if (act === 'copy') await navigator.clipboard.writeText(text).then(() => toast(t('copied')), () => toast(t('error')));
+            else { const r = await shareText(`${c.name} ${s}:${a}`, text).catch(() => null); if (r === 'copied') toast(t('copied')); }
+            return done();
+        }
+        if (act === 'bookmark') { await commit({ ...state, bookmarks: saved ? state.bookmarks.filter(x => x !== key) : [...state.bookmarks, key], readPosition: { surah: s, ayah: a } }); return done(); }
+    };
+    d.oncancel = e => { e.preventDefault(); done(); };
+    if (!d.open) d.showModal();
+    (d.querySelector<HTMLElement>(mode === 'note' ? '#note-text' : '.sheet-option, [data-verse]'))?.focus();
+}
 function readerView(): string {
     const s = chapter(readerSurah);
     const head = `<div class="reader-heading"><p class="eyebrow">${t('surah')} ${num(s.id)} · ${num(s.count)} ${t('ayahs')}</p><div class="cartouche">${surahFrame()}<p class="arabic" lang="ar">${s.ar}</p></div><h1>${escapeHtml(s.name)}</h1><p class="small muted">${escapeHtml(s.en)} · ${t(s.type)}</p>${s.bismillah ? `<p class="arabic basmala" lang="ar" dir="rtl">${escapeHtml(s.bismillah)}</p>` : ''}</div>`;
-    const layout = `<div class="segment" role="group" aria-label="${t('layout')}">${(['cards', 'flow'] as const).map(l => `<button data-action="layout" data-layout="${l}" class="${state.readingLayout === l ? 'active' : ''}" aria-pressed="${state.readingLayout === l}">${ic(l === 'cards' ? 'layers' : 'flow', 15)} ${t(l === 'cards' ? 'layoutCards' : 'layoutFlow')}</button>`).join('')}</div>`;
+    const layout = `<div class="segment" role="group" aria-label="${t('layout')}">${(['cards', 'flow', 'page'] as const).map(l => `<button data-action="layout" data-layout="${l}" class="${state.readingLayout === l ? 'active' : ''}" aria-pressed="${state.readingLayout === l}">${ic(l === 'cards' ? 'layers' : l === 'flow' ? 'flow' : 'book', 15)} ${t(l === 'cards' ? 'layoutCards' : l === 'flow' ? 'layoutFlow' : 'layoutPage')}</button>`).join('')}</div>`;
+    if (state.readingLayout === 'page') {
+        const chooser = `<button class="feature-wide row mb16" data-action="mushaf-open" aria-expanded="${mushafOpen}"><span class="gold">${ic('book', 22)}</span><span class="grow"><h3>${t('chooseMushaf')}</h3><p>${t(mushafOpen ? 'backToPage' : 'mushafInUse')}</p></span>${chevronEnd()}</button>`;
+        readerPage = currentPage();
+        return `${layout}${chooser}${mushafOpen ? mushafChooser(state.locale, mushafTab) : pageView(state, readerPage, menuVerse)}<p class="gentle"><a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`;
+    }
     const recite = s.count <= 15 ? `<button class="feature-wide row mb16" data-action="recite-surah" data-surah="${s.id}"><span class="gold">${ic('eye', 23)}</span><span class="grow"><h3>${t('reciteSurah')}</h3><p>${t('reciteSurahSub')}</p></span>${chevronEnd()}</button>` : '';
     const body = state.readingLayout === 'flow'
-        ? `<div class="mushaf-page"><p class="arabic flow-text" lang="ar" dir="rtl">${s.verses.map((text, i) => `<span class="flow-ayah" id="ayah-${i + 1}">${wordSpans(text)}</span> ${marker(i + 1)}`).join(' ')}</p></div>`
-        : s.verses.map((text, i) => { const a = i + 1, k = `${s.id}:${a}`, saved = state.bookmarks.includes(k); return `<article class="ayah-card" id="ayah-${a}"><div class="row between"><span class="ayah-meta">${ref(s.id, a)}</span><div class="ayah-tools"><button class="icon-button" data-action="play-verse" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('play')} ${s.id}:${a}">${ic('play')}</button><button class="icon-button ${saved ? 'active' : ''}" data-action="bookmark" data-surah="${s.id}" data-ayah="${a}" aria-label="${t(saved ? 'removeBookmark' : 'bookmark')} ${s.id}:${a}" aria-pressed="${saved}">${ic('bookmark')}</button><button class="icon-button" data-action="record-ayah" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('recite')} ${s.id}:${a}">${ic('mic')}</button><button class="icon-button" data-action="report" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('reportIssue')} ${s.id}:${a}">${ic('flag')}</button></div></div><p class="arabic ayah-text" lang="ar" dir="rtl"><span class="ayah-src">${wordSpans(text)}</span> ${marker(a)}</p><a class="text-link" href="https://quran.com/${s.id}/${a}" target="_blank" rel="noopener noreferrer">${t('translation')} ${ic('arrow', 12)}</a></article>`; }).join('');
+        ? `<div class="mushaf-page"><p class="arabic flow-text" lang="ar" dir="rtl">${s.verses.map((text, i) => `<span class="flow-ayah${hlClass(s.id, i + 1)}" id="ayah-${i + 1}" data-action="verse-menu" data-surah="${s.id}" data-ayah="${i + 1}">${wordSpans(text)}</span> ${marker(i + 1)}`).join(' ')}</p></div>`
+        : s.verses.map((text, i) => { const a = i + 1, k = `${s.id}:${a}`, saved = state.bookmarks.includes(k); return `<article class="ayah-card" id="ayah-${a}"><div class="row between"><span class="ayah-meta">${ref(s.id, a)}</span><div class="ayah-tools"><button class="icon-button" data-action="play-verse" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('play')} ${s.id}:${a}">${ic('play')}</button><button class="icon-button ${saved ? 'active' : ''}" data-action="bookmark" data-surah="${s.id}" data-ayah="${a}" aria-label="${t(saved ? 'removeBookmark' : 'bookmark')} ${s.id}:${a}" aria-pressed="${saved}">${ic('bookmark')}</button><button class="icon-button" data-action="record-ayah" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('recite')} ${s.id}:${a}">${ic('mic')}</button><button class="icon-button" data-action="report" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('reportIssue')} ${s.id}:${a}">${ic('flag')}</button><button class="icon-button" data-action="verse-menu" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('verseMenu')} ${s.id}:${a}">${ic('more')}</button></div></div><p class="arabic ayah-text" lang="ar" dir="rtl"><span class="ayah-src${hlClass(s.id, a)}">${wordSpans(text)}</span> ${marker(a)}</p><a class="text-link" href="https://quran.com/${s.id}/${a}" target="_blank" rel="noopener noreferrer">${t('translation')} ${ic('arrow', 12)}</a></article>`; }).join('');
     const listen = voiceAvailable && follow.status === 'off' ? `<button class="feature-wide row mb16" data-action="follow"><span class="gold">${ic('mic', 23)}</span><span class="grow"><h3>${t('follow')}</h3><p>${t('followSub')}</p></span><span class="pill gold">${t('experimental')}</span></button>` : '';
     return `${head}${layout}${listen}${recite}<div class="notice mb16">${ic('book', 18)}<p>${t('translation')}</p></div>${body}<p class="gentle"><a href="${s.source}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`;
 }
@@ -454,7 +541,7 @@ function dateLine(): string {
     return `<p class="date-line"><span>${escapeHtml(now.toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span class="date-dot" aria-hidden="true"></span><span class="gold" title="${t('hijriNote')}">${escapeHtml(hijri(now))}</span></p>`;
 }
 function bannerTitle(): string { return audioState === 'loading' ? t('loadingAudio') : previewing ? t('athan') : t(ownAudio ? 'yourRecording' : 'reference'); }
-function bannerSub(): string { return previewing ? reciterName(previewing) : t(ownAudio ? 'privateRecording' : 'audioProvider'); }
+function bannerSub(): string { return previewing ? reciterName(previewing) : ownAudio ? t('privateRecording') : queueLabel ? `${queueLabel} · ${t('audioProvider')}` : t('audioProvider'); }
 const reciterName = (id: string) => id === 'custom' ? state.athan.custom?.name ?? t('kindOwn') : id.startsWith('online-') ? online(id.slice(7))?.name[state.locale] ?? id : recording(id)?.name[state.locale] ?? id;
 /** Download in progress (online id), so its button shows progress. */
 let downloadingAthan: string | null = null;
@@ -1081,6 +1168,26 @@ async function handleAction(el: HTMLElement): Promise<void> {
             break;
         case 'stop-audio':
             stopAudio();
+            queueLabel = '';
+            break;
+        case 'verse-menu': {
+            const sN = Number(d.surah), aN = Number(d.ayah);
+            verse(sN, aN);
+            menuVerse = `${sN}:${aN}`;
+            el.classList.add('selected');
+            openVerseMenu(sN, aN);
+            break;
+        }
+        case 'page-go':
+            await goToPage(Number(d.page));
+            break;
+        case 'mushaf-open':
+            mushafOpen = !mushafOpen;
+            render();
+            break;
+        case 'mushaf-tab':
+            mushafTab = (['uthmani', 'tajweed', 'indopak'] as const).find(x => x === d.tab) ?? 'uthmani';
+            render();
             break;
         case 'select-option':
             if (state.session?.answered)
@@ -1794,6 +1901,22 @@ async function handleAction(el: HTMLElement): Promise<void> {
         }
     }
 }
+/** Page layout: swipe to turn (right = next page, as in a printed Mushaf), arrow keys, and Enter/Space on a focused ayah. */
+let swipeFrom: { x: number; y: number } | null = null;
+root.addEventListener('touchstart', e => { const p = (e.target as Element).closest('.page-mode'); swipeFrom = p && e.touches.length === 1 ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY } : null; }, { passive: true });
+root.addEventListener('touchend', e => {
+    if (!swipeFrom || view !== 'reader' || state.readingLayout !== 'page') return;
+    const t0 = e.changedTouches[0]!, dx = t0.clientX - swipeFrom.x, dy = t0.clientY - swipeFrom.y;
+    swipeFrom = null;
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 50 && !busy) void goToPage(readerPage + (dx > 0 ? 1 : -1));
+}, { passive: true });
+document.addEventListener('keydown', e => {
+    if (view !== 'reader' || state.readingLayout !== 'page' || mushafOpen || document.querySelector('dialog[open]')) return;
+    const el = e.target as HTMLElement;
+    if ((e.key === 'Enter' || e.key === ' ') && el.classList?.contains('page-ayah')) { e.preventDefault(); el.click(); return; }
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); void goToPage(readerPage + (e.key === 'ArrowLeft' ? 1 : -1)); }
+});
 root.addEventListener('click', async (e) => { const target = (e.target as Element).closest<HTMLElement>('[data-action]'); if (!target || busy || (target as HTMLButtonElement).disabled)
     return; busy = true; try {
     await handleAction(target);

@@ -16,7 +16,8 @@ export function stopAudio(): void { if (audio) {
     URL.revokeObjectURL(objectURL);
     objectURL = null;
 } audioEvent('stopped'); }
-export async function playAudio(source: string | Blob, rate = 1, repeat = false): Promise<void> {
+/** `onEnded` runs only when the clip finishes by itself (not when stopped), so a queue ends as soon as the user stops it. */
+export async function playAudio(source: string | Blob, rate = 1, repeat = false, onEnded?: () => void): Promise<void> {
     stopAudio();
     const url = typeof source === 'string' ? source : URL.createObjectURL(source);
     if (typeof source !== 'string')
@@ -27,8 +28,10 @@ export async function playAudio(source: string | Blob, rate = 1, repeat = false)
     player.playbackRate = rate;
     player.preservesPitch = true;
     player.loop = repeat;
-    player.onended = () => { if (audio === player)
-        stopAudio(); };
+    player.onended = () => { if (audio === player) {
+        stopAudio();
+        onEnded?.();
+    } };
     player.onerror = () => { if (audio === player) {
         audioEvent('error');
         stopAudio();

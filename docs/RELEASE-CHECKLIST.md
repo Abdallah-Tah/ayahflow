@@ -79,6 +79,14 @@ Widgets (iPhone, after 170a765):
   --deep` passes, installed in place with `devicectl`. Launch was refused because the phone was locked, so the v15
   migration on the device and the console were not checked yet.
 
+Reader pages, verse menu and Mushaf chooser (iPhone, build of 2026-10-26 ~19:15; schema v16 migrated on the phone with
+all data kept; device screenshot shows the verse menu on 2:14, page 3):
+- [ ] Turn pages by swiping (right = next) and with the arrows; the place is kept after closing the app.
+- [ ] Highlight, change colour, remove; add, edit and delete a note; both survive a restart and appear in an export.
+- [ ] Play to the end of the juz' plays verse after verse and stops with the banner's stop button; Repeat loops one verse.
+- [ ] Copy and Share from the menu; the translation sheet shows Pickthall and says tafseer is unavailable.
+- [ ] VoiceOver: each ayah on a page is a button with its reference; Larger Text keeps the page readable.
+
 Athan at Home only (iPhone, build of 2026-10-26):
 - [ ] Open the app once (migrates to v15; the new switch is off). Prayers → Times & Athan → Athan sound → turn on
   "Soft beep away from Home"; location must be Always. "Right now" shows at Home / away.

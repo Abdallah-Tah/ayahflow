@@ -325,3 +325,21 @@ html[dir=rtl] .lib-open{padding:14px 14px 12px 4px}
 .target-field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
 /* Reminder before prayer: the two test buttons share a row and wrap when a label is long (French, large text). */
 .test-buttons{display:flex;flex-wrap:wrap;gap:8px}.test-buttons .button{flex:1 1 150px;min-height:48px;font-size:13px;padding:10px 14px;white-space:normal;text-align:start;justify-content:flex-start;gap:8px;overflow-wrap:anywhere}
+/* Page layout (Madani page boundaries), verse menu and Mushaf chooser */
+.page-head{display:flex;align-items:center;gap:8px;margin:4px 0 12px}.page-title{flex:1;min-width:0;display:grid;justify-items:center;text-align:center;gap:2px}.page-title strong{font-size:15px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.page-turn{flex:none;width:44px;height:44px}.page-turn:disabled{opacity:.3}
+.page-mode{touch-action:pan-y;min-height:60vh}.page-mode .page-banner{margin:6px auto 0}.page-mode .basmala{margin:6px 0 4px}
+.page-text{font-size:calc(25px * var(--ar));line-height:2.3;text-align:justify;text-align-last:center;margin:6px 0}
+.page-ayah{cursor:pointer;border-radius:.3em;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;box-decoration-break:clone;-webkit-box-decoration-break:clone;transition:background .15s}
+.page-ayah:focus-visible{outline:2px solid var(--gold);outline-offset:2px}.page-ayah.selected,.flow-ayah.selected{background:rgb(var(--tint) / .22)}
+.page-number{text-align:center;color:var(--gold);font-size:15px;margin-top:10px}
+.hl{border-radius:.3em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.hl-gold{background:rgb(212 175 55 / .26)}.hl-green{background:rgb(76 175 120 / .26)}.hl-blue{background:rgb(80 140 220 / .26)}.hl-rose{background:rgb(225 110 150 / .26)}.hl-violet{background:rgb(150 115 220 / .26)}
+.note-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold);vertical-align:super;margin-inline:2px}
+.verse-sheet .verse-preview{font-size:calc(20px * var(--ar));line-height:2;margin:8px 0 4px;max-height:30vh;overflow:auto}
+.swatches{display:flex;flex-wrap:wrap;gap:10px;padding:4px 2px}.swatch{width:44px;height:44px;border-radius:50%;border:2px solid var(--line)}.swatch.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--panel) inset}
+.swatch.hl-gold{background:rgb(212 175 55 / .75)}.swatch.hl-green{background:rgb(76 175 120 / .75)}.swatch.hl-blue{background:rgb(80 140 220 / .75)}.swatch.hl-rose{background:rgb(225 110 150 / .75)}.swatch.hl-violet{background:rgb(150 115 220 / .75)}
+.note-input{width:100%;margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);color:var(--text);font:inherit;resize:vertical}
+.mushaf-card{display:flex;flex-wrap:wrap;gap:14px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}.mushaf-card.selected{border-color:var(--gold)}.mushaf-card.unavailable{opacity:.75}.mushaf-card .grow{flex:1 1 180px;min-width:0}
+.mushaf-preview{flex:1 1 140px;max-width:220px;margin-inline:auto;padding:8px;border:1px solid rgb(var(--tint) / .35);border-radius:10px;background:var(--bg);font-size:calc(12px * var(--ar));line-height:1.9;text-align:center;pointer-events:none}.mushaf-preview .cartouche{margin:2px auto;max-width:180px}.mushaf-preview .cartouche .arabic{font-size:11px}.mushaf-preview .ayah-end{transform:scale(.6)}
+.mushaf-preview p.arabic{font-size:calc(13px * var(--ar));line-height:1.9;margin:2px 0}.mushaf-preview .ayah-end svg{width:14px;height:14px}.mushaf-preview .ayah-end{transform:none;font-size:8px}

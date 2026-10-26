@@ -14,11 +14,11 @@ const label = (p, m) => ({ title: `${p} ${m}`, body: '' });
 const place = (lat, lng, method = 'NorthAmerica', before = { enabled: true, minutes: 15 }) => { const s = initialState(); s.places.home = { lat, lng, radius: 150 }; s.smart.method = method; s.athan.before = before; return s; };
 
 test('Migration v13 → v14: every saved setting is kept and the reminder before prayer stays off at 15 minutes', () => {
-    assert.equal(STATE_VERSION, 15);
+    assert.equal(STATE_VERSION, 16);
     const v13 = { ...initialState(), version: 13, xp: 54, places: { home: { lat: 40.7, lng: -74, radius: 300 }, work: null, mosque: null }, smart: { ...initialState().smart, method: 'NorthAmerica' }, athan: { ...initialState().athan, enabled: true, prayers: { fajr: true, dhuhr: false, asr: true, maghrib: true, isha: false }, reciter: 'madinah' }, counts: [{ id: 'istighfar', day: '2026-10-25', n: 9 }] };
     delete v13.athan.before;
     const m = validateState(JSON.parse(JSON.stringify(v13)));
-    assert.equal(m.version, 15);
+    assert.equal(m.version, 16);
     assert.deepEqual(m.athan.before, { enabled: false, minutes: 15 }, 'not switched on for anyone who has not chosen it');
     assert.equal(m.athan.enabled, true); assert.equal(m.athan.reciter, 'madinah'); assert.deepEqual(m.athan.prayers, v13.athan.prayers);
     assert.equal(m.places.home.radius, 300); assert.equal(m.smart.method, 'NorthAmerica'); assert.equal(m.xp, 54); assert.equal(m.counts[0].n, 9);

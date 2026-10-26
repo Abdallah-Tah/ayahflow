@@ -8,6 +8,8 @@ declare const QURAN: {
     juz: [number, number][];
     /** First ayah of each of Tanzil's 556 ruku' sections, [surah, ayah]. */
     ruku: [number, number][];
+    /** First ayah of each of the 604 Madani Mushaf pages (Tanzil metadata), [surah, ayah]. */
+    pages: [number, number][];
     surahs: { id: number; ar: string; name: string; en: string; type: 'meccan' | 'medinan'; bismillah: string | null; verses: string[] }[];
 };
 export default QURAN;

@@ -5,7 +5,7 @@ export const MODES: readonly Mode[] = ['next', 'previous', 'listen', 'recall', '
 export type Locale = 'en' | 'fr' | 'ar';
 export type Theme = 'system' | 'light' | 'dark';
 export type ArabicSize = 's' | 'm' | 'l' | 'xl';
-export type ReadingLayout = 'cards' | 'flow';
+export type ReadingLayout = 'cards' | 'flow' | 'page';
 /** Current save schema. v1 → v2 added theme; v2 → v3 added arabicSize and readingLayout; v3 → v4 added voiceFollowConsent;
  * v4 → v5 added places, smart reminder settings, adhkar completions and the detection log; v5 → v6 added athan settings;
  * v6 → v7 added the athan reciter (and a separate Fajr reciter) and an imported recording;
@@ -13,8 +13,9 @@ export type ReadingLayout = 'cards' | 'flow';
  * v9 → v10 added the user's own counters; v10 → v11 added istighfar reminders (off by default);
  * v11 → v12 added dhikr rotation reminders (off by default); v12 → v13 added worship tracking (`worship`: prayers the
  * user confirmed, post-prayer tasbih, favourites, personal targets, lifetime totals and Quran reading days);
- * v13 → v14 added the reminder before each prayer (`athan.before`, off by default). */
-export const STATE_VERSION = 15;
+ * v13 → v14 added the reminder before each prayer (`athan.before`, off by default); v14 → v15 added the soft beep away
+ * from Home (`athan.awayChime`, off); v15 → v16 added the page layout, verse highlights and the user's verse notes. */
+export const STATE_VERSION = 16;
 import ATHAN_DATA from './athan-data.js';
 /** Bundled athan recordings (content/athan/sources.json) plus the user's own imported file. */
 export const ATHAN_RECITERS: readonly string[] = ATHAN_DATA.recordings.map(r => r.id);
@@ -218,8 +219,13 @@ export interface Session {
     startedAt: number;
     kind: 'daily' | 'practice';
 }
+export const HIGHLIGHT_COLORS = ['gold', 'green', 'blue', 'rose', 'violet'] as const;
+export type HighlightColor = typeof HIGHLIGHT_COLORS[number];
+export interface Highlight { key: string; color: HighlightColor; at: number }
+export interface VerseNote { key: string; text: string; at: number }
+export const NOTE_MAX = 2000;
 export interface AppState {
-    version: 15;
+    version: 16;
     locale: Locale;
     theme: Theme;
     arabicSize: ArabicSize;
@@ -245,6 +251,10 @@ export interface AppState {
     days: Record<string, number>;
     xp: number;
     bookmarks: string[];
+    /** Verses the user coloured in the reader, by "surah:ayah". The user's own marks; exported and deleted with the rest. */
+    highlights: Highlight[];
+    /** The user's own notes on verses, by "surah:ayah" (plain text, never sent anywhere). */
+    notes: VerseNote[];
     readPosition: {
         surah: number;
         ayah: number;
@@ -262,7 +272,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 15, worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 16, highlights: [], notes: [], worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -370,12 +380,12 @@ export function completedAccuracy(state: AppState): number | null { const a = st
 export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
-    const s = raw as Omit<AppState, 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    const s = raw as Omit<AppState, 'highlights' | 'notes' | 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; highlights?: Highlight[]; notes?: VerseNote[]; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
-    if (s.version >= 3 && (!['s', 'm', 'l', 'xl'].includes(s.arabicSize!) || !['cards', 'flow'].includes(s.readingLayout!)))
+    if (s.version >= 3 && (!['s', 'm', 'l', 'xl'].includes(s.arabicSize!) || !(s.version >= 16 ? ['cards', 'flow', 'page'] : ['cards', 'flow']).includes(s.readingLayout!)))
         throw new Error('Invalid reading settings');
     if (s.version >= 4 && typeof s.voiceFollowConsent !== 'boolean')
         throw new Error('Invalid voice setting');
@@ -454,6 +464,13 @@ export function validateState(raw: unknown): AppState {
     if (!Array.isArray(s.bookmarks) || s.bookmarks.some(k => typeof k !== 'string' || !/^\d+:\d+$/.test(k)))
         throw new Error('Invalid bookmarks');
     s.bookmarks.forEach(k => { const [a, b] = k.split(':').map(Number); verse(a!, b!); });
+    if (s.version >= 16) {
+        const known = (k: unknown) => { if (typeof k !== 'string' || !/^\d+:\d+$/.test(k)) return false; const [a, b] = k.split(':').map(Number); try { verse(a!, b!); return true; } catch { return false; } };
+        if (!Array.isArray(s.highlights) || s.highlights.length > 6236 || new Set(s.highlights.map(h => h?.key)).size !== s.highlights.length || s.highlights.some(h => !h || !known(h.key) || !HIGHLIGHT_COLORS.includes(h.color) || !Number.isFinite(h.at) || Object.keys(h).length !== 3))
+            throw new Error('Invalid highlights');
+        if (!Array.isArray(s.notes) || s.notes.length > 6236 || new Set(s.notes.map(n => n?.key)).size !== s.notes.length || s.notes.some(n => !n || !known(n.key) || typeof n.text !== 'string' || !n.text.trim() || n.text.length > NOTE_MAX || !Number.isFinite(n.at) || Object.keys(n).length !== 3))
+            throw new Error('Invalid notes');
+    }
     if (!s.readPosition)
         throw new Error('Invalid reading position');
     verse(s.readPosition.surah, s.readPosition.ayah);
@@ -470,7 +487,7 @@ export function validateState(raw: unknown): AppState {
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone({ ...s, version: 15, worship: s.version < 13 ? defaultWorship() : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    return structuredClone({ ...s, version: 16, highlights: s.version < 16 ? [] : s.highlights!, notes: s.version < 16 ? [] : s.notes!, worship: s.version < 13 ? defaultWorship() : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */
@@ -559,4 +576,23 @@ export function removeCounter(state: AppState, id: string): AppState {
     const w = state.worship, archive = { ...w.archive };
     delete archive[id];
     return { ...state, myCounters: state.myCounters.filter(x => x.id !== id), counts: state.counts.filter(x => x.id !== id), rotation: { ...state.rotation, phrases: state.rotation.phrases.filter(p => p !== id) }, worship: { ...w, favorites: w.favorites.filter(x => x !== id), recent: w.recent.filter(x => x !== id), archive } };
+}
+/** Colours a verse, or clears it with null. Same colour again changes nothing, so a repeated tap is harmless. */
+export function setHighlight(state: AppState, surah: number, ayah: number, color: HighlightColor | null, at: number): AppState {
+    verse(surah, ayah);
+    if (color !== null && !HIGHLIGHT_COLORS.includes(color)) throw new Error('Invalid colour');
+    const key = `${surah}:${ayah}`, old = state.highlights.find(h => h.key === key);
+    if ((old?.color ?? null) === color) return state;
+    const rest = state.highlights.filter(h => h.key !== key);
+    return { ...state, highlights: color === null ? rest : [...rest, { key, color, at }] };
+}
+/** Saves the user's note on a verse; blank text deletes it. The same text again changes nothing. */
+export function setNote(state: AppState, surah: number, ayah: number, text: string, at: number): AppState {
+    verse(surah, ayah);
+    const key = `${surah}:${ayah}`, clean = text.trim();
+    if (clean.length > NOTE_MAX) throw new Error('Note too long');
+    const old = state.notes.find(n => n.key === key);
+    if ((old?.text ?? '') === clean) return state;
+    const rest = state.notes.filter(n => n.key !== key);
+    return { ...state, notes: clean ? [...rest, { key, text: clean, at }] : rest };
 }
