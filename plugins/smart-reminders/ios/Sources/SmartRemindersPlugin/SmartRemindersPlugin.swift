@@ -3,6 +3,7 @@ import Capacitor
 import CoreLocation
 import CoreMotion
 import CryptoKit
+import UserNotifications
 
 /// Web-layer API for SmartReminders. Location is requested only from these calls, i.e. after the user turns on a
 /// feature that needs it. Coordinates are kept on the device; nothing here uses the network.
@@ -22,7 +23,8 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setWidgetData", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "downloadAthan", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "steps", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "steps", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "notificationCheck", returnType: CAPPluginReturnPromise)
     ]
     private var engine: SmartReminders { SmartReminders.shared }
     private let pedometer = CMPedometer()
@@ -117,6 +119,33 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
             let status = CMPedometer.authorizationStatus()
             let permission = denied || status == .denied || status == .restricted ? "denied" : status == .authorized ? "granted" : "prompt"
             call.resolve(["available": true, "permission": permission, "approximate": false, "days": days.sorted { $0.0 < $1.0 }.map { ["day": format.string(from: $0.0), "steps": $0.1] }])
+        }
+    }
+
+    /// For the notification test in the prayer settings: the app's notification settings and, for each sound name, where
+    /// iOS will find it ("library" = Library/Sounds, "bundle" = the app bundle) or "missing" (iOS then plays its default).
+    /// Reads only; nothing is scheduled or changed.
+    @objc func notificationCheck(_ call: CAPPluginCall) {
+        AthanSound.install()
+        let names = (call.getArray("sounds") as? [String] ?? []).filter { !$0.isEmpty && !$0.contains("..") }
+        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?.appendingPathComponent("Sounds", isDirectory: true)
+        var files: [String: String] = [:]
+        for name in names {
+            if let library, FileManager.default.fileExists(atPath: library.appendingPathComponent(name).path) { files[name] = "library" }
+            else if let root = Bundle.main.resourceURL, FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path) { files[name] = "bundle" }
+            else { files[name] = "missing" }
+        }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let setting = { (s: UNNotificationSetting) in s == .enabled ? "on" : s == .disabled ? "off" : "unsupported" }
+            let auth: String
+            switch settings.authorizationStatus {
+            case .authorized: auth = "granted"
+            case .provisional: auth = "provisional"
+            case .ephemeral: auth = "ephemeral"
+            case .denied: auth = "denied"
+            default: auth = "prompt"
+            }
+            call.resolve(["authorization": auth, "alert": setting(settings.alertSetting), "sound": setting(settings.soundSetting), "lockScreen": setting(settings.lockScreenSetting), "files": files])
         }
     }
 

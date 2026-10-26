@@ -43,7 +43,8 @@ enum SharedWidgetStore {
 }
 
 /// Copies every bundled ≤30 s athan alert (public/sounds/athan-<id>-alert.caf) into Library/Sounds as
-/// ayahflow-athan-<id>.caf, where iOS looks for notification sounds. An imported recording is written there by the app.
+/// ayahflow-athan-<id>.caf, where iOS looks for notification sounds, and the chime (public/sounds/adhkar-chime.caf) as
+/// ayahflow-prayer-chime.caf for the reminder before prayer. An imported recording is written there by the app.
 enum AthanSound {
     static func install() {
         guard let sounds = Bundle.main.url(forResource: "sounds", withExtension: nil, subdirectory: "public"),
@@ -52,9 +53,12 @@ enum AthanSound {
         let dir = library.appendingPathComponent("Sounds", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let size = { (url: URL) in (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? -1 }
-        for source in files where source.lastPathComponent.hasPrefix("athan-") && source.lastPathComponent.hasSuffix("-alert.caf") {
-            let id = source.lastPathComponent.dropFirst("athan-".count).dropLast("-alert.caf".count)
-            let target = dir.appendingPathComponent("ayahflow-athan-\(id).caf")
+        for source in files {
+            let name = source.lastPathComponent, targetName: String
+            if name.hasPrefix("athan-") && name.hasSuffix("-alert.caf") { targetName = "ayahflow-athan-\(name.dropFirst("athan-".count).dropLast("-alert.caf".count)).caf" }
+            else if name == "adhkar-chime.caf" { targetName = "ayahflow-prayer-chime.caf" }
+            else { continue }
+            let target = dir.appendingPathComponent(targetName)
             if size(source) == size(target) { continue }
             try? FileManager.default.removeItem(at: target)
             try? FileManager.default.copyItem(at: source, to: target)

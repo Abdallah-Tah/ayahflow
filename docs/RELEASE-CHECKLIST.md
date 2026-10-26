@@ -6,12 +6,15 @@ not stand in for native, simulator or device results, and nothing here is a stor
 ## 1. Automated tests (done)
 
 - [x] `npm run typecheck` (strict TypeScript, app and voice worker) passes.
-- [x] `npm test`: 115 Node tests in 5 files pass (engine, adhkar, worship, release, dst-athan). They cover, among others:
-  the corpus checksum and verbatim text, migrations up to schema v13 without reset, idempotent writes, prayer times for
+- [x] `npm test`: 124 Node tests in 7 files pass (engine, adhkar, worship, release, dst-athan, before-prayer, places). They
+  cover, among others: the corpus checksum and verbatim text, migrations up to schema v14 without reset, idempotent writes, prayer times for
   every method across both 2026 US DST changes, time-zone changes, Hanafi Asr, the prayer day around midnight,
   high-latitude Isha after midnight and at or after the next Fajr, unique athan ids for a year at 51–60°N, the Ayah of
   the Moment changing every 30 elapsed minutes across America/New_York 2026-03-08 and 2026-11-01 (and half-hour /
-  45-minute zones), the widget's bundled verse pool matching the app's, and tracking that never changes by itself.
+  45-minute zones), the widget's bundled verse pool matching the app's, and tracking that never changes by itself;
+  the reminder before prayer (exactly N minutes before each chosen prayer, never sunrise, both 2026 New York DST changes,
+  Oslo Isha after midnight, ids 18–22 × 10⁶ clear of every other kind, re-planning without duplicates, the 64-notification
+  budget with athans first, the requested EN/FR/AR wording) and the saved-place cards (one button per area, invalid areas ignored).
 - [x] The Swift `MomentClock` (widget) and `slotOf` (app) give identical slots for 15,450 sampled instants in five time
   zones around their DST changes (compiled on the Mac with `swiftc`, compared line by line; a one-off check, not in `npm test`).
 - [x] Original v0.1 delivery: 11 browser checks of the single-file app (evidence/browser-tests.json); not re-run since.
@@ -49,6 +52,15 @@ not stand in for native, simulator or device results, and nothing here is a stor
   - Ayah of the Moment rotation: the widget changed between half hours (the over-a-day check is still open, see section 5).
   - Dhikr persistence: counts kept after force-quit and relaunch.
   - Athan notification: fired as expected.
+- [x] Build with the reminder before prayer and the places fix (Debug, iPhone 16 Pro, 2026-10-25 ~19:56): BUILD
+  SUCCEEDED for app and widget, `codesign --verify --deep --strict` passes, installed in place with `devicectl` and
+  launched. Data container after the update: schema 14, `athan.before` = off / 15 min (not switched on), method
+  NorthAmerica, athan on with the same reciters, Home at 150 m, 4 salah records, 9 count days (712 in total), XP 54 and
+  the reading position (18:10) unchanged. `Library/Sounds/ayahflow-prayer-chime.caf` (190 KB) installed beside the athan
+  sounds. Console after launch: no reminder-sync error, 35 notifications pending (of 64).
+- [x] iOS Simulator build (iPhone 16 Pro, iOS 18.6) of the same tree: BUILD SUCCEEDED. Not launched (simulator panel access
+  was not granted), so the settings were checked in the browser instead: Places cards and the Prayers → Times & Athan
+  section at 320/360/390/430 pt in EN/FR/AR, no overlap or horizontal scroll.
 - [ ] The rest of section 5.
 
 ## 5. Not yet done (needs a person with the phone, or later work)
@@ -60,6 +72,18 @@ Widgets (iPhone, after 170a765):
   rotation; WidgetKit decides when it redraws, so a change can come a little after the half hour).
 - [ ] A widget write failure is shown on the Prayers page (simulate only if a safe way exists; otherwise review Console logs,
   subsystem `com.buildwithabdallah.ayahflow`, category `widget`).
+
+Reminder before prayer and notification sounds (iPhone, build of 2026-10-25 ~19:56):
+- [ ] Places screen on the phone: Home card shows 100/150/200/300/500 m as separate buttons, gold on the chosen one.
+- [ ] Turn on Prayers → Times & Athan → "Remind me before each prayer"; the "Next reminder" line shows the prayer time
+  minus 15 minutes.
+- [ ] "Test 15-minute reminder" with the phone locked and the Ring switch on: the chime is heard (only the user can confirm;
+  the diagnostics only show permission, sound setting, sound file and that iOS kept the request).
+- [ ] "Test athan sound": the selected reciter's alert is heard (separately from the chime).
+- [ ] A real reminder 15 minutes before a prayer plays the chime, not the athan, and the athan still comes at the prayer
+  time; tapping either opens the Prayers screen.
+- [ ] With Silent mode on, both arrive without sound; with a Focus that silences AyahFlow, neither breaks through.
+- [ ] The athan "Gentle alert" option now plays the chime on iOS (it had no sound property before this build).
 
 App on the iPhone:
 - [ ] Guided tasbih progress after force-quit, and no double counting (dhikr counts themselves: user-reported pass above).
@@ -122,7 +146,7 @@ Native compilation and device testing (carried over):
 - [ ] Verify PrivacyInfo.xcprivacy is included in the correct Xcode target; reassess declarations when plugins or network services change.
 - [ ] Review OS backup inclusion/exclusion, restoration and recording retention policy.
 - [ ] Test corrupt/missing saves and explicit import without accidental overwrite.
-- [x] Versioned migrations (schema v13) with tests; saved data is migrated, never reset.
+- [x] Versioned migrations (schema v14) with tests; saved data is migrated, never reset.
 - [ ] Add native file/index reconciliation or transactional storage before claiming crash consistency.
 - [ ] Introduce an appropriate database before large-corpus/history/sync growth; Preferences is not a database.
 - [ ] Review browser CSP and HTTPS deployment headers.

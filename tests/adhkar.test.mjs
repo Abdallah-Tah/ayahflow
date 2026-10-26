@@ -111,7 +111,7 @@ test('Completions are explicit, idempotent and kept apart from reminders', () =>
     assert.equal(s.adhkarLog[0].day, dayKey(at(7)));
 });
 test('Version 5 saves validate places and settings; exports never contain coordinates', () => {
-    assert.equal(STATE_VERSION, 13);
+    assert.equal(STATE_VERSION, 14);
     const s = { ...initialState(), places: { home: { lat: 21.42, lng: 39.82, radius: 150 }, work: null, mosque: null }, detections: [{ event: 'EXIT_HOME', at: 1 }] };
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).places.home, { lat: 21.42, lng: 39.82, radius: 150 });
     assert.throws(() => validateState({ ...s, places: { ...s.places, home: { lat: 95, lng: 0, radius: 150 } } }), /places/);
@@ -214,7 +214,7 @@ test('Widget data carries a week of prayers and windows, without coordinates', (
 });
 
 test('v7 reciters: bundled ids or a custom file; exports drop the custom file and fall back to a bundled reciter', () => {
-    assert.equal(STATE_VERSION, 13);
+    assert.equal(STATE_VERSION, 14);
     const base = initialState();
     assert.equal(base.athan.reciter, 'beautiful'); assert.equal(base.athan.custom, null);
     assert.throws(() => validateState({ ...base, athan: { ...base.athan, reciter: 'unknown' } }), /reciter/);
@@ -305,7 +305,7 @@ test('v9 counts are set (not added) per counter and day, validated, migrated and
     const v8 = JSON.parse(JSON.stringify(initialState())); v8.version = 8; delete v8.counts; delete v8.health;
     v8.xp = 30;
     const m = validateState(v8);
-    assert.equal(m.version, 13); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
+    assert.equal(m.version, 14); assert.deepEqual(m.counts, []); assert.deepEqual(m.health, defaultHealth()); assert.equal(m.xp, 30);
     assert.deepEqual(exportable(s).counts, s.counts);
 });
 
@@ -392,7 +392,7 @@ test('Rotation reminders: off by default, inside waking hours, in turn, capped s
     assert.equal(later.find(x => new Date(x.at).getHours() === 12).phrase, r.find(x => new Date(x.at).getHours() === 12).phrase);
     const busy = rotationReminders({ ...on, rotation: { ...on.rotation, every: 30, from: '06:00', to: '23:30' } }, phrases, 'Dhikr', at8);
     assert.equal(busy.length, ROTATION_MAX);
-    assert.equal(PLAN_DAYS * 5 + PLAN_DAYS * 3 + 6 + SALAH_MAX + ROTATION_MAX, 64); // athan + adhkar + istighfar + prayer check-ins + rotation
+    assert.equal(PLAN_DAYS * 5 + PLAN_DAYS * 3 + 6 + SALAH_MAX + ROTATION_MAX + 3, 64); // athan + adhkar + istighfar + prayer check-ins + rotation + (daily practice, two tests)
     assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, every: 5 } }), /rotation/);
     assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, from: '21:00', to: '08:00' } }), /rotation/);
     assert.throws(() => validateState({ ...on, rotation: { ...on.rotation, phrases: ['made-up'] } }), /rotation/);

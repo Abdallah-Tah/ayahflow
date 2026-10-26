@@ -24,9 +24,20 @@ export interface SmartBridge {
     scheduleRotation(list: RotationReminder[]): Promise<void>;
     /** Replaces the pending prayer check-in / tasbih reminders (src/worship.ts salahReminders). */
     scheduleSalah(list: { id: number; at: number; title: string; body: string; url: string }[]): Promise<void>;
+    /** Replaces the pending reminders before prayers (beforeSchedule). */
+    scheduleBefore(list: BeforeAlert[]): Promise<void>;
+    /** One test notification `seconds` from now, with the same sound as the real one; `pending` is whether iOS kept it. */
+    scheduleTest(n: TestNotification, seconds: number): Promise<{ at: number; pending: boolean; sound: string | null }>;
+    /** iOS notification settings and where each sound file is; empty where the platform has no such check. */
+    notificationCheck(sounds: string[]): Promise<NotificationCheck>;
+    /** The sound file name the notification will ask for, or null for none (Android: the channel's). */
+    soundFor(n: TestNotification): string | null;
     /** Steps per local day from the device pedometer, read live and never saved by the app. */
     steps(days: number): Promise<StepReading>;
 }
+export interface TestNotification { id: number; kind: 'before' | 'athan'; title: string; body: string; reciter: string | null; customVersion: number | null }
+type Setting = 'on' | 'off' | 'unsupported';
+export interface NotificationCheck { authorization?: 'granted' | 'provisional' | 'ephemeral' | 'denied' | 'prompt'; alert?: Setting; sound?: Setting; lockScreen?: Setting; files?: Record<string, 'library' | 'bundle' | 'missing'> }
 /** iOS: CMPedometer (up to 7 days of history, kept by the system). Android: the step-counter sensor, sampled when the app
  * reads it, so a day only counts from the first reading and steps since the last reading are given to today (approximate). */
 export interface StepReading { available: boolean; permission: 'granted' | 'denied' | 'prompt' | 'unavailable'; approximate: boolean; days: { day: string; steps: number }[] }
@@ -48,21 +59,31 @@ const CODE: Partial<Record<Moment, number>> = { morning: 1, evening: 2, sleep: 3
 /** Days of adhkar and athan notifications planned ahead (refreshed whenever the app opens). Four days leaves room in
  * iOS's 64 pending notifications for istighfar (≤ 6) and rotation (≤ ROTATION_MAX) reminders. */
 export const PLAN_DAYS = 4;
+/** Athan alerts pending at once: five a day, PLAN_DAYS days. */
+export const ATHAN_MAX = PLAN_DAYS * 5;
 /** Prayer check-in / tasbih reminders pending at once (src/worship.ts salahReminders). */
 export const SALAH_MAX = 6;
-export const ROTATION_MAX = 64 - PLAN_DAYS * 5 - PLAN_DAYS * 3 - 6 - SALAH_MAX;
+/** Reminders before a prayer pending at once: the next two days. */
+export const BEFORE_MAX = 10;
+/** Kept free in iOS's 64: the daily practice reminder (id 701) and the two test notifications. */
+const RESERVED = 3;
+/** Rotation reminders get what is left of the 64 once every athan, timed adhkar, istighfar and prayer reminder has its
+ * place, so iOS (which keeps only the soonest 64) never drops an athan for them. */
+export const ROTATION_MAX = 64 - ATHAN_MAX - PLAN_DAYS * 3 - 6 - SALAH_MAX - RESERVED;
+/** The rotation budget for these settings: smaller while the reminders before prayers are on. */
+export function rotationMax(state: AppState): number { return ROTATION_MAX - (state.athan.before.enabled ? BEFORE_MAX : 0); }
 export interface RotationReminder { id: number; at: number; title: string; body: string; url: string; phrase: string }
 /** Reminders every `every` minutes between `from` and `to` (today and tomorrow, at most ROTATION_MAX), each with the
  * next chosen phrase. A slot's phrase depends only on its time, so re-planning never reshuffles them. Ids 12×10⁶ + n. */
 export function rotationReminders(state: AppState, phrases: { id: string; text: string; note: string }[], title: string, now = Date.now()): RotationReminder[] {
     const r = state.rotation;
     if (!r.enabled || !phrases.length) return [];
-    const out: RotationReminder[] = [], step = r.every * 60000;
+    const out: RotationReminder[] = [], step = r.every * 60000, max = rotationMax(state);
     const [fh, fm] = r.from.split(':').map(Number), [th, tm] = r.to.split(':').map(Number);
-    for (let i = 0; i < 2 && out.length < ROTATION_MAX; i++) {
+    for (let i = 0; i < 2 && out.length < max; i++) {
         const d = new Date(now); d.setDate(d.getDate() + i);
         const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), fh, fm).getTime(), end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), th, tm).getTime();
-        for (let at = start; at <= end && out.length < ROTATION_MAX; at += step) {
+        for (let at = start; at <= end && out.length < max; at += step) {
             if (at <= now) continue;
             const p = phrases[Math.floor((at - start) / step + i * 97) % phrases.length]!;
             out.push({ id: 12000000 + out.length, at, title, body: `${p.text}\n${p.note}`, url: 'ayahflow://rotation', phrase: p.id });
@@ -252,10 +273,28 @@ export function prayerDayView(state: AppState, now = Date.now()): { next: Prayer
 }
 /** `reciter` is a bundled recording id or 'custom'; null means the gentle system alert. */
 export interface AthanAlert { id: number; at: number; prayer: PrayerName; title: string; body: string; reciter: string | null; customVersion: number | null }
-/** Athan alerts for the next week (35 at most, within iOS's 64 pending notifications together with adhkar reminders). */
+/** Athan alerts for the next PLAN_DAYS days (ATHAN_MAX at most, the soonest, within iOS's 64 pending notifications). */
 export function athanSchedule(state: AppState, label: (p: PrayerName, at: number) => { title: string; body: string }, now = Date.now()): AthanAlert[] {
     if (!state.athan.enabled) return [];
-    return prayersFrom(state, now, PLAN_DAYS).filter(p => p.at > now && state.athan.prayers[p.prayer]).map(p => ({ id: athanId(p.prayer, p.day), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
+    return prayersFrom(state, now, PLAN_DAYS).filter(p => p.at > now && state.athan.prayers[p.prayer]).slice(0, ATHAN_MAX).map(p => ({ id: athanId(p.prayer, p.day), at: p.at, prayer: p.prayer, ...label(p.prayer, p.at), reciter: state.athan.sound === 'chime' ? null : p.prayer === 'fajr' ? state.athan.fajrReciter : state.athan.reciter, customVersion: state.athan.custom?.version ?? null }));
+}
+// ---- Reminder before a prayer -------------------------------------------------------------------
+const BEFORE_CODE: Record<PrayerName, number> = { fajr: 18, dhuhr: 19, asr: 20, maghrib: 21, isha: 22 };
+/** Ids 18–22 × 10⁶ + yymmdd of the prayer day, clear of adhkar (1–3), athan (4–8), istighfar (9–11), rotation (12) and
+ * check-ins (13–17), so replacing these never touches an athan. */
+export function beforeId(prayer: PrayerName, day: string): number { return BEFORE_CODE[prayer] * 1000000 + Number(day.slice(2).replace(/-/g, '')); }
+/** Test notifications from the prayer settings: one id each, replaced on every tap. */
+export const TEST_BEFORE_ID = 23000001, TEST_ATHAN_ID = 23000002;
+export interface BeforeAlert { id: number; at: number; prayer: PrayerName; day: string; title: string; body: string }
+/** A gentle reminder `minutes` before each prayer chosen for notifications (sunrise is not a prayer, so never), for the
+ * next two days (BEFORE_MAX at most). Independent of the athan switch, so either can be off. A reminder whose time has
+ * already passed is left out rather than sent late. Times come from timesFor: the saved place, method and Asr setting. */
+export function beforeSchedule(state: AppState, label: (p: PrayerName, minutes: number) => { title: string; body: string }, now = Date.now()): BeforeAlert[] {
+    const b = state.athan.before;
+    if (!b.enabled) return [];
+    const lead = b.minutes * 60000;
+    return prayersFrom(state, now, 2).filter(p => state.athan.prayers[p.prayer] && p.at - lead > now).slice(0, BEFORE_MAX)
+        .map(p => ({ id: beforeId(p.prayer, p.day), at: p.at - lead, prayer: p.prayer, day: p.day, ...label(p.prayer, b.minutes) }));
 }
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
 /** Today's dhikr counts, adhkar progress and (only when the step tracker is on) the latest step reading, for the widget. */

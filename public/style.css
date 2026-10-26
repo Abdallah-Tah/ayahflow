@@ -323,3 +323,5 @@ html[dir=rtl] .lib-open{padding:14px 14px 12px 4px}
 .target-field input{min-height:44px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);padding:0 12px;font-size:16px;max-width:160px}
 .dhikr-text.small-ar{font-size:calc(21px * var(--ar));margin:2px 0 8px}
 .target-field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+/* Reminder before prayer: the two test buttons share a row and wrap when a label is long (French, large text). */
+.test-buttons{display:flex;flex-wrap:wrap;gap:8px}.test-buttons .button{flex:1 1 150px;min-height:48px;font-size:13px;padding:10px 14px;white-space:normal;text-align:start;justify-content:flex-start;gap:8px;overflow-wrap:anywhere}

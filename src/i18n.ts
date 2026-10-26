@@ -241,7 +241,47 @@ const STRINGS: Record<string, readonly [
     widgetPrayed: ['prayed', 'accomplie', 'صُلّيت'],
     book: ['book', 'livre', 'كتاب'],
     hadith: ['hadith', 'hadith', 'حديث'],
+    // Reminder before prayer (v14)
+    beforeSection: ['Reminder before prayer', 'Rappel avant la prière', 'تذكير قبل الصلاة'],
+    beforeToggle: ['Remind me before each prayer', 'Me rappeler avant chaque prière', 'ذكّرني قبل كل صلاة'],
+    beforeNote: ['A gentle chime before each prayer whose bell is on above (never sunrise). The athan still comes at the prayer time with your reciter; turning this off leaves the athan as it is.', 'Un léger carillon avant chaque prière dont la cloche est active ci-dessus (jamais le lever du soleil). L’adhan sonne toujours à l’heure de la prière avec votre récitant ; désactiver ce rappel ne change pas l’adhan.', 'نغمة هادئة قبل كل صلاة جرسها مفعّل أعلاه (لا للشروق). يبقى الأذان عند دخول الوقت بصوت المؤذن الذي اخترته، وإيقاف هذا التذكير لا يغيّر الأذان.'],
+    beforeLead: ['How long before', 'Combien de temps avant', 'قبل الصلاة بـ'],
+    beforeOn: ['You will get a reminder {n} min before each chosen prayer.', 'Vous recevrez un rappel {n} min avant chaque prière choisie.', 'سيصلك تذكير قبل كل صلاة مختارة بـ{n} د.'],
+    beforeNext: ['Next reminder', 'Prochain rappel', 'التذكير التالي'],
+    beforeLimit: ['Planned for today and tomorrow; opening AyahFlow plans the next ones.', 'Prévu pour aujourd’hui et demain ; ouvrir AyahFlow planifie les suivants.', 'مُخطط لليوم والغد، وفتح AyahFlow يخطط للتالية.'],
+    beforeBody: ['A gentle reminder to prepare for prayer. May Allah make it easy for you.', 'Un petit rappel pour vous préparer à la prière. Qu’Allah accepte nos prières.', 'تذكير لطيف للاستعداد للصلاة. تقبّل الله منا ومنكم.'],
+    testBefore: ['Test {n}-minute reminder', 'Tester le rappel ({n} min)', 'جرّب التذكير ({n} د)'],
+    testAthan: ['Test athan sound', 'Tester le son de l’adhan', 'جرّب صوت الأذان'],
+    testTitle: ['Notification test', 'Test des notifications', 'اختبار الإشعارات'],
+    testNote: ['Each test arrives about 15 seconds after the tap: lock your iPhone and listen. The Ring/Silent switch and Focus apply, as for any notification.', 'Chaque test arrive environ 15 secondes après l’appui : verrouillez votre iPhone et écoutez. Le mode silencieux et les modes de concentration s’appliquent, comme pour toute notification.', 'يصل كل اختبار بعد نحو ١٥ ثانية من الضغط: اقفل الآيفون واستمع. يسري الوضع الصامت ووضع التركيز كأي إشعار.'],
+    testBeforeBody: ['Test · this is how the reminder before prayer will sound.', 'Test · voici le son du rappel avant la prière.', 'اختبار · هكذا سيبدو التذكير قبل الصلاة.'],
+    testAthanBody: ['Test · this is how the athan alert will sound.', 'Test · voici le son de l’alerte de l’adhan.', 'اختبار · هكذا سيبدو تنبيه الأذان.'],
+    testScheduled: ['Scheduled for {time}. Lock your iPhone now. AyahFlow cannot hear the speaker, so only you can confirm the sound played.', 'Prévu à {time}. Verrouillez votre iPhone maintenant. AyahFlow ne peut pas entendre le haut-parleur : vous seul pouvez confirmer que le son a joué.', 'مُجدول عند {time}. اقفل الآيفون الآن. لا يستطيع AyahFlow سماع مكبّر الصوت، فأنت وحدك تؤكد أن الصوت عُزف.'],
+    testFailed: ['The test could not be scheduled.', 'Le test n’a pas pu être planifié.', 'تعذّرت جدولة الاختبار.'],
+    diagPermission: ['Notifications', 'Notifications', 'الإشعارات'],
+    diagSounds: ['Notification sounds', 'Sons des notifications', 'أصوات الإشعارات'],
+    diagSoundFile: ['Sound file', 'Fichier son', 'ملف الصوت'],
+    diagPending: ['Waiting in iOS', 'En attente dans iOS', 'بانتظار iOS'],
+    diagFound: ['found', 'trouvé', 'موجود'],
+    diagMissing: ['missing · iOS default sound', 'absent · son par défaut d’iOS', 'غير موجود · صوت iOS الافتراضي'],
+    diagSystemDefault: ['iOS default sound', 'son par défaut d’iOS', 'صوت iOS الافتراضي'],
+    diagUnknown: ['unknown', 'inconnu', 'غير معروف'],
+    diagYes: ['yes', 'oui', 'نعم'],
+    diagNo: ['no', 'non', 'لا'],
+    diagPermOff: ['Notifications are off for AyahFlow. Turn them on in Settings › Notifications › AyahFlow.', 'Les notifications sont désactivées pour AyahFlow. Activez-les dans Réglages › Notifications › AyahFlow.', 'الإشعارات متوقفة لـ AyahFlow. فعّلها من الإعدادات › الإشعارات › AyahFlow.'],
+    diagSoundsOff: ['Sounds are off for AyahFlow notifications: Settings › Notifications › AyahFlow › Sounds.', 'Les sons sont désactivés pour les notifications d’AyahFlow : Réglages › Notifications › AyahFlow › Sons.', 'الأصوات متوقفة لإشعارات AyahFlow: الإعدادات › الإشعارات › AyahFlow › الأصوات.'],
+    diagNotPending: ['iOS did not keep the test notification. Try again; if it repeats, restart the iPhone.', 'iOS n’a pas gardé la notification de test. Réessayez ; si cela se répète, redémarrez l’iPhone.', 'لم يحتفظ iOS بإشعار الاختبار. أعد المحاولة، وإن تكرر فأعد تشغيل الآيفون.'],
 };
+/** Notification text for the reminder `minutes` before a prayer. Arabic writes the number in Arabic-Indic digits (١٥)
+ * whatever the engine's default numbering, and takes دقائق for 3–10 and دقيقة from 11; French elides "de" before Asr
+ * and Isha. */
+export function beforeCopy(prayerKey: string, minutes: number, locale: Locale): { title: string; body: string } {
+    const name = tr('p_' + prayerKey, locale), n = locale === 'ar' ? new Intl.NumberFormat('ar-u-nu-arab').format(minutes) : formatNumber(minutes, locale);
+    const title = locale === 'ar' ? (minutes <= 10 ? `بقيت ${n} دقائق على صلاة ${name}` : `بقي ${n} دقيقة على صلاة ${name}`)
+        : locale === 'fr' ? `Prière ${/^[AEIOU]/.test(name) ? 'd’' : 'de '}${name} dans ${n} minutes`
+        : `${name} prayer in ${n} minutes`;
+    return { title, body: tr('beforeBody', locale) };
+}
 export function tr(key: string, locale: Locale = 'en'): string { return STRINGS[key]?.[locale === 'en' ? 0 : locale === 'fr' ? 1 : 2] ?? key; }
 export function allTranslationKeys(): string[] { return Object.keys(STRINGS); }
 export function formatNumber(n: number, locale: Locale): string { return new Intl.NumberFormat(locale === 'ar' ? 'ar' : 'en').format(n); }
