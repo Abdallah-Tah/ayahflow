@@ -79,6 +79,16 @@ Widgets (iPhone, after 170a765):
   --deep` passes, installed in place with `devicectl`. Launch was refused because the phone was locked, so the v15
   migration on the device and the console were not checked yet.
 
+Quran reader redesign (build of 2026-10-27; schema v17 adds reading theme and reader size, off-by-default changes none):
+- [x] Browser (402×874, 375×667, 320×568): pages 1, 3, 50, 106, 153, 442, 604 and every 6th page fit with no scroll
+  or overflow (text 18.7–22.9 px at 402×874); verse sheet, settings, go-to, reading styles, Easy reading, Night/Classic,
+  Arabic RTL checked with real renders.
+- [ ] iPhone: swipe and arrows turn pages; one tap hides and shows the bars; the place is restored after relaunch.
+- [ ] VoiceOver: bar buttons, each ayah (reference, highlight/note), sheet actions. iOS Larger Text does not resize the
+  web view; the reader has its own size control (Easy reading / verse by verse).
+- [ ] Printed fifteen-line pages: needs a publisher decision (Quran Foundation account and terms, or a licensed layout);
+  see docs/CONTENT-PROVENANCE.md.
+
 Reader pages, verse menu and Mushaf chooser (iPhone, build of 2026-10-26 ~19:15; schema v16 migrated on the phone with
 all data kept; device screenshot shows the verse menu on 2:14, page 3):
 - [ ] Turn pages by swiping (right = next) and with the arrows; the place is kept after closing the app.

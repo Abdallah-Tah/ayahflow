@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PAGE_COUNT, PAGE_STARTS, pageOf, pageAyahs, SURAH_DATA, verse, juzOf, JUZ_STARTS } from '../www/js/data.js';
 import { initialState, validateState, exportable, setHighlight, setNote, STATE_VERSION, NOTE_MAX } from '../www/js/engine.js';
-import { pageView, mushafChooser, toEndOfJuz, startPage, clampPage, MUSHAF_EDITIONS } from '../www/js/mushaf.js';
+import { pageBody, easyBody, readerTitle, readingStyles, surahHead, toEndOfJuz, startPage, clampPage, MUSHAF_EDITIONS } from '../www/js/mushaf.js';
+import { translation } from '../www/js/data.js';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const esc = (s) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -33,11 +34,11 @@ test('Play to the end of the juz’ stops before the next juz’ and never runs 
 });
 
 test('Migration v15 → v16 keeps everything and adds empty highlights and notes; the page layout is valid only from v16', () => {
-    assert.equal(STATE_VERSION, 16);
+    assert.equal(STATE_VERSION, 17);
     const v15 = JSON.parse(JSON.stringify({ ...initialState(), version: 15, xp: 54, bookmarks: ['2:255'], readPosition: { surah: 18, ayah: 10 }, readingLayout: 'flow' }));
     delete v15.highlights; delete v15.notes;
     const m = validateState(v15);
-    assert.equal(m.version, 16); assert.deepEqual(m.highlights, []); assert.deepEqual(m.notes, []);
+    assert.equal(m.version, 17); assert.deepEqual(m.highlights, []); assert.deepEqual(m.notes, []);
     assert.equal(m.xp, 54); assert.deepEqual(m.bookmarks, ['2:255']); assert.deepEqual(m.readPosition, { surah: 18, ayah: 10 }); assert.equal(m.readingLayout, 'flow');
     assert.throws(() => validateState({ ...v15, readingLayout: 'page' }), /theme|layout|Invalid/);
     assert.equal(validateState(JSON.parse(JSON.stringify({ ...initialState(), readingLayout: 'page' }))).readingLayout, 'page');
@@ -67,33 +68,71 @@ test('Highlights and notes: set, change, clear, idempotent, exported, and gone a
     assert.deepEqual(initialState().highlights, []); assert.deepEqual(initialState().notes, []);
 });
 
-test('Page view: verbatim text, banners where a surah starts, unique ids, marks shown, Mushaf page order', () => {
+test('Mushaf page body: verbatim text, a heading only where a surah begins, unique ids, marks shown', () => {
     let s = { ...initialState(), readPosition: { surah: 7, ayah: 23 } };
     assert.equal(startPage(s), 153);
     s = setNote(setHighlight(s, 7, 23, 'rose', 1), 7, 24, 'note', 1);
-    const html = pageView(s, 153, '7:25');
+    const html = pageBody(s, 153, '7:25');
     for (const [su, a] of pageAyahs(153)) assert.ok(html.includes(esc(verse(su, a))), `${su}:${a} verbatim`);
-    assert.match(html, /class="page-ayah hl hl-rose" id="v-7-23"/);
+    assert.match(html, /class="q-v hl hl-rose" id="v-7-23"/);
     assert.match(html, /id="v-7-24"[^>]*has a note/);
-    assert.match(html, /class="page-ayah selected" id="v-7-25"/);
-    assert.ok(!html.includes('page-banner'), 'no surah starts on page 153');
-    const last = pageView(initialState(), 604);
-    assert.equal((last.match(/page-banner/g) ?? []).length, 3);
+    assert.match(html, /class="q-v selected" id="v-7-25"/);
+    assert.ok(!html.includes('q-surah'), 'no surah starts on page 153');
+    const last = pageBody(initialState(), 604);
+    assert.equal((last.match(/class="q-surah"/g) ?? []).length, 3);
+    assert.equal((last.match(/class="q-basmala"/g) ?? []).length, 3);
     const ids = [...last.matchAll(/id="(v-[^"]+)"/g)].map(m => m[1]);
     assert.equal(new Set(ids).size, ids.length);
-    assert.match(pageView(initialState(), 1), /data-page="2" aria-label="Next page"[\s\S]*disabled[^>]*>/);
-    assert.ok(pageView(initialState(), 1).indexOf('Next page') < pageView(initialState(), 1).indexOf('Previous page'), 'next page on the left');
-    assert.match(pageView({ ...initialState(), locale: 'ar' }, 153), /صفحة (153|١٥٣) · الجزء (8|٨)/);
+    const two = pageBody(initialState(), 106);
+    assert.ok(two.indexOf('id="v-4-176"') < two.indexOf('class="q-surah"') && two.indexOf('class="q-surah"') < two.indexOf('id="v-5-1"'), 'An-Nisa ends, then Al-Ma’ida begins');
+    assert.match(pageBody(initialState(), 1), /q-opening/);
+    assert.ok(!/class="q-basmala"/.test(pageBody(initialState(), 1)), 'Al-Fatiha’s basmala is its first ayah, not a separate line');
+    assert.ok(!/class="q-basmala"/.test(pageBody(initialState(), pageOf(9, 1))), 'At-Tawba has no basmala');
+    assert.match(surahHead(2, 'en'), /سورة البقرة/);
 });
 
-test('Mushaf chooser: only the shipped edition is offered; the rest say why, with no borrowed images', () => {
+test('Reader title: page and juz’ for pages, juz’ range for a surah, in the reader’s language', () => {
+    const en = readerTitle(initialState(), 'page', 153, 7);
+    assert.deepEqual(en, { title: "Al-A'raaf", sub: 'Page 153 · Juz’ 8' });
+    assert.equal(readerTitle(initialState(), 'page', 604, 112).title, 'Al-Ikhlaas · Al-Falaq · An-Naas');
+    assert.match(readerTitle({ ...initialState(), locale: 'ar' }, 'page', 153, 7).sub, /صفحة (153|١٥٣) · الجزء (8|٨)/);
+    assert.match(readerTitle(initialState(), 'flow', 1, 7).sub, /Juz’ 8–9 · 206 ayahs/);
+});
+
+test('Easy reading: whole surah verbatim, optional Pickthall under each verse, ids for voice following', () => {
+    const plain = easyBody(initialState(), 112, null, false);
+    for (let a = 1; a <= 4; a++) assert.ok(plain.includes(esc(verse(112, a))) && plain.includes(`id="ayah-${a}"`));
+    assert.ok(!plain.includes('e-tr'));
+    const withTr = easyBody(initialState(), 112, '112:2', true);
+    assert.ok(withTr.includes(esc(translation(112, 1))) && withTr.includes('Pickthall'));
+    assert.match(withTr, /class="q-v selected" id="ayah-2"/);
+    assert.match(easyBody(initialState(), 1, null, false, t => `<w>${t}</w>`), /<w>/, 'the app’s word spans are used');
+});
+
+test('Reading styles: three real layouts with live previews, honest features, themes; editions not in the app are secondary', () => {
     assert.deepEqual(MUSHAF_EDITIONS.filter(e => e.available).map(e => e.id), ['tanzil-madani']);
     for (const e of MUSHAF_EDITIONS) assert.ok(e.name.every(Boolean) && e.note.every(Boolean), e.id);
-    const u = mushafChooser('en', 'uthmani');
-    assert.match(u, /In use/); assert.match(u, /Not available: their page fonts and line layout belong to the King Fahd Complex/);
-    assert.ok(!/<img|url\(/.test(u));
-    assert.match(mushafChooser('fr', 'tajweed'), /Indisponible : aucune coloration/);
-    assert.match(mushafChooser('ar', 'indopak'), /غير متاح/);
+    const html = readingStyles({ ...initialState(), readingLayout: 'page', readingTheme: 'night' });
+    assert.deepEqual([...html.matchAll(/data-layout="(\w+)"/g)].map(m => m[1]), ['page', 'flow', 'cards']);
+    assert.match(html, /class="s-card on" data-action="layout" data-layout="page" aria-pressed="true"/);
+    assert.match(html, /not the printed 15-line layout/);
+    assert.ok(!/exact|authentic/i.test(html), 'never claims to be the printed page');
+    assert.match(html, /data-theme="night" aria-pressed="true"/);
+    assert.match(html, /<details class="s-others">[\s\S]*King Fahd Complex[\s\S]*Quran Foundation/);
+    assert.ok(!/<img|url\(/.test(html));
+    assert.ok(!/role="tablist"/.test(html), 'no tabs for scripts that are not available');
+    assert.match(readingStyles({ ...initialState(), locale: 'fr' }), /Style de lecture/);
+    assert.match(readingStyles({ ...initialState(), locale: 'ar' }), /طريقة القراءة/);
+});
+
+test('Migration v16 → v17: reading theme auto and middle text size; nothing else changes', () => {
+    const v16 = JSON.parse(JSON.stringify({ ...initialState(), version: 16, readingLayout: 'page', highlights: [{ key: '7:23', color: 'gold', at: 1 }], notes: [{ key: '2:255', text: 'x', at: 1 }] }));
+    delete v16.readingTheme; delete v16.readerSize;
+    const m = validateState(v16);
+    assert.equal(m.version, 17); assert.equal(m.readingTheme, 'auto'); assert.equal(m.readerSize, 2);
+    assert.equal(m.readingLayout, 'page'); assert.deepEqual(m.highlights, v16.highlights); assert.deepEqual(m.notes, v16.notes);
+    for (const bad of [{ readingTheme: 'sepia' }, { readerSize: 7 }, { readerSize: -1 }, { readerSize: 1.5 }])
+        assert.throws(() => validateState({ ...initialState(), ...bad }), /reading settings/);
 });
 
 test('App wiring: the verse menu has every action and audio needs consent', () => {
