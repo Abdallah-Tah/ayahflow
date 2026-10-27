@@ -9,7 +9,7 @@ import { initializeBridge, loadState, saveState, listRecordings, putRecording, d
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { placeCard, setPlaceRadius } from './places.js';
-import { pageBody, easyBody, readerTitle, readingStyles, startPage, clampPage, toEndOfJuz } from './mushaf.js';
+import { pageBody, easyBody, readerTitle, readingStyles, pageFor, clampPage, toEndOfJuz } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
 type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations';
@@ -179,11 +179,8 @@ const hlClass = (s: number, a: number) => { const h = state.highlights.find(x =>
 /** Reader chrome (top bar and page footer) can be hidden with one tap on the page; the space stays reserved, so the
  * text never moves or sits under a control. `pageTurn` animates the next render of a page. */
 let chromeHidden = false, pageTurn: 'next' | 'prev' | null = null;
-/** The page to show: the current one while it still holds the open surah, else where the user last read in it. */
-function currentPage(): number {
-    if (readerPage && pageAyahs(readerPage).some(([s]) => s === readerSurah)) return readerPage;
-    return state.readPosition.surah === readerSurah ? startPage(state) : pageOf(readerSurah, 1);
-}
+/** The page to show: the one holding the saved place in the open surah, else the surah's first page. */
+function currentPage(): number { return pageFor(state, readerSurah, readerPage); }
 /** Turns to a page and keeps the place (the page's first ayah), so the reader reopens there. */
 async function goToPage(n: number): Promise<void> {
     const page = clampPage(n);

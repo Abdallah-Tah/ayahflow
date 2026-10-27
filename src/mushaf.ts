@@ -31,6 +31,13 @@ const L = (locale: Locale) => locale === 'en' ? 0 : locale === 'fr' ? 1 : 2;
 
 /** The page to open: where the user last read. */
 export function startPage(state: AppState): number { return pageOf(state.readPosition.surah, state.readPosition.ayah); }
+/** The page to show for the open surah. The saved place decides: page turns save the page's first ayah, and links,
+ * bookmarks and the surah list save the verse they open. The current page is kept while it holds that place. */
+export function pageFor(state: AppState, surah: number, current: number): number {
+    const rp = state.readPosition, on = current ? pageAyahs(current) : [];
+    if (on.some(([x, y]) => x === rp.surah && y === rp.ayah) && on.some(([x]) => x === surah)) return current;
+    return rp.surah === surah ? startPage(state) : pageOf(surah, 1);
+}
 /** Clamped to 1–604. */
 export const clampPage = (n: number) => Math.min(PAGE_COUNT, Math.max(1, Math.round(n) || 1));
 
@@ -94,7 +101,10 @@ export function readerTitle(state: AppState, layout: ReadingLayout, page: number
 function verseSpan(state: AppState, s: number, a: number, selected: string | null, inner: string, id: string): string {
     const key = sameKey(s, a), hl = state.highlights.find(h => h.key === key)?.color, note = state.notes.some(n => n.key === key);
     const t = (k: string) => tr(k, state.locale), num = (n: number) => formatNumber(n, state.locale);
-    return `<span class="q-v${hl ? ` hl hl-${hl}` : ''}${selected === key ? ' selected' : ''}" id="${id}" data-action="verse-menu" data-surah="${s}" data-ayah="${a}" role="button" tabindex="0" aria-label="${esc(chapter(s).name)} ${s}:${a}${hl ? ` · ${t('highlighted')}` : ''}${note ? ` · ${t('hasNote')}` : ''}">${inner}${note ? '<span class="note-dot" aria-hidden="true"></span>' : ''}</span> ${ayahMarker(`${t('ayah')} ${num(a)}`, arabicDigits.format(a))}`;
+    // The last word and the medallion never break apart: a marker alone on a line looks like a missing verse end.
+    const cut = inner.lastIndexOf(' <span class="w"') >= 0 ? inner.lastIndexOf(' <span class="w"') : inner.lastIndexOf(' ');
+    const head = cut >= 0 ? inner.slice(0, cut + 1) : '', tail = cut >= 0 ? inner.slice(cut + 1) : inner;
+    return `<span class="q-v${hl ? ` hl hl-${hl}` : ''}${selected === key ? ' selected' : ''}" id="${id}" data-action="verse-menu" data-surah="${s}" data-ayah="${a}" role="button" tabindex="0" aria-label="${esc(chapter(s).name)} ${s}:${a}${hl ? ` · ${t('highlighted')}` : ''}${note ? ` · ${t('hasNote')}` : ''}">${head}<span class="q-tail">${tail}${note ? '<span class="note-dot" aria-hidden="true"></span>' : ''}\u00a0${ayahMarker(`${t('ayah')} ${num(a)}`, arabicDigits.format(a))}</span></span>`;
 }
 /** A Mushaf page: the verses of one Madani page, a heading where a surah begins, one justified block per surah. The app
  * sizes the text so the page fits the screen without scrolling. */

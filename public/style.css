@@ -355,7 +355,7 @@ html[data-theme=light] body.reading{--r-body:#f7f2e4}
 .q-text{font-family:var(--arabic);direction:rtl;margin:0;color:var(--r-ink);font-size:1em;line-height:2.05;text-align:justify;text-align-last:center;word-spacing:.04em;letter-spacing:0;overflow-wrap:normal}
 .q-page .q-text{line-height:1.95}.q-opening .q-text{text-align:center}
 .q-v{border-radius:.25em;cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone}
-.q-v:focus-visible{outline:2px solid var(--r-gold);outline-offset:1px}
+.q-tail{white-space:nowrap}.q-v:focus-visible{outline:2px solid var(--r-gold);outline-offset:1px}
 .q-v.selected{background:rgb(196 163 94 / .2);box-shadow:none}
 .reader .ayah-end{width:1.05em;height:1.05em;vertical-align:-.2em;margin-inline:.04em;color:var(--r-gold)}.reader .ayah-end>span{font:600 .38em/1 var(--ui);color:var(--r-ink)}
 .reader .m-fill{fill:rgb(196 163 94 / .08);stroke:currentColor;stroke-width:1.1}.reader .m-line{stroke:currentColor;opacity:.5}

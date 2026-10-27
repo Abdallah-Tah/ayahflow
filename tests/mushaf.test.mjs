@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PAGE_COUNT, PAGE_STARTS, pageOf, pageAyahs, SURAH_DATA, verse, juzOf, JUZ_STARTS } from '../www/js/data.js';
 import { initialState, validateState, exportable, setHighlight, setNote, STATE_VERSION, NOTE_MAX } from '../www/js/engine.js';
-import { pageBody, easyBody, readerTitle, readingStyles, surahHead, toEndOfJuz, startPage, clampPage, MUSHAF_EDITIONS } from '../www/js/mushaf.js';
+import { pageBody, easyBody, readerTitle, readingStyles, surahHead, pageFor, toEndOfJuz, startPage, clampPage, MUSHAF_EDITIONS } from '../www/js/mushaf.js';
 import { translation } from '../www/js/data.js';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+const textOf = (html, id) => { const m = html.match(new RegExp(`id="${id}"[^>]*>([\\s\\S]*?)<span class="ayah-end"`)); return m ? m[1].replace(/<[^>]+>/g, '').replace(/\u00a0$/, '') : null; };
 const esc = (s) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 test('604 pages cover every ayah once, in order, and agree with pageOf', () => {
@@ -73,7 +74,8 @@ test('Mushaf page body: verbatim text, a heading only where a surah begins, uniq
     assert.equal(startPage(s), 153);
     s = setNote(setHighlight(s, 7, 23, 'rose', 1), 7, 24, 'note', 1);
     const html = pageBody(s, 153, '7:25');
-    for (const [su, a] of pageAyahs(153)) assert.ok(html.includes(esc(verse(su, a))), `${su}:${a} verbatim`);
+    for (const [su, a] of pageAyahs(153)) assert.equal(textOf(html, `v-${su}-${a}`), esc(verse(su, a)), `${su}:${a} verbatim`);
+    assert.match(html, /<span class="q-tail">[^ <]+\u00a0<span class="ayah-end"/, 'last word and medallion kept together');
     assert.match(html, /class="q-v hl hl-rose" id="v-7-23"/);
     assert.match(html, /id="v-7-24"[^>]*has a note/);
     assert.match(html, /class="q-v selected" id="v-7-25"/);
@@ -91,6 +93,16 @@ test('Mushaf page body: verbatim text, a heading only where a surah begins, uniq
     assert.match(surahHead(2, 'en'), /سورة البقرة/);
 });
 
+test('The page shown follows the saved place (regression: a link to 7:23 showed page 152)', () => {
+    const at = (surah, ayah) => ({ ...initialState(), readPosition: { surah, ayah } });
+    assert.equal(pageFor(at(7, 23), 7, 152), 153, 'a stale page of the same surah is not kept');
+    assert.equal(pageFor(at(2, 6), 2, 5), 3);
+    assert.equal(pageFor(at(7, 23), 7, 153), 153);
+    assert.equal(pageFor(at(5, 1), 4, 106), 106, 'a page holding two surahs stays put when the place is its second surah');
+    assert.equal(pageFor(at(18, 10), 36, 0), pageOf(36, 1), 'another surah opens at its first page');
+    assert.equal(pageFor(at(1, 1), 1, 0), 1);
+});
+
 test('Reader title: page and juz’ for pages, juz’ range for a surah, in the reader’s language', () => {
     const en = readerTitle(initialState(), 'page', 153, 7);
     assert.deepEqual(en, { title: "Al-A'raaf", sub: 'Page 153 · Juz’ 8' });
@@ -101,7 +113,7 @@ test('Reader title: page and juz’ for pages, juz’ range for a surah, in the 
 
 test('Easy reading: whole surah verbatim, optional Pickthall under each verse, ids for voice following', () => {
     const plain = easyBody(initialState(), 112, null, false);
-    for (let a = 1; a <= 4; a++) assert.ok(plain.includes(esc(verse(112, a))) && plain.includes(`id="ayah-${a}"`));
+    for (let a = 1; a <= 4; a++) assert.equal(textOf(plain, `ayah-${a}`), esc(verse(112, a)));
     assert.ok(!plain.includes('e-tr'));
     const withTr = easyBody(initialState(), 112, '112:2', true);
     assert.ok(withTr.includes(esc(translation(112, 1))) && withTr.includes('Pickthall'));
