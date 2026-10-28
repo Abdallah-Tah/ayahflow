@@ -33,6 +33,9 @@ const SALAH = (id) => id >= 13000000 && id < 18000000;
 const BEFORE = (id) => id >= 18000000 && id < 23000000;
 /** Test notifications from the prayer settings (src/smart.ts TEST_BEFORE_ID, TEST_ATHAN_ID). */
 const TEST = (id) => id >= 23000000 && id < 23000100;
+/** Jumu'ah (24) and voluntary-fast (25) reminders: code * 1e6 + yymmdd (src/calendar.ts). */
+const CALENDAR = (id) => id >= 24000000 && id < 26000000;
+let headingListener = null;
 const ANDROID = Capacitor.getPlatform() === 'android';
 /** iOS: the bundled chime, copied to Library/Sounds by the plugin (AthanSound.install), where iOS looks up a bare sound
  * name; if the file is missing iOS plays its default sound. Used before prayers and for the athan's "gentle alert"
@@ -67,6 +70,25 @@ export const bridge = {
         reset: () => Smart.reset(),
         openSettings: () => Smart.openSettings(),
         steps: (days) => Smart.steps({ days }),
+        async scheduleCalendar(list) {
+            const pending = (await LocalNotifications.getPending()).notifications.filter(n => CALENDAR(Number(n.id)));
+            if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
+            if (!list.length) return;
+            if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
+            await LocalNotifications.schedule({ notifications: list.filter(n => CALENDAR(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, ...ADHKAR_SOUND, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, smallIcon: 'ic_stat_ayahflow' })) });
+        },
+        /** iOS: CLLocationManager heading, only while the Qibla screen is open. Android has no compass here yet. */
+        async startHeading(onHeading) {
+            if (ANDROID) return false;
+            await bridge.smart.stopHeading();
+            headingListener = await Smart.addListener('heading', onHeading);
+            try { return (await Smart.startHeading()).available === true; } catch { await bridge.smart.stopHeading(); return false; }
+        },
+        async stopHeading() {
+            const l = headingListener; headingListener = null;
+            if (l) await l.remove();
+            if (!ANDROID) await Smart.stopHeading().catch(() => { });
+        },
         async scheduleRotation(list) {
             const pending = (await LocalNotifications.getPending()).notifications.filter(n => ROTATION(Number(n.id)));
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });

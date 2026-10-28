@@ -35,6 +35,13 @@ export interface SmartBridge {
     soundFor(n: TestNotification): string | null;
     /** Steps per local day from the device pedometer, read live and never saved by the app. */
     steps(days: number): Promise<StepReading>;
+    /** Replaces the pending Jumu'ah and voluntary-fast reminders (src/calendar.ts). */
+    scheduleCalendar(list: { id: number; at: number; title: string; body: string; url: string }[]): Promise<void>;
+    /** Compass heading while the Qibla screen is open: `onHeading` gets degrees from true north (magnetic when true north
+     * is unknown) and the accuracy in degrees (negative = needs calibration). Resolves false where there is no compass.
+     * Nothing is saved; stopHeading ends it. */
+    startHeading(onHeading: (h: { heading: number; trueNorth: boolean; accuracy: number }) => void): Promise<boolean>;
+    stopHeading(): Promise<void>;
 }
 export interface TestNotification { id: number; kind: 'before' | 'athan'; title: string; body: string; reciter: string | null; customVersion: number | null; homeOnly?: boolean }
 type Setting = 'on' | 'off' | 'unsupported';
@@ -73,8 +80,11 @@ const RESERVED = 3;
 /** Rotation reminders get what is left of the 64 once every athan, timed adhkar, istighfar and prayer reminder has its
  * place, so iOS (which keeps only the soonest 64) never drops an athan for them. */
 export const ROTATION_MAX = 64 - ATHAN_MAX - PLAN_DAYS * 3 - 6 - SALAH_MAX - RESERVED;
-/** The rotation budget for these settings: smaller while the reminders before prayers are on. */
-export function rotationMax(state: AppState): number { return ROTATION_MAX - (state.athan.before.enabled ? BEFORE_MAX : 0); }
+/** Jumu'ah and fast reminders pending at once (src/calendar.ts): the next Friday and the next three fasting evenings. */
+export const FAST_MAX = 3;
+export function calendarCount(state: AppState): number { return (state.calendar.jumuah ? 1 : 0) + (state.calendar.fasting ? FAST_MAX : 0); }
+/** The rotation budget for these settings: smaller while the reminders before prayers or the calendar reminders are on. */
+export function rotationMax(state: AppState): number { return ROTATION_MAX - (state.athan.before.enabled ? BEFORE_MAX : 0) - calendarCount(state); }
 export interface RotationReminder { id: number; at: number; title: string; body: string; url: string; phrase: string }
 /** Reminders every `every` minutes between `from` and `to` (today and tomorrow, at most ROTATION_MAX), each with the
  * next chosen phrase. A slot's phrase depends only on its time, so re-planning never reshuffles them. Ids 12×10⁶ + n. */

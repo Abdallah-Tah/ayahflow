@@ -160,6 +160,18 @@ Native compilation and device testing (carried over):
 - [ ] Permission flows: denial, "While using" only, precise location off, revocation, and that features turn themselves off honestly.
 - [ ] App Store / Play review of background-location justification and the in-app explanation.
 - [ ] Scholar review of every adhkar entry, the prayer-surah notes and the morning/evening window options.
+- [x] Location access dropped to "While Using": Home and Adhkar show a paused card and Recently detected logs "Background location stopped/restored" (watch-off.test.mjs). On the iPhone 16 Pro it logged WATCH_OFF with whenInUse, which explained the missing trips after 26 Oct 16:11.
+- [ ] Physical iPhone: switch Location back to Always and confirm "Background location restored" and the next trip appear.
+
+## Qibla, Jumu'ah, voluntary fasts and highlight review (v18)
+
+- [x] Unit tests: Qibla bearings for New York, London, Jakarta and Sydney within 0.5°; turn direction; Umm al-Qura dates; fasting days never in Ramadan, on either Eid or the days of Tashreeq; reminder ids (24, 25 × 10⁶) clear of every other reminder and inside the 64-notification budget; v17 → v18 migration; one review answer per verse and day, never scored (calendar-qibla-review.test.mjs).
+- [x] Browser (402×874 and 320×568, Arabic RTL): Qibla tab dial and figures, four prayer tabs fit with no sideways scroll, fasting list, review screen (recall, show, answer).
+- [x] iOS build succeeds (generic iOS device) and installs on the iPhone 16 Pro. Not yet opened there: the phone was locked.
+- [ ] Physical iPhone: compass turns with the phone, "Turn left/right" and "facing the Qibla" agree with a known qibla; calibration message near metal; compass stops when leaving the tab or the app (no heading updates in the background).
+- [ ] Physical iPhone: Jumu'ah reminder Friday 90 min before Dhuhr opens Al-Kahf 18:1; fast reminder the evening before; taps from a cold start.
+- [ ] Android: no compass yet (the bearing and distance show; live heading is iPhone only).
+- [ ] Scholar review of the Jumu'ah and voluntary-fast wording and the excluded days.
 
 ## Quran and learning quality
 

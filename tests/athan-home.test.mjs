@@ -13,11 +13,11 @@ const copy = () => ({ title: 't', body: 'b' });
 const home = (athan = {}) => { const s = initialState(); s.places.home = { lat: 40.7, lng: -74, radius: 150 }; s.smart.method = 'NorthAmerica'; s.athan = { ...s.athan, enabled: true, reciter: 'online-zahrani', downloads: ['zahrani', 'nafees-fajr'], ...athan }; return s; };
 
 test('Migration v14 → v15: the away beep starts off and every athan setting is kept', () => {
-    assert.equal(STATE_VERSION, 17);
+    assert.equal(STATE_VERSION, 18);
     const v14 = JSON.parse(JSON.stringify({ ...home({ fajrReciter: 'online-nafees-fajr', before: { enabled: true, minutes: 10 } }), version: 14 }));
     delete v14.athan.awayChime;
     const m = validateState(v14);
-    assert.equal(m.version, 17);
+    assert.equal(m.version, 18);
     assert.equal(m.athan.awayChime, false, 'never switched on for anyone who has not chosen it');
     assert.equal(m.athan.reciter, 'online-zahrani'); assert.equal(m.athan.fajrReciter, 'online-nafees-fajr');
     assert.deepEqual(m.athan.before, { enabled: true, minutes: 10 }); assert.equal(m.places.home.radius, 150);

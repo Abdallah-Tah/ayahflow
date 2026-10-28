@@ -1,7 +1,7 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, pageOf, pageAyahs, PAGE_COUNT, JUZ_STARTS, QURAN_SOURCE, translation, TRANSLATION_SOURCE, type RuleId } from './data.js';
 import { COUNTERS, ROTATION, ROTATION_GROUPS, LIBRARY, LIBRARY_CATEGORIES, TASBIH_VARIANTS, counter, counterPosition, type DhikrCounter, type LibraryDhikr, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
 import { nativeConfig, backgroundBlocked, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, athanHomeOnly, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
-import { setHighlight, setNote, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, type HighlightColor } from './engine.js';
+import { setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, type HighlightColor } from './engine.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber, beforeCopy } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, starEmblem } from './icons.js';
@@ -9,10 +9,12 @@ import { initializeBridge, loadState, saveState, listRecordings, putRecording, d
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { placeCard, setPlaceRadius } from './places.js';
+import { calendarReminders, upcomingFasts, type FastReason } from './calendar.js';
+import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
 import { pageBody, easyBody, readerTitle, readingStyles, pageFor, clampPage, toEndOfJuz } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
-type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations';
+type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review';
 let state: AppState = initialState();
 let view: View = 'today';
 let selectedOption: string | null = null;
@@ -103,13 +105,13 @@ catch (e) {
     throw e;
 } }
 function wave(): string { return `<span class="wave" aria-hidden="true">${[8, 13, 20, 12, 26, 32, 20, 37, 24, 16, 29, 19, 12, 7].map((h, i) => `<i style="--h:${h}px;--delay:${i * .067}s"></i>`).join('')}</span>`; }
-function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'tasbih' ? 'prayer' : view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
+function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'tasbih' ? 'prayer' : view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
 function header(): string {
     if (view === 'session' && state.session) {
         const s = state.session;
         return `<header class="app-header">${actionButton('pause', ic('close'), 'icon-button', `aria-label="${t('pause')}"`)}<span class="header-detail">${t('question')} ${num(s.index + 1)} ${t('of')} ${num(s.queue.length)}</span><span class="top-meta">${ic('leaf', 16)} ${num(state.xp)}</span></header>`;
     }
-    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations'].includes(view))
+    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review'].includes(view))
         return `<header class="app-header">${backButton()}<span class="header-wordmark">Ayah<span class="gold">Flow</span></span><span style="width:44px"></span></header>`;
     return `<header class="app-header"><button class="brand" data-action="nav" data-view="today" aria-label="AyahFlow ${t('today')}"><img src="./assets/icon.svg" alt=""><span>Ayah<span>Flow</span></span></button><div class="row gap8"><span class="top-meta" title="${t('fullDays')}" aria-label="${t('fullDays')}: ${num(salahStreak(state))}">${ic('leaf', 15)} ${num(salahStreak(state))}</span><button class="icon-button" data-action="nav" data-view="settings" aria-label="${t('settings')}">${ic('gear', 21)}</button></div></header>`;
 }
@@ -123,7 +125,7 @@ function quranMore(): string {
     return `<div class="tile-row section"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('savedVerses')} · ${num(state.bookmarks.length)}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
 <section class="section"><h2 class="section-title mb16">${t('memorization')}</h2><button class="feature-wide row" data-action="nav" data-view="practice"><span class="gold">${ic('layers', 23)}</span><span class="grow"><h3>${t('memorize')}</h3><p>${t('memorizeSub')}</p></span>${chevronEnd()}</button>${state.session ? `<button class="feature-wide row" data-action="resume"><span class="gold">${ic('play', 20)}</span><span class="grow"><h3>${t('resume')}</h3></span>${chevronEnd()}</button>` : ''}<button class="feature-wide row" data-action="nav" data-view="tajweed"><span class="gold">${ic('wave', 23)}</span><span class="grow"><h3>${t('tajweed')}</h3><p>${t('tajweedDraftShort')}</p></span>${chevronEnd()}</button><button class="feature-wide row" data-action="nav" data-view="recite"><span class="gold">${ic('mic', 23)}</span><span class="grow"><h3>${t('recite')}</h3><p>${t('reciteSub')}</p></span>${chevronEnd()}</button></section>`;
 }
-function quranView(): string { return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('readerTitle')}</h1><p class="page-sub">${t('readerSub')}</p><button class="feature-wide row mb16" data-action="read-last"><span class="gold">${ic('bookmark', 23)}</span><span class="grow"><span class="tiny muted">${t('lastRead')}</span><h3>${escapeHtml(chapter(state.readPosition.surah).name)} · ${num(state.readPosition.ayah)}</h3></span>${ic('chevron', 16)}</button><label class="search-box">${ic('search', 18)}<input id="surah-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${escapeHtml(libraryQuery)}"></label><div class="segment"><button data-action="library-filter" data-filter="all" class="${libraryFilter === 'all' ? 'active' : ''}">${t('all')}</button><button data-action="library-filter" data-filter="bookmarks" class="${libraryFilter === 'bookmarks' ? 'active' : ''}">${t('bookmarks')} · ${num(state.bookmarks.length)}</button></div><label class="select-row">${ic('layers', 17)}<select id="juz-filter" aria-label="${t('juz')}"><option value="0">${t('allJuz')}</option>${Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}" ${libraryJuz === i + 1 ? 'selected' : ''}>${t('juz')} ${num(i + 1)}</option>`).join('')}</select></label><div id="surah-list">${surahRows()}</div>${quranMore()}<p class="gentle">${t('offline')} · <a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`; }
+function quranView(): string { return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('readerTitle')}</h1><p class="page-sub">${t('readerSub')}</p><button class="feature-wide row mb16" data-action="read-last"><span class="gold">${ic('bookmark', 23)}</span><span class="grow"><span class="tiny muted">${t('lastRead')}</span><h3>${escapeHtml(chapter(state.readPosition.surah).name)} · ${num(state.readPosition.ayah)}</h3></span>${ic('chevron', 16)}</button>${reviewEntry()}<label class="search-box">${ic('search', 18)}<input id="surah-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${escapeHtml(libraryQuery)}"></label><div class="segment"><button data-action="library-filter" data-filter="all" class="${libraryFilter === 'all' ? 'active' : ''}">${t('all')}</button><button data-action="library-filter" data-filter="bookmarks" class="${libraryFilter === 'bookmarks' ? 'active' : ''}">${t('bookmarks')} · ${num(state.bookmarks.length)}</button></div><label class="select-row">${ic('layers', 17)}<select id="juz-filter" aria-label="${t('juz')}"><option value="0">${t('allJuz')}</option>${Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}" ${libraryJuz === i + 1 ? 'selected' : ''}>${t('juz')} ${num(i + 1)}</option>`).join('')}</select></label><div id="surah-list">${surahRows()}</div>${quranMore()}<p class="gentle">${t('offline')} · <a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`; }
 /** Word spans for highlighting. Joined with single spaces they reproduce the source string exactly. */
 const wordSpans = (text: string) => ayahWords(text).map((w, i) => `<span class="w" data-w="${i}">${escapeHtml(w)}</span>`).join(' ');
 function followWhere(): string {
@@ -505,6 +507,7 @@ async function syncSmart(): Promise<void> {
             await bridge.scheduleBefore(beforeSchedule(state, (p, m) => beforeCopy(p, m, state.locale)));
             await syncIstighfar();
             await syncRotation();
+            await syncCalendar();
         }
         await pushWidget();
     }
@@ -675,7 +678,7 @@ function prayerView(): string {
     const fajrChoices = [...reciters, ...ONLINE_RECORDINGS.filter(r => r.fajrOnly && state.athan.downloads.includes(r.id)).map(r => `online-${r.id}`)];
     const own = `<div class="own-athan"><label class="button secondary full" for="athan-file">${ic('upload', 16)} ${t(state.athan.custom ? 'replaceOwn' : 'useOwn')}</label><input type="file" id="athan-file" accept="audio/*" hidden>${state.athan.custom ? actionButton('athan-remove-own', t('removeOwn'), 'text-button danger-text') : ''}<p class="tiny muted mt12">${t('ownNote')}</p></div>`;
     const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div>${awaySection()}</section>${beforeSection()}<section class="settings-section"><h2>${t('reciter')}</h2><p class="picker-label">${t('onDevice')}</p><div class="stack">${[...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])].map(reciterCard).join('')}</div>${own}<p class="picker-label mt20">${t('moreReciters')}</p><p class="tiny muted mb16">${t('moreRecitersNote')} <a href="${ONLINE_PROVIDER.page}" target="_blank" rel="noopener noreferrer">${escapeHtml(ONLINE_PROVIDER.provider)}${ic('link', 11)}</a>${smartBridge() ? '' : `<br>${t('appOnlyDownload')}`}</p><div class="stack">${ONLINE_RECORDINGS.map(onlineCard).join('')}</div><label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${fajrChoices.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
-    return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}<section class="settings-section">${widgetError ? `<div class="notice warning" role="status">${ic('info', 18)}<p>${t('widgetSaveFailed').replace('{code}', escapeHtml(widgetError))}</p></div>` : ''}${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
+    return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}${calendarSection()}<section class="settings-section">${widgetError ? `<div class="notice warning" role="status">${ic('info', 18)}<p>${t('widgetSaveFailed').replace('{code}', escapeHtml(widgetError))}</p></div>` : ''}${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
 }
 /** The last notification test: what was checked and what iOS reported, shown until the next test or reload. */
 /** Athan at Home only: the switch and, when on, what is missing or where iOS last saw the phone. iPhone only: Android
@@ -883,7 +886,7 @@ ${actionButton('steps-disable', t('stepsOff'), 'text-button')}` : isNative() ? p
 let ayahPin: { slot: number; until: number } | null = null;
 /** An ayah next to the ayah of the moment, opened with the previous/next buttons (never crosses a surah boundary). */
 let ayahBrowse: { surah: number; ayah: number } | null = null;
-let prayerTab: 'today' | 'history' | 'times' = 'today';
+let prayerTab: 'today' | 'history' | 'times' | 'qibla' = 'today';
 let historyMonth = 0;
 let historyDay: string | null = null;
 let tasbihPrayer: PrayerName = 'fajr';
@@ -974,8 +977,80 @@ function ayahWidget(): string {
 function watchCard(): string {
     return isNative() && backgroundBlocked(state, smartStatus) ? `<div class="always-card" role="status"><h3>${ic('pin', 18)} ${t('watchOffTitle')}</h3><p class="small">${t('watchOffSteps')}</p>${actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'button primary full')}</div>` : '';
 }
+/** Re-renders in place (same scroll position) after a small change on the current screen. */
+function keepScroll(): void { const y = window.scrollY; render(); window.scrollTo(0, y); }
+/** Fridays only: Surah Al-Kahf opens in the reader at its first verse. */
+function fridayCard(): string {
+    return new Date().getDay() === 5 ? `<button class="feature-wide row mb16" data-action="open-verse" data-surah="18" data-ayah="1"><span class="gold">${ic('book', 22)}</span><span class="grow"><span class="tiny muted">${t('jumuahToday')}</span><h3>${t('jumuahCard')}</h3></span>${ic('chevron', 16)}</button>` : '';
+}
+// ---- Highlight review ---------------------------------------------------------------------------
+/** Verses whose text the user chose to show today (recall first, then look); not saved. */
+const reviewShown = new Set<string>();
+function reviewEntry(): string {
+    if (!state.highlights.length) return '';
+    const q = highlightReviewQueue(state, dayKey()), done = q.filter(x => x.today).length;
+    return `<button class="feature-wide row mb16" data-action="nav" data-view="review"><span class="gold">${ic('layers', 22)}</span><span class="grow"><span class="tiny muted">${t('reviewSelfShort')}</span><h3>${t('reviewTitle')}</h3><span class="tiny muted">${t('reviewProgress').replace('{a}', num(done)).replace('{n}', num(q.length))}</span></span>${ic('chevron', 16)}</button>`;
+}
+function reviewView(): string {
+    const head = `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('reviewTitle')}</h1><p class="page-sub">${t('reviewSub')}</p>`;
+    const q = highlightReviewQueue(state, dayKey());
+    if (!q.length) return `${head}<p class="empty">${t('reviewEmpty')}</p>`;
+    const cards = q.map(({ key, surah, ayah, today }) => {
+        const c = chapter(surah), color = state.highlights.find(h => h.key === key)?.color ?? 'gold', note = state.notes.find(n => n.key === key)?.text, open = today !== null || reviewShown.has(key);
+        const answer = (r: 'remembered' | 'revisit') => `<button class="button ${today === r ? 'primary' : 'secondary'}" data-action="review-answer" data-key="${key}" data-result="${r}" aria-pressed="${today === r}">${t(r === 'remembered' ? 'reviewRemembered' : 'reviewRevisit')}</button>`;
+        return `<article class="review-card" data-hl="${color}"><div class="row between"><h3>${escapeHtml(c.name)} <bdi>${surah}:${ayah}</bdi></h3>${actionButton('open-verse', t('openInReader'), 'text-button', `data-surah="${surah}" data-ayah="${ayah}"`)}</div>${note ? `<p class="small review-note">${escapeHtml(note)}</p>` : ''}${open ? `<p class="arabic review-ayah" lang="ar" dir="rtl">${escapeHtml(verse(surah, ayah))}</p><div class="review-actions">${answer('remembered')}${answer('revisit')}</div>` : `<p class="tiny muted">${t('reviewTry')}</p>${actionButton('review-show', t('reviewShow'), 'button secondary full', `data-key="${key}"`)}`}</article>`;
+    }).join('');
+    return `${head}<div class="stack">${cards}</div><p class="gentle">${t('reviewHonest')}</p>`;
+}
+// ---- Qibla --------------------------------------------------------------------------------------
+/** A one-off "where I am now" for the Qibla screen; never saved. */
+let qiblaFrom: { lat: number; lng: number } | null = null;
+let heading: { heading: number; trueNorth: boolean; accuracy: number } | null = null, compassOn = false, compassMissing = false;
+function qiblaView(): string {
+    const saved = prayerPlace(state), from = qiblaFrom ?? saved, native = !!smartBridge();
+    if (!from) return `<div class="notice warning">${ic('pin', 18)}<p>${t('qiblaNoPlace')}</p></div><div class="stack mt20">${native ? actionButton('qibla-here', `${ic('pin', 15)} ${t('qiblaHere')}`, 'button primary full') : ''}${actionButton('nav', t('savePlaces'), 'button secondary full', 'data-view="reminders"')}</div>`;
+    const b = qiblaBearing(from.lat, from.lng), km = Math.round(kaabaDistanceKm(from.lat, from.lng));
+    const ticks = Array.from({ length: 72 }, (_, i) => `<line x1="150" y1="${i % 6 ? 16 : 12}" x2="150" y2="24" transform="rotate(${i * 5} 150 150)" class="${i % 6 ? 'qb-tick' : 'qb-tick major'}"/>`).join('');
+    const label = qiblaFrom ? t('qiblaFromHere') : t(state.places.home ? 'place_home' : state.places.work ? 'place_work' : 'place_mosque');
+    const dial = `<svg class="qibla-dial" viewBox="0 0 300 300" role="img" aria-label="${t('qiblaBearing').replace('{n}', num(Math.round(b)))}"><g id="qibla-dial" data-bearing="${b}"><circle cx="150" cy="150" r="138" class="qb-ring"/>${ticks}<text x="150" y="46" class="qb-n">N</text><g transform="rotate(${b} 150 150)"><line x1="150" y1="150" x2="150" y2="64" class="qb-needle"/><rect x="138" y="34" width="24" height="24" rx="3" class="qb-kaaba"/><rect x="138" y="41" width="24" height="4" class="qb-band"/></g></g><path d="M150 0 l10 18 h-20z" class="qb-phone"/><circle cx="150" cy="150" r="6" class="qb-hub"/></svg>`;
+    return `<section class="qibla"><p class="page-sub">${t('qiblaSub')}</p>${dial}<p class="qibla-turn" id="qibla-turn" role="status" aria-live="polite"></p><div class="diag mt12"><div class="diag-row"><span>${t('qiblaDirection')}</span><span>${t('qiblaBearing').replace('{n}°', `<bdi>${num(Math.round(b))}°</bdi>`)}</span></div><div class="diag-row"><span>${t('qiblaFrom')}</span><span>${escapeHtml(label)}</span></div><div class="diag-row"><span>${t('qiblaDistance')}</span><span><bdi>${num(km)} km</bdi></span></div></div>${native ? `<div class="mt12">${qiblaFrom ? (saved ? actionButton('qibla-saved', t('qiblaUseSaved'), 'button secondary full') : '') : actionButton('qibla-here', `${ic('pin', 15)} ${t('qiblaHere')}`, 'button secondary full')}</div>` : ''}<p class="tiny muted mt12">${t('qiblaNote')}</p></section>`;
+}
+/** Turns the dial and updates the guidance without a full render (heading events arrive many times a second). */
+function paintQibla(): void {
+    const dial = document.querySelector<SVGGElement>('#qibla-dial'), out = document.querySelector('#qibla-turn');
+    if (!dial || !out) return;
+    const b = Number(dial.dataset.bearing);
+    if (!heading) { dial.removeAttribute('transform'); out.textContent = t(compassMissing ? 'qiblaNoCompass' : smartBridge() ? 'qiblaWaiting' : 'qiblaNoLive'); dial.closest('.qibla')?.classList.remove('aligned'); return; }
+    dial.setAttribute('transform', `rotate(${-heading.heading} 150 150)`);
+    const turn = qiblaTurn(heading.heading, b), rough = heading.accuracy < 0 || heading.accuracy > 25, aligned = !rough && Math.abs(turn) <= QIBLA_ALIGNED;
+    out.textContent = rough ? t('qiblaCalibrate') : aligned ? t('qiblaFacing') : t(turn > 0 ? 'qiblaRight' : 'qiblaLeft').replace('{n}', num(Math.round(Math.abs(turn))));
+    document.querySelector('.qibla')?.classList.toggle('aligned', aligned);
+}
+/** The compass runs only while the Qibla tab is on screen and the app is in front. */
+function syncCompass(): void {
+    const want = view === 'prayer' && prayerTab === 'qibla' && !document.hidden, bridge = smartBridge();
+    if (want) paintQibla();
+    if (!bridge || want === compassOn) return;
+    compassOn = want;
+    if (!want) { heading = null; void bridge.stopHeading(); return; }
+    void bridge.startHeading(h => { heading = h; paintQibla(); }).then(ok => { if (!ok) { compassMissing = true; compassOn = false; paintQibla(); } }).catch(() => { compassMissing = true; compassOn = false; paintQibla(); });
+}
+document.addEventListener('visibilitychange', syncCompass);
+// ---- Jumu'ah and voluntary fasts ----------------------------------------------------------------
+const fastWhy = (r: FastReason[]) => r.map(x => t(x === 'monday' ? 'fastMonday' : x === 'thursday' ? 'fastThursday' : 'fastWhite')).join(' · ');
+function calendarSection(): string {
+    const fasts = upcomingFasts(Date.now(), 8).slice(0, 4), native = !!smartBridge();
+    const toggle = (id: string, on: boolean, label: string, note: string) => `<label class="setting-row"><span><strong>${label}</strong><p>${note}</p></span><input type="checkbox" id="${id}" ${on ? 'checked' : ''} aria-label="${label}"></label>`;
+    const rows = fasts.map(f => `<div class="diag-row"><span>${escapeHtml(f.date.toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'short' }))}<span class="tiny muted detection-detail">${escapeHtml(hijri(f.date))}</span></span><span>${fastWhy(f.reasons)}</span></div>`).join('');
+    return `<section class="settings-section" id="calendar-reminders"><h2>${t('calendarSection')}</h2>${native ? `${toggle('jumuah-remind', state.calendar.jumuah, t('jumuahToggle'), t('jumuahNote'))}${toggle('fasting-remind', state.calendar.fasting, t('fastingToggle'), t('fastingNote'))}` : ''}<h3 class="small gold mt20 mb8">${t('nextFasts')}</h3>${rows ? `<div class="diag">${rows}</div>` : `<p class="small muted">${t('noFastsSoon')}</p>`}<p class="tiny muted mt12">${t('fastingHijriNote')}</p></section>`;
+}
+async function syncCalendar(): Promise<void> {
+    const bridge = smartBridge();
+    if (!bridge) return;
+    await bridge.scheduleCalendar(calendarReminders(state, { jumuah: { title: t('jumuahTitle'), body: t('jumuahBody') }, fast: r => ({ title: t('fastTitle').replace('{why}', fastWhy(r)), body: t('fastBody') }) }));
+}
 function homeView(): string {
-    return `${dateLine()}${watchCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
+    return `${dateLine()}${watchCard()}${fridayCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
 <div class="tile-row"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('dailyVerseSub')}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
 ${nowCard()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
 }
@@ -1027,11 +1102,12 @@ function salahSettings(): string {
     return `<section class="settings-section"><h2>${t('salahReminders')}</h2>${isNative() ? '' : miniNotice('nativeOnlyReminders')}${toggle('pref-checkin', p.checkIn, t('checkInToggle'), t('checkInNote'))}${p.checkIn ? `<div class="segment compact" role="group" aria-label="${t('checkInAfterLabel')}">${CHECK_IN_AFTER.map(m => `<button data-action="checkin-after" data-min="${m}" class="${p.checkInAfter === m ? 'active' : ''}" aria-pressed="${p.checkInAfter === m}">${num(m)} ${t('minuteShort')}</button>`).join('')}</div>` : ''}${toggle('pref-tasbih-nudge', p.tasbihNudge, t('tasbihNudgeToggle'), t('tasbihNudgeNote'))}</section>`;
 }
 function prayerTabs(): string {
-    return `<div class="segment" role="tablist">${(['today', 'history', 'times'] as const).map(x => `<button role="tab" data-action="prayer-tab" data-tab="${x}" class="${prayerTab === x ? 'active' : ''}" aria-selected="${prayerTab === x}">${t('ptab_' + x)}</button>`).join('')}</div>`;
+    return `<div class="segment" role="tablist">${(['today', 'history', 'times', 'qibla'] as const).map(x => `<button role="tab" data-action="prayer-tab" data-tab="${x}" class="${prayerTab === x ? 'active' : ''}" aria-selected="${prayerTab === x}">${t('ptab_' + x)}</button>`).join('')}</div>`;
 }
 function prayersView(): string {
     const head = `<p class="eyebrow mt12">${t('prayers')}</p><h1 class="page-title">${t('salahTitle')}</h1>${prayerTabs()}`;
     if (prayerTab === 'times') return `${head}${prayerView()}`;
+    if (prayerTab === 'qibla') return `${head}${qiblaView()}`;
     if (prayerTab === 'history') return `${head}${historyCalendar()}${insightsSection()}`;
     return `${head}${prayerPlace(state) ? nextPrayerWidget() : ''}${trackerWidget(salahDay(state), true)}${tasbihTiles()}${insightsSection()}${salahSettings()}<p class="gentle">${t('salahPrivate')}</p>`;
 }
@@ -1124,10 +1200,10 @@ function currentPrayer(now = Date.now()): PrayerName {
     return [...PRAYERS].reverse().find(p => times[p] <= now) ?? 'isha';
 }
 
-const views: Record<View, () => string> = { today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
+const views: Record<View, () => string> = { review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
-function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } }
+function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } syncCompass(); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
@@ -1187,7 +1263,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await navigate(d.view as View);
             break;
         case 'back':
-            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'tasbih' ? 'prayer' : 'practice');
+            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'tasbih' ? 'prayer' : 'practice');
             break;
         case 'daily':
             await launch('mixed', 'daily');
@@ -1209,6 +1285,36 @@ async function handleAction(el: HTMLElement): Promise<void> {
             render();
             break;
         }
+        case 'open-verse': {
+            const vs = Number(d.surah), va = Number(d.ayah);
+            try { verse(vs, va); } catch { break; }
+            readerSurah = vs;
+            await commit({ ...state, readPosition: { surah: vs, ayah: va } });
+            await navigate('reader');
+            break;
+        }
+        case 'review-show':
+            if (d.key) reviewShown.add(d.key);
+            keepScroll();
+            break;
+        case 'review-answer': {
+            const [rs, ra] = (d.key ?? '').split(':').map(Number);
+            if (d.result !== 'remembered' && d.result !== 'revisit') break;
+            try { await commit(reviewHighlight(state, rs!, ra!, d.result, dayKey())); } catch { break; }
+            keepScroll();
+            break;
+        }
+        case 'qibla-here': {
+            const bridge = smartBridge();
+            if (!bridge) break;
+            try { const p = await bridge.currentPosition(); qiblaFrom = { lat: p.lat, lng: p.lng }; } catch { toast(t('locationError')); }
+            keepScroll();
+            break;
+        }
+        case 'qibla-saved':
+            qiblaFrom = null;
+            keepScroll();
+            break;
         case 'read-surah':
             readerSurah = Number(d.surah);
             await commit({ ...state, readPosition: { surah: readerSurah, ayah: 1 } });
@@ -1655,7 +1761,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             break;
         }
         case 'prayer-tab':
-            if (['today', 'history', 'times'].includes(d.tab!)) prayerTab = d.tab as typeof prayerTab;
+            if (['today', 'history', 'times', 'qibla'].includes(d.tab!)) prayerTab = d.tab as typeof prayerTab;
             render();
             break;
         case 'history-month':
@@ -2147,6 +2253,14 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
         await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, [key]: el.checked } } });
         if (key === 'checkIn' || key === 'tasbihNudge') await syncSalah();
         const y = window.scrollY; render(); window.scrollTo(0, y);
+        return;
+    }
+    if (el.id === 'jumuah-remind' || el.id === 'fasting-remind') {
+        const bridge = smartBridge();
+        if (el.checked && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
+        await commit({ ...state, calendar: { ...state.calendar, [el.id === 'jumuah-remind' ? 'jumuah' : 'fasting']: el.checked } });
+        try { await syncCalendar(); await syncRotation(); if (el.checked) toast(t('calendarOn')); } catch { toast(t('reminderSyncFailed')); }
+        keepScroll();
         return;
     }
     if (el.id === 'istighfar-remind') {

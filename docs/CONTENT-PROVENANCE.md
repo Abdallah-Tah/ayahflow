@@ -105,3 +105,11 @@ Add review samples on iOS and Android at large text sizes; verify joined Arabic 
 - *King Fahd Complex fonts directly.* The KFGQPC Uthmanic Script HAFS licence does not allow reproduction or modification without the Complex's written approval.
 
 Colour-coded tajweed, IndoPak script and tafseer are listed as not available until a licensed, source-referenced dataset is added. Highlights and notes are the user's own data, stored locally (schema v16), included in exports and removed by delete. Reading theme and reader text size were added in schema v17.
+
+## Qibla, Jumu'ah and voluntary fasts (v18)
+
+- **Qibla:** the initial great-circle bearing from the place shown (a saved place, or a one-off current position that is not saved) to the Kaaba at 21.422487° N, 39.826206° E (WGS 84), computed on the phone. The live compass is iOS `CLLocationManager` heading, true north when location is allowed, magnetic otherwise; it runs only while the Qibla tab is on screen. No network, nothing stored.
+- **Hijri dates:** the system's Umm al-Qura calendar (`Intl`, `islamic-umalqura`), labelled as an estimate that local sighting may change by a day.
+- **Voluntary fasts:** Mondays, Thursdays and the 13th–15th of each Hijri month, never suggested in Ramadan, on Eid al-Fitr (1 Shawwal), Eid al-Adha (10 Dhu al-Hijjah) or the days of Tashreeq (11–13 Dhu al-Hijjah). Wording is a plain reminder ("a voluntary fast, if you choose to"); no hadith text is quoted.
+- **Jumu'ah:** a Friday reminder for Surah Al-Kahf and salawat on the Prophet ﷺ, opening the reader at 18:1. No hadith text is quoted.
+- These wordings and the excluded days await review by a qualified scholar (docs/RELEASE-CHECKLIST.md).

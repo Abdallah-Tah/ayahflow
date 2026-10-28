@@ -25,10 +25,13 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "downloadAthan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "steps", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "notificationCheck", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "placeAthan", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "placeAthan", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "startHeading", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stopHeading", returnType: CAPPluginReturnPromise)
     ]
     private var engine: SmartReminders { SmartReminders.shared }
     private let pedometer = CMPedometer()
+    private lazy var compass = HeadingWatch { [weak self] h in self?.notifyListeners("heading", data: h) }
 
     override public func load() { DispatchQueue.main.async { self.engine.start() } }
 
@@ -62,6 +65,11 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func placeAthan(_ call: CAPPluginCall) {
         DispatchQueue.main.async { self.engine.placeAthan { n in call.resolve(["changed": n, "home": self.engine.status()["home"] ?? "unknown"]) } }
     }
+
+    /// Qibla screen: compass heading events until stopHeading. Its own location manager, so the reminder engine's
+    /// settings are untouched; nothing is saved.
+    @objc func startHeading(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(["available": self.compass.start()]) } }
+    @objc func stopHeading(_ call: CAPPluginCall) { DispatchQueue.main.async { self.compass.stop(); call.resolve() } }
 
     @objc func takeEvents(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(["events": self.engine.takeLog()]) } }
 
@@ -161,4 +169,27 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve()
         }
     }
+}
+
+/// Compass heading for the Qibla screen. True north needs location access; without it iOS gives magnetic north only.
+final class HeadingWatch: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private let send: ([String: Any]) -> Void
+    init(_ send: @escaping ([String: Any]) -> Void) {
+        self.send = send
+        super.init()
+        manager.delegate = self
+        manager.headingFilter = 1
+    }
+    func start() -> Bool {
+        guard CLLocationManager.headingAvailable() else { return false }
+        manager.startUpdatingHeading()
+        return true
+    }
+    func stop() { manager.stopUpdatingHeading() }
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading h: CLHeading) {
+        let trueNorth = h.trueHeading >= 0
+        send(["heading": trueNorth ? h.trueHeading : h.magneticHeading, "trueNorth": trueNorth, "accuracy": h.headingAccuracy])
+    }
+    func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool { false }
 }
