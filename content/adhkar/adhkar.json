@@ -668,6 +668,48 @@
    "text": "بِاسْمِكَ أَمُوتُ وَأَحْيَا"
   },
   {
+   "id": "sleep-kafani",
+   "moments": [
+    "sleep"
+   ],
+   "kind": "dua",
+   "repeat": 1,
+   "title": {
+    "en": "Before sleeping: praise for sufficiency and shelter",
+    "fr": "Avant de dormir : louange pour la suffisance et l’abri",
+    "ar": "الحمد لله الذي كفاني وآواني"
+   },
+   "source": {
+    "ref": "abudawud:5058",
+    "collection": "Sunan Abi Dawud",
+    "number": "5058",
+    "inBook": {
+     "book": 43,
+     "hadith": 286
+    },
+    "grades": [
+     {
+      "by": "Al-Albani",
+      "grade": "Sahih Isnaad"
+     },
+     {
+      "by": "Muhammad Muhyi Al-Din Abdul Hamid",
+      "grade": "Sahih Isnaad"
+     },
+     {
+      "by": "Shuaib Al Arnaut",
+      "grade": "Sahih"
+     },
+     {
+      "by": "Zubair Ali Zai",
+      "grade": "Isnaad Hasan"
+     }
+    ]
+   },
+   "also": [],
+   "text": "الْحَمْدُ لِلَّهِ الَّذِي كَفَانِي وَآوَانِي وَأَطْعَمَنِي وَسَقَانِي وَالَّذِي مَنَّ عَلَىَّ فَأَفْضَلَ وَالَّذِي أَعْطَانِي فَأَجْزَلَ الْحَمْدُ لِلَّهِ عَلَى كُلِّ حَالٍ اللَّهُمَّ رَبَّ كُلِّ شَىْءٍ وَمَلِيكَهُ وَإِلَهَ كُلِّ شَىْءٍ أَعُوذُ بِكَ مِنَ النَّارِ"
+  },
+  {
    "id": "ayat-al-kursi",
    "moments": [
     "sleep"

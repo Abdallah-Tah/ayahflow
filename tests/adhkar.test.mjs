@@ -448,3 +448,14 @@ test('Du’a of the day: real references that address رَبَّنَا / رَب�
     for (const w of year) assert(w.text.replace(/[^\u0621-\u064A\u0671]/g, '').length <= DUA_MAX_LETTERS, w.ref);
     assert(!year.some(w => w.ref === '2:286')); assert(new Set(year.map(w => w.ref)).size >= 20); // 28 fit the Lock Screen whole
 });
+
+test('Bedtime: Abu Dawud 5058 is in the sleep adhkar, sliced verbatim from its cited hadith with its grades', () => {
+    const e = entriesFor('sleep').find(x => x.id === 'sleep-kafani');
+    assert.ok(e, 'listed for sleep');
+    assert.equal(e.source.ref, 'abudawud:5058');
+    const src = JSON.parse(readFileSync(new URL('../content/adhkar/sources.json', import.meta.url), 'utf8')).hadiths['abudawud:5058'].text;
+    assert.ok(src.includes(e.text), 'verbatim slice');
+    const n = (x) => x.normalize('NFD');
+    assert.ok(n(e.text).startsWith(n('الْحَمْدُ لِلَّهِ الَّذِي كَفَانِي')) && n(e.text).endsWith(n('مِنَ النَّارِ')), 'whole du\'a, from praise to refuge from the Fire');
+    assert.ok(e.source.grades.some(g => g.by === 'Al-Albani'));
+});

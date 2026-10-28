@@ -271,6 +271,22 @@
       }
     },
     {
+      "id": "sleep-kafani",
+      "moments": [
+        "sleep"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:5058",
+      "start": "الحمد لله الذي كفاني",
+      "end": "اعوذ بك من النار",
+      "title": {
+        "en": "Before sleeping: praise for sufficiency and shelter",
+        "fr": "Avant de dormir : louange pour la suffisance et l’abri",
+        "ar": "الحمد لله الذي كفاني وآواني"
+      }
+    },
+    {
       "id": "ayat-al-kursi",
       "moments": [
         "sleep"
