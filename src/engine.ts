@@ -64,7 +64,7 @@ export interface SmartSettings {
 /** Explicit evidence: the user said they recited this dhikr. Reminders never create these. */
 export interface AdhkarCompletion { id: string; entry: string; moment: Moment; at: number; day: string }
 /** What the device detected, without coordinates. */
-export interface Detection { event: SmartEvent | 'WAKE' | 'LEFT_CHECK' | 'TRIP_START' | 'TRIP_END'; at: number; detail?: string }
+export interface Detection { event: SmartEvent | 'WAKE' | 'LEFT_CHECK' | 'TRIP_START' | 'TRIP_END' | 'WATCH_OFF' | 'WATCH_ON'; at: number; detail?: string }
 export const defaultSmart = (): SmartSettings => ({ location: false, vehicle: false, timed: false, method: 'MuslimWorldLeague', hanafi: false, span: 'broad', sleepTime: null, moments: [...MOMENTS] });
 /** A dhikr count the user tapped on one local day (self-reported, like a tasbih). Steps are never stored: they are read
  * live from the device pedometer. */

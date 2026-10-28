@@ -246,6 +246,11 @@ export function momentPreview(m: Moment): string | null {
     const ref = passage ? `Quran ${passage.surah}:${passage.ayahs[0]!.n}${passage.ayahs.length > 1 ? `–${passage.ayahs.at(-1)!.n}` : ''}` : `${e.source.collection} ${e.source.number}`;
     return `${body}\n${e.repeat > 1 ? `×${e.repeat} · ` : ''}${ref}`;
 }
+/** Place or vehicle reminders are on but iPhone no longer lets AyahFlow use location in the background (for example
+ * after "Change to Only While Using"): nothing can be detected until Location is set to Always again. */
+export function backgroundBlocked(state: AppState, status: SmartStatus | null): boolean {
+    return (state.smart.location || state.smart.vehicle) && !!status && status.location !== 'always';
+}
 export function mergeDetections(existing: Detection[], events: { event: Detection['event']; at: number; detail?: string }[]): Detection[] {
     const seen = new Set(existing.map(d => `${d.event}@${d.at}`));
     return [...existing, ...events.filter(e => !seen.has(`${e.event}@${e.at}`)).map(e => ({ event: e.event, at: e.at, ...(e.detail ? { detail: e.detail.slice(0, 160) } : {}) }))].sort((a, b) => a.at - b.at).slice(-50);

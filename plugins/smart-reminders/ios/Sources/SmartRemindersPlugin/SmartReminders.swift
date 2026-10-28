@@ -50,7 +50,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     private var fastFixes = 0
     private var tripTask: UIBackgroundTaskIdentifier = .invalid
     private var significantOn = false
-    private let lastWakeKey = "ayahflow.smart.lastwake", homeKey = "ayahflow.smart.home"
+    private let lastWakeKey = "ayahflow.smart.lastwake", homeKey = "ayahflow.smart.home", watchKey = "ayahflow.smart.watch"
     private static let tripSeconds: TimeInterval = 240, vehicleSpeed: CLLocationSpeed = 6 // m/s ≈ 22 km/h
     private var canRunInBackground: Bool { (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("location") ?? false }
 
@@ -73,6 +73,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         _ = try JSONDecoder().decode(SmartConfig.self, from: data)
         defaults.set(data, forKey: configKey)
         applyMonitoring()
+        noteWatching()
     }
 
     /// Starts or stops region and significant-change monitoring to match the saved configuration.
@@ -178,6 +179,18 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         if manager.authorizationStatus != .notDetermined { flushAuth() }
         applyMonitoring()
+        noteWatching()
+    }
+
+    /// Logs when background watching stops or comes back (e.g. iOS's "Change to Only While Using"), so the gap shows in
+    /// Recently detected instead of reminders silently stopping. Only while place or vehicle reminders are on.
+    private func noteWatching() {
+        guard let cfg = config, cfg.location || cfg.vehicle, manager.authorizationStatus != .notDetermined else { return }
+        let on = manager.authorizationStatus == .authorizedAlways, was = defaults.object(forKey: watchKey) as? Bool
+        guard was != on else { return }
+        defaults.set(on, forKey: watchKey)
+        if was == nil && on { return }
+        log(on ? "WATCH_ON" : "WATCH_OFF", detail: "location: \(status()["location"] as? String ?? "unknown")")
     }
 
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -400,6 +413,6 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     func reset() {
         for region in manager.monitoredRegions { manager.stopMonitoring(for: region) }
         manager.stopMonitoringSignificantLocationChanges()
-        [configKey, historyKey, logKey, homeKey].forEach { defaults.removeObject(forKey: $0) }
+        [configKey, historyKey, logKey, homeKey, watchKey].forEach { defaults.removeObject(forKey: $0) }
     }
 }
