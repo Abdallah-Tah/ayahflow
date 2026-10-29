@@ -38,6 +38,9 @@ const CALENDAR = (id) => (id >= 24000000 && id < 26000000) || (id >= 27000000 &&
 /** Fajr alarm notifications where AlarmKit is unavailable (26 * 1e6 + yymmdd, src/alarm.ts). */
 const ALARM = (id) => id >= 26000000 && id < 27000000;
 let headingListener = null;
+/** "I recited it" on adhkar reminders: opens the app, which records it as the user's own confirmation. The smart engine
+ * posts with the same category on iOS (SmartReminders.swift). */
+const DHIKR_ACTIONS = 'ayahflow-dhikr';
 const ANDROID = Capacitor.getPlatform() === 'android';
 /** iOS: the bundled chime, copied to Library/Sounds by the plugin (AthanSound.install), where iOS looks up a bare sound
  * name; if the file is missing iOS plays its default sound. Used before prayers and for the athan's "gentle alert"
@@ -71,6 +74,8 @@ export const bridge = {
         async simulate(event) { return (await Smart.simulate({ event })).moments ?? []; },
         reset: () => Smart.reset(),
         openSettings: () => Smart.openSettings(),
+        /** Registers the reminder button in the app's language (iOS and Android keep the last registration). */
+        async setDhikrAction(title) { try { await LocalNotifications.registerActionTypes({ types: [{ id: DHIKR_ACTIONS, actions: [{ id: 'recited', title, foreground: true }] }] }); } catch { } },
         steps: (days) => Smart.steps({ days }),
         async scheduleCalendar(list) {
             const pending = (await LocalNotifications.getPending()).notifications.filter(n => CALENDAR(Number(n.id)));
@@ -159,7 +164,7 @@ export const bridge = {
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
             if (!list.length) return;
             if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
-            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, ...ADHKAR_SOUND, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, smallIcon: 'ic_stat_ayahflow' })) });
+            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, ...ADHKAR_SOUND, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, actionTypeId: DHIKR_ACTIONS, smallIcon: 'ic_stat_ayahflow' })) });
         },
     },
     /** Replaces pending athan alerts. iOS plays a ≤30 s sound from Library/Sounds (copied there by the plugin);
@@ -236,5 +241,5 @@ await App.addListener('appStateChange', ({ isActive }) => { if (!isActive)
     window.dispatchEvent(new Event('ayahflow:background')); });
 await App.addListener('backButton', () => window.dispatchEvent(new Event('ayahflow:back')));
 await App.addListener('appUrlOpen', ({ url }) => deliver(url));
-await LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => deliver(notification?.extra?.url));
+await LocalNotifications.addListener('localNotificationActionPerformed', ({ actionId, notification }) => { const url = notification?.extra?.url; deliver(actionId === 'recited' && typeof url === 'string' ? `${url}?recited=1` : url); });
 try { const launch = await App.getLaunchUrl(); if (launch?.url) deliver(launch.url); } catch { }

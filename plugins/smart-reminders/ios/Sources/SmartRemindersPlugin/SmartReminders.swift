@@ -399,6 +399,8 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         // The bundled adhkar chime (scripts/make-chime.mjs); iOS falls back to the default sound if it is missing.
         content.sound = UNNotificationSound(named: UNNotificationSoundName("public/sounds/adhkar-chime.caf"))
         content.threadIdentifier = "ayahflow.adhkar"
+        // "I recited it" button, registered by the web layer (native/bridge.mjs setDhikrAction).
+        content.categoryIdentifier = "ayahflow-dhikr"
         // Read by @capacitor/local-notifications' tap handler and forwarded to the web layer.
         content.userInfo = ["cap_extra": ["url": "ayahflow://moment/" + moments.joined(separator: "+")]]
         let request = UNNotificationRequest(identifier: "ayahflow.smart.\(Int(Date().timeIntervalSince1970))", content: content, trigger: nil)

@@ -506,6 +506,7 @@ async function syncSmart(): Promise<void> {
             smartStatus = await bridge.configure(nativeConfig(state, copyFor));
             toast(t('enabledAfterSettings'));
         }
+        void bridge.setDhikrAction(t('recitedIt'));
         notificationState = await bridge.notificationPermission(false);
         if (notificationState === 'granted') {
             await bridge.scheduleTimed(timedReminders(state, copyFor));
@@ -1003,6 +1004,21 @@ function namesView(): string {
     const grid = NAMES.map(x => `<li class="name-cell ${x.n === today.n ? 'today' : ''}" ${x.n === today.n ? 'aria-current="date"' : ''}><span class="tiny muted">${num(x.n)}</span><span class="arabic" lang="ar" dir="rtl">${escapeHtml(x.ar)}</span></li>`).join('');
     return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('namesTitle')}</h1><section class="settings-section"><p class="arabic names-about" lang="ar" dir="rtl">${escapeHtml(NAMES_ABOUT.text)}</p><p class="tiny muted">${sourceLink(NAMES_ABOUT)} · ${gradeList(NAMES_ABOUT)}</p><div class="notice mt12">${ic('info', 18)}<p>${t('namesListNote').replace('{source}', sourceLink(NAMES_LIST)).replace('{grades}', gradeList(NAMES_LIST))}</p></div></section><ol class="names-grid" lang="ar">${grid}</ol><section class="settings-section"><h2>${t('namesQuran')}</h2>${quran}</section><p class="tiny muted">${t('namesNoMeanings')}</p>`;
 }
+// ---- Home shortcuts ----------------------------------------------------------------------------------
+function qiblaTile(): string {
+    const p = prayerPlace(state);
+    if (!p) return '';
+    return `<button class="feature-wide row mt12" data-action="open-qibla"><span class="gold">${ic('compass', 22)}</span><span class="grow"><h3>${t('ptab_qibla')}</h3><span class="tiny muted">${t('qiblaTileSub').replace('{deg}', num(Math.round(qiblaBearing(p.lat, p.lng))))}</span></span>${chevronEnd()}</button>`;
+}
+/** "I recited it" from a reminder: the user's own confirmation of the dhikr the notification showed (the first entry of
+ * the first moment that has one), recorded once per dhikr, moment and day like the in-app button. */
+async function recitedFromNotification(ms: Moment[]): Promise<void> {
+    const m = ms.find(x => entriesFor(x).length), e = m && entriesFor(m)[0];
+    if (!m || !e) return;
+    await commit(completeDhikr(state, e.id, m, Date.now(), `${m}:${e.id}:${dayKey()}`));
+    toast(t('recitedFromNotification'));
+    void syncSmart();
+}
 // ---- Memorisation (hifz) --------------------------------------------------------------------------
 /** The chosen range and settings; kept for the session only (nothing about practice is saved). */
 let hifz: { surah: number; from: number; to: number; repeat: number; level: number } | null = null;
@@ -1191,7 +1207,7 @@ async function syncCalendar(): Promise<void> {
 function homeView(): string {
     return `${dateLine()}${watchCard()}${fridayCard()}${ramadanCard()}${khatmCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
 <div class="tile-row"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('dailyVerseSub')}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
-${nowCard()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
+${qiblaTile()}${nowCard()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
 }
 /** Status choices for one prayer: completed, missed (only the user says so), made up later, or not confirmed. */
 function chooseStatus(prayer: PrayerName, day: string, current: SalahStatus | null): Promise<SalahStatus | null | undefined> {
@@ -1445,6 +1461,9 @@ async function handleAction(el: HTMLElement): Promise<void> {
             el.setAttribute('aria-pressed', String(shown));
             break;
         }
+        case 'open-qibla':
+            prayerTab = 'qibla'; await navigate('prayer');
+            break;
         case 'khatm-ramadan':
             if (!state.khatm) { await commit(startKhatm(state, 30, 1)); toast(t('khatmStarted')); render(); }
             break;
@@ -2578,7 +2597,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } if (/^ayahflow:\/\/wake\/?$/.test(url)) { void navigate('wake'); return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } if (/^ayahflow:\/\/wake\/?$/.test(url)) { void navigate('wake'); return; } const recited = /^(ayahflow:\/\/moment\/[a-z_+]+)\/?\?recited=1$/.exec(url); if (recited) { const rm = parseMomentUrl(recited[1]!); if (rm.length) { momentIds = rm; void recitedFromNotification(rm).then(() => navigate('moment')); } return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });

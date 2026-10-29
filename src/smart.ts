@@ -17,6 +17,8 @@ export interface SmartBridge {
     simulate(event: SmartEvent): Promise<Moment[]>;
     reset(): Promise<void>;
     openSettings(): Promise<void>;
+    /** Registers the "I recited it" button on adhkar reminders, labelled in the app's language. */
+    setDhikrAction(title: string): Promise<void>;
     notificationPermission(request: boolean): Promise<'granted' | 'denied' | 'prompt' | 'prompt-with-rationale'>;
     scheduleTimed(list: TimedReminder[]): Promise<void>;
     /** Replaces the pending istighfar reminders. */
