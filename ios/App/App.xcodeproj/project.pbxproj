@@ -18,6 +18,7 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		698BC4549C1BCAF0D17E338B /* AyahFlowWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABBA3C591D98622D8FE3D04D /* AyahFlowWidget.swift */; };
+		7F1FAA551CB9212BC6564465 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3A2A8F37869BEA3127E231D5 /* PrivacyInfo.xcprivacy */; };
 		8744B288A81C119ACCE47612 /* AyahMoments.json in Resources */ = {isa = PBXBuildFile; fileRef = 83ABFCD7F782E41AB898D48E /* AyahMoments.json */; };
 		92FAC678B85AE8FC8E7ACEA8 /* AyahFlowWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5B00CD773EBA531D9BAF74BB /* AyahFlowWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
@@ -53,6 +54,7 @@
 /* Begin PBXFileReference section */
 		2004AF92C6E939BBCDBCE100 /* FajrAlarm.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FajrAlarm.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
+		3A2A8F37869BEA3127E231D5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -132,6 +134,7 @@
 				50B271D01FEDC1A000F3C39B /* public */,
 				6C23CA0EB3847EA0B43AB520 /* App.entitlements */,
 				2004AF92C6E939BBCDBCE100 /* FajrAlarm.swift */,
+				3A2A8F37869BEA3127E231D5 /* PrivacyInfo.xcprivacy */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -259,6 +262,7 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				7F1FAA551CB9212BC6564465 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

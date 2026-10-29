@@ -200,6 +200,9 @@ Native compilation and device testing (carried over):
 
 ## Privacy, security and reliability
 
+- [x] Privacy policy written from the code (`public/privacy.html`, linked from Settings → About); a test fails if the app downloads from a host the policy does not name. Contact details still to be added before publishing.
+- [x] Release archive builds (Xcode 27, `xcodebuild … -configuration Release archive`, 2026-10-29), widget extension inside; `PrivacyInfo.xcprivacy` now ships inside App.app (it was missing from the target).
+- [ ] App Store export and validation: blocked. Team KFHK4QSUC6 is a personal team ("does not have permission to create iOS App Store provisioning profiles", no "iOS Distribution" certificate). Needs a paid Apple Developer Program membership.
 - [ ] Review privacy policy and any store data declarations against actual runtime behavior and provider traffic.
 - [ ] Verify PrivacyInfo.xcprivacy is included in the correct Xcode target; reassess declarations when plugins or network services change.
 - [ ] Review OS backup inclusion/exclusion, restoration and recording retention policy.
