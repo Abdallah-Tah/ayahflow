@@ -17,6 +17,8 @@ if (await exists(plist)) {
     const keys = [
         ['NSLocationWhenInUseUsageDescription', 'AyahFlow uses your location only to save places you choose, such as Home, Work or your mosque. They stay on this device.'],
         ['NSLocationAlwaysAndWhenInUseUsageDescription', 'With “Always”, AyahFlow can remind you of the fitting dhikr when you leave or arrive at a saved place, even when the app is closed. Places and detections stay on this device.'],
+        // Fajr wake-up alarm (ios/App/App/FajrAlarm.swift, AlarmKit on iOS 26+).
+        ['NSAlarmKitUsageDescription', 'AyahFlow rings only the Fajr alarm you turn on, at the time you choose around Fajr.'],
         ['NSMotionUsageDescription', 'AyahFlow checks recent motion to remind you of the riding dua when you travel by vehicle. Motion data stays on this device.'],
     ];
     for (const [key, text] of keys) if (!s.includes(`<key>${key}</key>`)) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, `<key>${key}</key><string>${text}</string>\n</dict>\n</plist>`);

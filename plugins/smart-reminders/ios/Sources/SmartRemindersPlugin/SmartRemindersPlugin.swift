@@ -27,7 +27,11 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "notificationCheck", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "placeAthan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startHeading", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "stopHeading", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "stopHeading", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmRequest", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmSchedule", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmAwake", returnType: CAPPluginReturnPromise)
     ]
     private var engine: SmartReminders { SmartReminders.shared }
     private let pedometer = CMPedometer()
@@ -70,6 +74,26 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
     /// settings are untouched; nothing is saved.
     @objc func startHeading(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(["available": self.compass.start()]) } }
     @objc func stopHeading(_ call: CAPPluginCall) { DispatchQueue.main.async { self.compass.stop(); call.resolve() } }
+
+    /// Fajr alarm (FajrAlarmHook): `available` is false before iOS 26, where the web layer uses a notification instead.
+    @objc func alarmStatus(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let alarms = FajrAlarmHook.scheduler else { call.resolve(["available": false]); return }
+            call.resolve(["available": true, "authorization": alarms.authorization(), "pending": alarms.pending(), "checkWaiting": alarms.checkWaiting()])
+        }
+    }
+    @objc func alarmRequest(_ call: CAPPluginCall) {
+        guard let alarms = FajrAlarmHook.scheduler else { call.resolve(["authorization": "unavailable"]); return }
+        alarms.requestAuthorization { state in call.resolve(["authorization": state]) }
+    }
+    @objc func alarmSchedule(_ call: CAPPluginCall) {
+        guard let alarms = FajrAlarmHook.scheduler else { call.reject("unavailable"); return }
+        guard let json = call.getString("plan"), let data = json.data(using: .utf8) else { call.reject("plan required"); return }
+        alarms.schedule(data) { result in
+            switch result { case .success(let n): call.resolve(["scheduled": n]); case .failure(let e): call.reject(e.localizedDescription) }
+        }
+    }
+    @objc func alarmAwake(_ call: CAPPluginCall) { FajrAlarmHook.scheduler?.confirmAwake(); call.resolve() }
 
     @objc func takeEvents(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(["events": self.engine.takeLog()]) } }
 

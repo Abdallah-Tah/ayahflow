@@ -173,6 +173,14 @@ Native compilation and device testing (carried over):
 - [ ] Android: no compass yet (the bearing and distance show; live heading is iPhone only).
 - [ ] Scholar review of the Jumu'ah and voluntary-fast wording and the excluded days.
 
+## Fajr wake-up alarm (v19)
+
+- [x] Unit tests: a week of alarms at Fajr + offset, one stable AlarmKit id per day, today skipped once past, never later than 15 min before sunrise (also near-polar summer); fallback notifications (26 × 10⁶) clear of other ids and taken from the rotation budget; v18 → v19 migration; invalid settings rejected (fajr-alarm.test.mjs).
+- [x] iOS build succeeds with AlarmKit (Xcode 27 SDK) and installs on the iPhone 16 Pro (iOS 27.0.1).
+- [ ] Physical iPhone: permission prompt on first turn-on; alarm rings at the shown time on Silent and in a Focus, full screen on the Lock Screen; Snooze appears only while snoozes remain and stops after the chosen number; Stop with the wake check on rings once more after 5 min unless "I'm up" is held in the app; that ring has no further follow-up; a sync never cancels a ringing alarm; turning the alarm off removes every planned, snoozed and wake-check alarm.
+- [ ] Older iPhone (iOS 15–25) and Android: notification fallback at the alarm time, opening the wake screen. Android has no full alarm yet.
+- [ ] Settings → AyahFlow shows the Alarms permission with the purpose text.
+
 ## Quran and learning quality
 
 - [ ] Qualified reviewer checks the Arabic corpus and all displayed glyphs/marks against the chosen convention.

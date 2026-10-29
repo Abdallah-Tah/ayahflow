@@ -35,11 +35,11 @@ test('Play to the end of the juz’ stops before the next juz’ and never runs 
 });
 
 test('Migration v15 → v16 keeps everything and adds empty highlights and notes; the page layout is valid only from v16', () => {
-    assert.equal(STATE_VERSION, 18);
+    assert.equal(STATE_VERSION, 19);
     const v15 = JSON.parse(JSON.stringify({ ...initialState(), version: 15, xp: 54, bookmarks: ['2:255'], readPosition: { surah: 18, ayah: 10 }, readingLayout: 'flow' }));
     delete v15.highlights; delete v15.notes;
     const m = validateState(v15);
-    assert.equal(m.version, 18); assert.deepEqual(m.highlights, []); assert.deepEqual(m.notes, []);
+    assert.equal(m.version, 19); assert.deepEqual(m.highlights, []); assert.deepEqual(m.notes, []);
     assert.equal(m.xp, 54); assert.deepEqual(m.bookmarks, ['2:255']); assert.deepEqual(m.readPosition, { surah: 18, ayah: 10 }); assert.equal(m.readingLayout, 'flow');
     assert.throws(() => validateState({ ...v15, readingLayout: 'page' }), /theme|layout|Invalid/);
     assert.equal(validateState(JSON.parse(JSON.stringify({ ...initialState(), readingLayout: 'page' }))).readingLayout, 'page');
@@ -141,7 +141,7 @@ test('Migration v16 → v17: reading theme auto and middle text size; nothing el
     const v16 = JSON.parse(JSON.stringify({ ...initialState(), version: 16, readingLayout: 'page', highlights: [{ key: '7:23', color: 'gold', at: 1 }], notes: [{ key: '2:255', text: 'x', at: 1 }] }));
     delete v16.readingTheme; delete v16.readerSize;
     const m = validateState(v16);
-    assert.equal(m.version, 18); assert.equal(m.readingTheme, 'auto'); assert.equal(m.readerSize, 2);
+    assert.equal(m.version, 19); assert.equal(m.readingTheme, 'auto'); assert.equal(m.readerSize, 2);
     assert.equal(m.readingLayout, 'page'); assert.deepEqual(m.highlights, v16.highlights); assert.deepEqual(m.notes, v16.notes);
     for (const bad of [{ readingTheme: 'sepia' }, { readerSize: 7 }, { readerSize: -1 }, { readerSize: 1.5 }])
         assert.throws(() => validateState({ ...initialState(), ...bad }), /reading settings/);

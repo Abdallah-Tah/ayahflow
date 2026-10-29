@@ -35,6 +35,8 @@ const BEFORE = (id) => id >= 18000000 && id < 23000000;
 const TEST = (id) => id >= 23000000 && id < 23000100;
 /** Jumu'ah (24) and voluntary-fast (25) reminders: code * 1e6 + yymmdd (src/calendar.ts). */
 const CALENDAR = (id) => id >= 24000000 && id < 26000000;
+/** Fajr alarm notifications where AlarmKit is unavailable (26 * 1e6 + yymmdd, src/alarm.ts). */
+const ALARM = (id) => id >= 26000000 && id < 27000000;
 let headingListener = null;
 const ANDROID = Capacitor.getPlatform() === 'android';
 /** iOS: the bundled chime, copied to Library/Sounds by the plugin (AthanSound.install), where iOS looks up a bare sound
@@ -89,6 +91,20 @@ export const bridge = {
             if (l) await l.remove();
             if (!ANDROID) await Smart.stopHeading().catch(() => { });
         },
+        /** Fajr alarm: AlarmKit through the plugin on iOS 26+; Android and older iPhones get a notification instead. */
+        async alarmStatus() { if (ANDROID) return { available: false }; try { return await Smart.alarmStatus(); } catch { return { available: false }; } },
+        async alarmRequest() { if (ANDROID) return 'unavailable'; return (await Smart.alarmRequest()).authorization; },
+        async scheduleAlarm(plan, fallback) {
+            const pending = (await LocalNotifications.getPending()).notifications.filter(n => ALARM(Number(n.id)));
+            if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
+            if ((await bridge.smart.alarmStatus()).available) { await Smart.alarmSchedule({ plan: JSON.stringify(plan) }); return 'alarm'; }
+            if (!fallback.length) return 'notification';
+            if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
+            if (ANDROID) await LocalNotifications.createChannel({ id: 'ayahflow-fajr-alarm', name: 'Fajr alarm', description: 'Wakes you for Fajr', importance: 5, visibility: 1, vibration: true });
+            await LocalNotifications.schedule({ notifications: fallback.filter(n => ALARM(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, ...(ANDROID ? { channelId: 'ayahflow-fajr-alarm' } : { sound: CHIME_SOUND }), schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: 'ayahflow://wake' }, smallIcon: 'ic_stat_ayahflow' })) });
+            return 'notification';
+        },
+        alarmAwake: () => ANDROID ? Promise.resolve() : Smart.alarmAwake().catch(() => { }),
         async scheduleRotation(list) {
             const pending = (await LocalNotifications.getPending()).notifications.filter(n => ROTATION(Number(n.id)));
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });

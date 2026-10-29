@@ -73,5 +73,6 @@
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>app.ayahflow.moment</string><key>CFBundleURLSchemes</key><array><string>ayahflow</string></array></dict></array>
 <key>AyahFlowSharedKeychain</key><string>$(AppIdentifierPrefix)com.buildwithabdallah.ayahflow.shared</string>
 <key>UIBackgroundModes</key><array><string>location</string></array>
+<key>NSAlarmKitUsageDescription</key><string>AyahFlow rings only the Fajr alarm you turn on, at the time you choose around Fajr.</string>
 </dict>
 </plist>

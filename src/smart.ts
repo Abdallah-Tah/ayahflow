@@ -42,7 +42,19 @@ export interface SmartBridge {
      * Nothing is saved; stopHeading ends it. */
     startHeading(onHeading: (h: { heading: number; trueNorth: boolean; accuracy: number }) => void): Promise<boolean>;
     stopHeading(): Promise<void>;
+    /** Fajr alarm: AlarmKit on iOS 26+ (`available`), with its authorization, the alarms still to ring and whether the
+     * wake check is waiting; `available: false` elsewhere. */
+    alarmStatus(): Promise<AlarmStatus>;
+    alarmRequest(): Promise<AlarmAuthorization | 'unavailable'>;
+    /** Replaces the planned Fajr alarms: AlarmKit when available, otherwise `fallback` as notifications. Resolves which. */
+    scheduleAlarm(plan: AlarmPlan, fallback: { id: number; at: number; title: string; body: string }[]): Promise<'alarm' | 'notification'>;
+    /** The user confirmed being awake: the wake-check ring is cancelled. */
+    alarmAwake(): Promise<void>;
 }
+export type AlarmAuthorization = 'authorized' | 'denied' | 'notDetermined';
+export interface AlarmStatus { available: boolean; authorization?: AlarmAuthorization; pending?: { id: string; at: number; kind: 'fajr' | 'snooze' | 'check' }[]; checkWaiting?: boolean }
+/** Read by ios/App/App/FajrAlarm.swift (FajrAlarmPlan). */
+export interface AlarmPlan { alarms: { uuid: string; at: number }[]; snoozes: number; snoozeMinutes: number; check: boolean; checkMinutes: number; title: string; checkTitle: string; stop: string; snooze: string }
 export interface TestNotification { id: number; kind: 'before' | 'athan'; title: string; body: string; reciter: string | null; customVersion: number | null; homeOnly?: boolean }
 type Setting = 'on' | 'off' | 'unsupported';
 export interface NotificationCheck { authorization?: 'granted' | 'provisional' | 'ephemeral' | 'denied' | 'prompt'; alert?: Setting; sound?: Setting; lockScreen?: Setting; files?: Record<string, 'library' | 'bundle' | 'missing'> }
@@ -83,7 +95,9 @@ const RESERVED = 3;
 export const ROTATION_MAX = 64 - ATHAN_MAX - PLAN_DAYS * 3 - 6 - SALAH_MAX - RESERVED;
 /** Jumu'ah and fast reminders pending at once (src/calendar.ts): the next Friday and the next three fasting evenings. */
 export const FAST_MAX = 3;
-export function calendarCount(state: AppState): number { return (state.calendar.jumuah ? 1 : 0) + (state.calendar.fasting ? FAST_MAX : 0); }
+/** Fajr alarm notifications when AlarmKit is unavailable (alarm.ts): the next two mornings. */
+export const ALARM_FALLBACK_DAYS = 2;
+export function calendarCount(state: AppState): number { return (state.calendar.jumuah ? 1 : 0) + (state.calendar.fasting ? FAST_MAX : 0) + (state.fajrAlarm.enabled ? ALARM_FALLBACK_DAYS : 0); }
 /** The rotation budget for these settings: smaller while the reminders before prayers or the calendar reminders are on. */
 export function rotationMax(state: AppState): number { return ROTATION_MAX - (state.athan.before.enabled ? BEFORE_MAX : 0) - calendarCount(state); }
 export interface RotationReminder { id: number; at: number; title: string; body: string; url: string; phrase: string }

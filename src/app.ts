@@ -1,7 +1,7 @@
 import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, pageOf, pageAyahs, PAGE_COUNT, JUZ_STARTS, QURAN_SOURCE, translation, TRANSLATION_SOURCE, type RuleId } from './data.js';
 import { COUNTERS, ROTATION, ROTATION_GROUPS, LIBRARY, LIBRARY_CATEGORIES, TASBIH_VARIANTS, counter, counterPosition, type DhikrCounter, type LibraryDhikr, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
-import { nativeConfig, backgroundBlocked, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, athanHomeOnly, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily } from './smart.js';
-import { setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, type HighlightColor } from './engine.js';
+import { nativeConfig, backgroundBlocked, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, athanHomeOnly, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily, type AlarmStatus } from './smart.js';
+import { setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, FAJR_OFFSETS, FAJR_SNOOZES, FAJR_SNOOZE_MINUTES, type HighlightColor } from './engine.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber, beforeCopy } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, starEmblem } from './icons.js';
@@ -11,10 +11,11 @@ import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES,
 import { placeCard, setPlaceRadius } from './places.js';
 import { calendarReminders, upcomingFasts, type FastReason } from './calendar.js';
 import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
+import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES } from './alarm.js';
 import { pageBody, easyBody, readerTitle, readingStyles, pageFor, clampPage, toEndOfJuz } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
-type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review';
+type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review' | 'wake';
 let state: AppState = initialState();
 let view: View = 'today';
 let selectedOption: string | null = null;
@@ -105,13 +106,13 @@ catch (e) {
     throw e;
 } }
 function wave(): string { return `<span class="wave" aria-hidden="true">${[8, 13, 20, 12, 26, 32, 20, 37, 24, 16, 29, 19, 12, 7].map((h, i) => `<i style="--h:${h}px;--delay:${i * .067}s"></i>`).join('')}</span>`; }
-function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'tasbih' ? 'prayer' : view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
+function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'tasbih' || view === 'wake' ? 'prayer' : view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
 function header(): string {
     if (view === 'session' && state.session) {
         const s = state.session;
         return `<header class="app-header">${actionButton('pause', ic('close'), 'icon-button', `aria-label="${t('pause')}"`)}<span class="header-detail">${t('question')} ${num(s.index + 1)} ${t('of')} ${num(s.queue.length)}</span><span class="top-meta">${ic('leaf', 16)} ${num(state.xp)}</span></header>`;
     }
-    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review'].includes(view))
+    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake'].includes(view))
         return `<header class="app-header">${backButton()}<span class="header-wordmark">Ayah<span class="gold">Flow</span></span><span style="width:44px"></span></header>`;
     return `<header class="app-header"><button class="brand" data-action="nav" data-view="today" aria-label="AyahFlow ${t('today')}"><img src="./assets/icon.svg" alt=""><span>Ayah<span>Flow</span></span></button><div class="row gap8"><span class="top-meta" title="${t('fullDays')}" aria-label="${t('fullDays')}: ${num(salahStreak(state))}">${ic('leaf', 15)} ${num(salahStreak(state))}</span><button class="icon-button" data-action="nav" data-view="settings" aria-label="${t('settings')}">${ic('gear', 21)}</button></div></header>`;
 }
@@ -509,6 +510,7 @@ async function syncSmart(): Promise<void> {
             await syncRotation();
             await syncCalendar();
         }
+        await syncFajrAlarm().catch(e => { console.error('AyahFlow Fajr alarm sync failed', e instanceof Error ? e.message : e); if (state.fajrAlarm.enabled) toast(t('alarmSyncFailed')); });
         await pushWidget();
     }
     catch (e) { console.error('AyahFlow reminders sync failed', e instanceof Error ? e.message : e); if (state.smart.location || state.smart.vehicle || state.smart.timed || state.athan.enabled) toast(t('reminderSyncFailed')); }
@@ -678,7 +680,7 @@ function prayerView(): string {
     const fajrChoices = [...reciters, ...ONLINE_RECORDINGS.filter(r => r.fajrOnly && state.athan.downloads.includes(r.id)).map(r => `online-${r.id}`)];
     const own = `<div class="own-athan"><label class="button secondary full" for="athan-file">${ic('upload', 16)} ${t(state.athan.custom ? 'replaceOwn' : 'useOwn')}</label><input type="file" id="athan-file" accept="audio/*" hidden>${state.athan.custom ? actionButton('athan-remove-own', t('removeOwn'), 'text-button danger-text') : ''}<p class="tiny muted mt12">${t('ownNote')}</p></div>`;
     const athan = `<section class="settings-section"><label class="setting-row"><span><strong>${t('athanToggle')}</strong><p>${t('athanToggleNote')}</p></span><input type="checkbox" id="athan-enabled" ${state.athan.enabled ? 'checked' : ''} aria-label="${t('athanToggle')}"></label><h2 class="mt20">${t('athanSound')}</h2><div class="segment" role="group">${(['athan', 'chime'] as const).map(x => `<button data-action="athan-sound" data-sound="${x}" class="${state.athan.sound === x ? 'active' : ''}">${t(x === 'athan' ? 'soundAthan' : 'soundChime')}</button>`).join('')}</div>${awaySection()}</section>${beforeSection()}<section class="settings-section"><h2>${t('reciter')}</h2><p class="picker-label">${t('onDevice')}</p><div class="stack">${[...ATHAN_RECORDINGS.map(r => r.id), ...(state.athan.custom ? ['custom'] : [])].map(reciterCard).join('')}</div>${own}<p class="picker-label mt20">${t('moreReciters')}</p><p class="tiny muted mb16">${t('moreRecitersNote')} <a href="${ONLINE_PROVIDER.page}" target="_blank" rel="noopener noreferrer">${escapeHtml(ONLINE_PROVIDER.provider)}${ic('link', 11)}</a>${smartBridge() ? '' : `<br>${t('appOnlyDownload')}`}</p><div class="stack">${ONLINE_RECORDINGS.map(onlineCard).join('')}</div><label class="select-row mt20">${ic('sun', 16)}<span class="grow small">${t('fajrReciter')}</span><select id="athan-fajr" aria-label="${t('fajrReciter')}">${fajrChoices.map(id => `<option value="${id}" ${state.athan.fajrReciter === id ? 'selected' : ''}>${escapeHtml(reciterName(id))}</option>`).join('')}</select></label><div class="notice warning mt12">${ic('info', 18)}<p>${t('reciterReview')}</p></div></section>`;
-    return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${calculationSection()}${athan}${calendarSection()}<section class="settings-section">${widgetError ? `<div class="notice warning" role="status">${ic('info', 18)}<p>${t('widgetSaveFailed').replace('{code}', escapeHtml(widgetError))}</p></div>` : ''}${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
+    return `${head}${timesHint()}<div class="prayer-list">${list}</div>${tomorrow}${fajrAlarmSection(times)}${calculationSection()}${athan}${calendarSection()}<section class="settings-section">${widgetError ? `<div class="notice warning" role="status">${ic('info', 18)}<p>${t('widgetSaveFailed').replace('{code}', escapeHtml(widgetError))}</p></div>` : ''}${smartBridge() ? `<div class="notice">${ic('info', 18)}<p>${t('widgetTip')}</p></div>` : ''}<button class="feature-wide row" data-action="nav" data-view="reminders"><span class="gold">${ic('globe', 22)}</span><span class="grow"><h3>${t('calcSettings')}</h3><p>${escapeHtml(state.smart.method.replace(/([a-z])([A-Z])/g, '$1 $2'))}${state.smart.hanafi ? ` · ${t('hanafiAsr')}` : ''}</p></span>${chevronEnd()}</button></section>`;
 }
 /** The last notification test: what was checked and what iOS reported, shown until the next test or reload. */
 /** Athan at Home only: the switch and, when on, what is missing or where iOS last saw the phone. iPhone only: Android
@@ -1036,6 +1038,63 @@ function syncCompass(): void {
     void bridge.startHeading(h => { heading = h; paintQibla(); }).then(ok => { if (!ok) { compassMissing = true; compassOn = false; paintQibla(); } }).catch(() => { compassMissing = true; compassOn = false; paintQibla(); });
 }
 document.addEventListener('visibilitychange', syncCompass);
+// ---- Fajr wake-up alarm ---------------------------------------------------------------------------
+/** Last status from the device (AlarmKit availability, permission, alarms still to ring, wake check waiting). */
+let alarmInfo: AlarmStatus | null = null;
+const offsetLabel = (n: number) => n === 0 ? t('alarmAtFajr') : t(n < 0 ? 'alarmBefore' : 'alarmAfter').replace('{n}', num(Math.abs(n)));
+function fajrAlarmSection(times: { fajr: number; sunrise: number }): string {
+    if (!smartBridge()) return '';
+    const f = state.fajrAlarm, next = fajrAlarmPlan(state)[0];
+    const seg = (action: string, values: readonly number[], current: number, label: (n: number) => string) => `<div class="segment wrap" role="group">${values.map(v => `<button data-action="${action}" data-v="${v}" class="${current === v ? 'active' : ''}" aria-pressed="${current === v}">${label(v)}</button>`).join('')}</div>`;
+    const denied = f.enabled && alarmInfo?.available && alarmInfo.authorization === 'denied' ? `<div class="notice warning mt12">${ic('info', 18)}<p>${t('alarmDenied')}</p></div>${actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'button subtle mt12')}` : '';
+    const fallback = f.enabled && alarmInfo && !alarmInfo.available ? `<div class="notice mt12">${ic('info', 18)}<p>${t('alarmFallback')}</p></div>` : '';
+    const nextLine = f.enabled && next ? `<div class="diag mt12"><div class="diag-row"><span>${t('alarmNext')}</span><span class="ok">${escapeHtml(new Date(next.at).toLocaleDateString(state.locale, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${clock(next.at)}</span></div>${next.at < next.fajr + f.offset * 60000 ? `<p class="tiny muted mt8">${t('alarmClamped')}</p>` : ''}</div>` : '';
+    const settings = f.enabled ? `<h3 class="small gold mt20 mb8">${t('alarmWhen')}</h3>${seg('alarm-offset', FAJR_OFFSETS, f.offset, offsetLabel)}<p class="tiny muted mt8">${t('p_fajr')} ${clock(times.fajr)} · ${t('p_sunrise')} ${clock(times.sunrise)}</p><h3 class="small gold mt20 mb8">${t('alarmSnoozes')}</h3>${seg('alarm-snoozes', FAJR_SNOOZES, f.snoozes, n => n === 0 ? t('alarmNoSnooze') : num(n))}${f.snoozes ? `<h3 class="small gold mt20 mb8">${t('alarmSnoozeLength')}</h3>${seg('alarm-snooze-min', FAJR_SNOOZE_MINUTES, f.snoozeMinutes, n => t('minutesShort').replace('{n}', num(n)))}` : ''}<label class="setting-row mt20"><span><strong>${t('alarmCheck')}</strong><p>${t('alarmCheckNote').replace('{n}', num(ALARM_CHECK_MINUTES))}</p></span><input type="checkbox" id="fajr-check" ${f.check ? 'checked' : ''} aria-label="${t('alarmCheck')}"></label>` : '';
+    return `<section class="settings-section" id="fajr-alarm"><h2>${ic('sun', 18)} ${t('alarmSection')}</h2><label class="setting-row"><span><strong>${t('alarmToggle')}</strong><p>${t('alarmToggleNote')}</p></span><input type="checkbox" id="fajr-alarm-on" ${f.enabled ? 'checked' : ''} aria-label="${t('alarmToggle')}"></label>${denied}${fallback}${nextLine}${settings}</section>`;
+}
+async function syncFajrAlarm(): Promise<void> {
+    const bridge = smartBridge();
+    if (!bridge) return;
+    const plan = fajrAlarmPlan(state), f = state.fajrAlarm;
+    await bridge.scheduleAlarm({ alarms: plan.map(p => ({ uuid: p.uuid, at: p.at })), snoozes: f.snoozes, snoozeMinutes: f.snoozeMinutes, check: f.check, checkMinutes: ALARM_CHECK_MINUTES, title: t('alarmTitle'), checkTitle: t('alarmCheckTitle'), stop: t('alarmStop'), snooze: t('alarmSnooze') },
+        fallbackPlan(plan).map(p => ({ id: p.id, at: p.at, title: t('alarmTitle'), body: t('alarmBody') })));
+    alarmInfo = await bridge.alarmStatus();
+}
+async function setFajrAlarm(next: Partial<AppState['fajrAlarm']>): Promise<void> {
+    await commit({ ...state, fajrAlarm: { ...state.fajrAlarm, ...next } });
+    try { await syncFajrAlarm(); } catch { toast(t('alarmSyncFailed')); }
+    keepScroll();
+}
+/** After the alarm: the du'a on waking, then a press-and-hold to confirm being awake (cancels the wake-check ring). */
+function wakeView(): string {
+    const list = entriesFor('wake');
+    return `<p class="eyebrow">${t('alarmSection')}</p><h1 class="page-title">${t('wakeTitle')}</h1><p class="page-sub">${t('wakeSub')}</p><div class="stack mt20">${list.map(e => entryCard(e, 'wake')).join('')}</div><button class="button primary full hold-button mt20" id="wake-hold" aria-describedby="wake-hold-note"><span class="hold-fill" aria-hidden="true"></span><span class="hold-label">${t('wakeHold')}</span></button><p class="tiny muted mt8" id="wake-hold-note">${t('wakeHoldNote')}</p>`;
+}
+const WAKE_HOLD_MS = 1500;
+let wakeTimer: number | null = null;
+function wakeHoldStart(e: Event): void {
+    const b = (e.target as HTMLElement | null)?.closest<HTMLElement>('#wake-hold');
+    if (!b || wakeTimer !== null || (e instanceof KeyboardEvent && e.key !== ' ' && e.key !== 'Enter') || (e instanceof KeyboardEvent && e.repeat)) return;
+    e.preventDefault();
+    b.classList.add('holding');
+    wakeTimer = window.setTimeout(() => { wakeTimer = null; b.classList.remove('holding'); void wakeConfirmed(); }, WAKE_HOLD_MS);
+}
+function wakeHoldEnd(): void {
+    if (wakeTimer === null) return;
+    clearTimeout(wakeTimer); wakeTimer = null;
+    document.querySelector('#wake-hold')?.classList.remove('holding');
+}
+async function wakeConfirmed(): Promise<void> {
+    await smartBridge()?.alarmAwake();
+    if (alarmInfo) alarmInfo = { ...alarmInfo, checkWaiting: false };
+    haptic();
+    toast(t('wakeDone'));
+    prayerTab = 'today';
+    await navigate('prayer');
+}
+document.addEventListener('pointerdown', wakeHoldStart);
+document.addEventListener('keydown', wakeHoldStart);
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave', 'keyup'] as const) document.addEventListener(ev, wakeHoldEnd, true);
 // ---- Jumu'ah and voluntary fasts ----------------------------------------------------------------
 const fastWhy = (r: FastReason[]) => r.map(x => t(x === 'monday' ? 'fastMonday' : x === 'thursday' ? 'fastThursday' : 'fastWhite')).join(' · ');
 function calendarSection(): string {
@@ -1200,7 +1259,7 @@ function currentPrayer(now = Date.now()): PrayerName {
     return [...PRAYERS].reverse().find(p => times[p] <= now) ?? 'isha';
 }
 
-const views: Record<View, () => string> = { review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
+const views: Record<View, () => string> = { wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
 function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } syncCompass(); }
@@ -1263,7 +1322,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await navigate(d.view as View);
             break;
         case 'back':
-            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'tasbih' ? 'prayer' : 'practice');
+            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'tasbih' || view === 'wake' ? 'prayer' : 'practice');
             break;
         case 'daily':
             await launch('mixed', 'daily');
@@ -1982,6 +2041,14 @@ async function handleAction(el: HTMLElement): Promise<void> {
             }
             catch { toast(d.url!); }
             break;
+        case 'alarm-offset':
+        case 'alarm-snoozes':
+        case 'alarm-snooze-min': {
+            const v = Number(d.v), key = d.action === 'alarm-offset' ? 'offset' : d.action === 'alarm-snoozes' ? 'snoozes' : 'snoozeMinutes';
+            const allowed: readonly number[] = key === 'offset' ? FAJR_OFFSETS : key === 'snoozes' ? FAJR_SNOOZES : FAJR_SNOOZE_MINUTES;
+            if (allowed.includes(v)) await setFajrAlarm({ [key]: v });
+            break;
+        }
         case 'open-settings':
             await smartBridge()?.openSettings();
             break;
@@ -2255,6 +2322,19 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
         const y = window.scrollY; render(); window.scrollTo(0, y);
         return;
     }
+    if (el.id === 'fajr-alarm-on') {
+        const bridge = smartBridge();
+        if (el.checked && bridge) {
+            const info = alarmInfo = await bridge.alarmStatus();
+            const allowed = info.available ? (info.authorization === 'authorized' || await bridge.alarmRequest() === 'authorized') : await bridge.notificationPermission(true) === 'granted';
+            if (!allowed) { toast(t(info.available ? 'alarmDenied' : 'needNotifications')); el.checked = false; return; }
+        }
+        await setFajrAlarm({ enabled: el.checked });
+        const next = fajrAlarmPlan(state)[0];
+        if (el.checked && next) toast(t('alarmOn').replace('{time}', clock(next.at)));
+        return;
+    }
+    if (el.id === 'fajr-check') { await setFajrAlarm({ check: el.checked }); return; }
     if (el.id === 'jumuah-remind' || el.id === 'fasting-remind') {
         const bridge = smartBridge();
         if (el.checked && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
@@ -2346,7 +2426,7 @@ function background(): void { void flushCounts(); void flushTasbih(); stopAudio(
 document.addEventListener('visibilitychange', () => { if (document.hidden)
     background();
 else
-    { void syncSmart().then(() => { if (['reminders', 'adhkar', 'today'].includes(view)) render(); }); void refreshSteps(true); } });
+    { void syncSmart().then(() => { if (alarmInfo?.checkWaiting && view !== 'wake') { void navigate('wake'); return; } if (['reminders', 'adhkar', 'today'].includes(view)) render(); }); void refreshSteps(true); } });
 window.addEventListener('pagehide', background);
 window.addEventListener('ayahflow:background', background);
 window.addEventListener('ayahflow:back', () => void navigate('today'));
@@ -2366,7 +2446,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } if (/^ayahflow:\/\/wake\/?$/.test(url)) { void navigate('wake'); return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });
