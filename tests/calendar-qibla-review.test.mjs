@@ -42,9 +42,9 @@ test('Hijri dates (Umm al-Qura) and voluntary-fast days, never on Eid, Tashreeq 
 
 test('Calendar reminders: off by default, ids clear of every other reminder, inside the 64-notification budget', () => {
     const s = initialState();
-    assert.deepEqual(s.calendar, { jumuah: false, fasting: false });
+    assert.deepEqual(s.calendar, { jumuah: false, fasting: false, suhoor: false, iftar: false });
     assert.deepEqual(calendarReminders(s, copy, new Date(2026, 9, 27, 9).getTime()), []);
-    const on = { ...s, calendar: { jumuah: true, fasting: true } };
+    const on = { ...s, calendar: { jumuah: true, fasting: true, suhoor: false, iftar: false } };
     const list = calendarReminders(on, copy, new Date(2026, 9, 27, 9).getTime());
     const fri = list.find(r => r.kind === 'jumuah');
     assert.equal(fri.day, '2026-10-30'); assert.equal(new Date(fri.at).getHours(), 10); assert.equal(fri.url, 'ayahflow://ayah/18:1');
@@ -64,11 +64,11 @@ test('Calendar reminders: off by default, ids clear of every other reminder, ins
 });
 
 test('Migration v17 → v18 keeps everything, adds the calendar switches off and no reviews; bad data is rejected', () => {
-    assert.equal(STATE_VERSION, 20);
+    assert.equal(STATE_VERSION, 21);
     const v17 = JSON.parse(JSON.stringify({ ...setHighlight(initialState(), 2, 255, 'green', 1), version: 17, xp: 40 }));
     delete v17.calendar; delete v17.highlightReviews;
     const m = validateState(v17);
-    assert.equal(m.version, 20); assert.equal(m.xp, 40); assert.deepEqual(m.calendar, { jumuah: false, fasting: false }); assert.deepEqual(m.highlightReviews, []);
+    assert.equal(m.version, 21); assert.equal(m.xp, 40); assert.deepEqual(m.calendar, { jumuah: false, fasting: false, suhoor: false, iftar: false }); assert.deepEqual(m.highlightReviews, []);
     assert.equal(m.highlights[0].key, '2:255');
     const ok = initialState();
     assert.throws(() => validateState({ ...ok, calendar: { jumuah: 'yes', fasting: false } }), /calendar/);
@@ -108,7 +108,7 @@ test('Wiring: Qibla tab, compass only while shown, calendar sync, review screen;
     assert.match(app, /await syncRotation\(\);\n            await syncCalendar\(\);/);
     assert.match(app, /review: reviewView/);
     const bridge = read('native/bridge.mjs');
-    assert.match(bridge, /const CALENDAR = \(id\) => id >= 24000000 && id < 26000000;/);
+    assert.match(bridge, /const CALENDAR = \(id\) => \(id >= 24000000 && id < 26000000\) \|\| \(id >= 27000000 && id < 29000000\);/);
     const swift = read('plugins/smart-reminders/ios/Sources/SmartRemindersPlugin/SmartRemindersPlugin.swift');
     assert.match(swift, /CAPPluginMethod\(name: "startHeading"/); assert.match(swift, /func stop\(\) \{ manager\.stopUpdatingHeading\(\) \}/);
     for (const k of ['ptab_qibla', 'qiblaSub', 'qiblaNote', 'qiblaFacing', 'qiblaRight', 'qiblaLeft', 'qiblaCalibrate', 'calendarSection', 'jumuahToggle', 'jumuahBody', 'fastingToggle', 'fastingNote', 'fastTitle', 'fastWhite', 'fastingHijriNote', 'reviewTitle', 'reviewSub', 'reviewHonest', 'reviewRemembered', 'reviewRevisit'])

@@ -12,6 +12,7 @@ import { placeCard, setPlaceRadius } from './places.js';
 import { calendarReminders, upcomingFasts, type FastReason } from './calendar.js';
 import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
 import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES } from './alarm.js';
+import { RAMADAN_TEXT, ramadanToday, daysToRamadan } from './ramadan.js';
 import { NAMES, NAMES_LIST, NAMES_ABOUT, NAMES_QURAN, nameOfDay } from './names.js';
 import { khatmToday, startKhatm, endKhatm, setKhatmPage, turnedPage, KHATM_DAYS } from './khatm.js';
 import { pageBody, easyBody, readerTitle, readingStyles, pageFor, clampPage, toEndOfJuz } from './mushaf.js';
@@ -1001,6 +1002,18 @@ function namesView(): string {
     const grid = NAMES.map(x => `<li class="name-cell ${x.n === today.n ? 'today' : ''}" ${x.n === today.n ? 'aria-current="date"' : ''}><span class="tiny muted">${num(x.n)}</span><span class="arabic" lang="ar" dir="rtl">${escapeHtml(x.ar)}</span></li>`).join('');
     return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('namesTitle')}</h1><section class="settings-section"><p class="arabic names-about" lang="ar" dir="rtl">${escapeHtml(NAMES_ABOUT.text)}</p><p class="tiny muted">${sourceLink(NAMES_ABOUT)} · ${gradeList(NAMES_ABOUT)}</p><div class="notice mt12">${ic('info', 18)}<p>${t('namesListNote').replace('{source}', sourceLink(NAMES_LIST)).replace('{grades}', gradeList(NAMES_LIST))}</p></div></section><ol class="names-grid" lang="ar">${grid}</ol><section class="settings-section"><h2>${t('namesQuran')}</h2>${quran}</section><p class="tiny muted">${t('namesNoMeanings')}</p>`;
 }
+// ---- Ramadan ----------------------------------------------------------------------------------------
+const narration = (id: 'qadr-nights' | 'qadr-dua') => { const x = RAMADAN_TEXT.find(r => r.id === id)!; return `<p class="arabic ramadan-text" lang="ar" dir="rtl">${escapeHtml(x.text)}</p><p class="tiny muted"><a dir="ltr" href="${sourceUrl(x.source)}" target="_blank" rel="noopener noreferrer">${escapeHtml(x.source.collection)} ${x.source.number}${ic('link', 11)}</a>${x.source.grades.length ? ` · <bdi dir="ltr">${x.source.grades.map(g => `${escapeHtml(g.by)}: ${escapeHtml(g.grade)}`).join('; ')}</bdi>` : ''}</p>`; };
+function ramadanCard(): string {
+    const now = Date.now(), r = ramadanToday(state, now);
+    if (!r) { const soon = daysToRamadan(now); return soon === null ? '' : `<div class="notice mb16">${ic('moon', 18)}<p>${t('ramadanSoon').replace('{n}', num(soon))}</p></div>`; }
+    const row = (label: string, at: number | null) => at === null ? '' : `<div class="diag-row"><span>${label}</span><span class="${at > now ? 'ok' : 'muted'}">${clock(at)}${at > now ? ` <span class="tiny" data-countdown="${at}">${countdown(at, now)}</span>` : ''}</span></div>`;
+    const times = r.suhoorEnds === null ? `<p class="small muted">${t('ramadanNoPlace')}</p>` : `<div class="diag">${row(t('suhoorEnds'), r.suhoorEnds)}${row(t('iftarAt'), r.iftar)}</div>`;
+    const nights = r.oddNight ? `<div class="notice mt12">${ic('star', 18)}<p>${t('ramadanOddNight').replace('{n}', num(r.oddNight))}</p></div>${narration('qadr-nights')}<h3 class="small gold mt12 mb8">${t('ramadanQadrDua')}</h3>${narration('qadr-dua')}` : r.lastTen ? `<p class="small muted mt12">${t('ramadanLastTen')}</p>${narration('qadr-nights')}` : '';
+    const plan = state.khatm ? '' : actionButton('khatm-ramadan', `${ic('book', 16)} ${t('ramadanKhatm')}`, 'button secondary full mt12');
+    const remind = state.calendar.suhoor || state.calendar.iftar ? '' : actionButton('ramadan-reminders', t('ramadanRemind'), 'text-button mt8');
+    return `<section class="today-card ramadan-card mb16"><p class="tiny gold">${t('ramadanDay').replace('{d}', num(r.day))}</p>${times}${nights}${plan}${remind}<p class="tiny muted mt8">${t('fastingHijriNote')}</p></section>`;
+}
 // ---- Quran completion plan (khatm) ---------------------------------------------------------------
 /** Choices on the setup screen before a plan starts (not saved until Start). */
 let khatmDays: number = 30, khatmFromHere = false;
@@ -1145,15 +1158,15 @@ function calendarSection(): string {
     const fasts = upcomingFasts(Date.now(), 8).slice(0, 4), native = !!smartBridge();
     const toggle = (id: string, on: boolean, label: string, note: string) => `<label class="setting-row"><span><strong>${label}</strong><p>${note}</p></span><input type="checkbox" id="${id}" ${on ? 'checked' : ''} aria-label="${label}"></label>`;
     const rows = fasts.map(f => `<div class="diag-row"><span>${escapeHtml(f.date.toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'short' }))}<span class="tiny muted detection-detail">${escapeHtml(hijri(f.date))}</span></span><span>${fastWhy(f.reasons)}</span></div>`).join('');
-    return `<section class="settings-section" id="calendar-reminders"><h2>${t('calendarSection')}</h2>${native ? `${toggle('jumuah-remind', state.calendar.jumuah, t('jumuahToggle'), t('jumuahNote'))}${toggle('fasting-remind', state.calendar.fasting, t('fastingToggle'), t('fastingNote'))}` : ''}<h3 class="small gold mt20 mb8">${t('nextFasts')}</h3>${rows ? `<div class="diag">${rows}</div>` : `<p class="small muted">${t('noFastsSoon')}</p>`}<p class="tiny muted mt12">${t('fastingHijriNote')}</p></section>`;
+    return `<section class="settings-section" id="calendar-reminders"><h2>${t('calendarSection')}</h2>${native ? `${toggle('jumuah-remind', state.calendar.jumuah, t('jumuahToggle'), t('jumuahNote'))}${toggle('fasting-remind', state.calendar.fasting, t('fastingToggle'), t('fastingNote'))}${toggle('suhoor-remind', state.calendar.suhoor, t('suhoorToggle'), t('suhoorNote'))}${toggle('iftar-remind', state.calendar.iftar, t('iftarToggle'), t('iftarNote'))}` : ''}<h3 class="small gold mt20 mb8">${t('nextFasts')}</h3>${rows ? `<div class="diag">${rows}</div>` : `<p class="small muted">${t('noFastsSoon')}</p>`}<p class="tiny muted mt12">${t('fastingHijriNote')}</p></section>`;
 }
 async function syncCalendar(): Promise<void> {
     const bridge = smartBridge();
     if (!bridge) return;
-    await bridge.scheduleCalendar(calendarReminders(state, { jumuah: { title: t('jumuahTitle'), body: t('jumuahBody') }, fast: r => ({ title: t('fastTitle').replace('{why}', fastWhy(r)), body: t('fastBody') }) }));
+    await bridge.scheduleCalendar(calendarReminders(state, { jumuah: { title: t('jumuahTitle'), body: t('jumuahBody') }, fast: r => ({ title: t('fastTitle').replace('{why}', fastWhy(r)), body: t('fastBody') }), suhoor: f => ({ title: t('suhoorTitle'), body: t('suhoorBody').replace('{time}', clock(f)) }), iftar: m => ({ title: t('iftarTitle'), body: t('iftarBody').replace('{time}', clock(m)) }) }));
 }
 function homeView(): string {
-    return `${dateLine()}${watchCard()}${fridayCard()}${khatmCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
+    return `${dateLine()}${watchCard()}${fridayCard()}${ramadanCard()}${khatmCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
 <div class="tile-row"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('dailyVerseSub')}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
 ${nowCard()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
 }
@@ -1390,6 +1403,12 @@ async function handleAction(el: HTMLElement): Promise<void> {
         }
         case 'khatm-days': { const v = Number(d.v); if ((KHATM_DAYS as readonly number[]).includes(v)) { khatmDays = v; keepScroll(); } break; }
         case 'khatm-from': khatmFromHere = d.v === 'here'; keepScroll(); break;
+        case 'khatm-ramadan':
+            if (!state.khatm) { await commit(startKhatm(state, 30, 1)); toast(t('khatmStarted')); render(); }
+            break;
+        case 'ramadan-reminders':
+            prayerTab = 'times'; await navigate('prayer'); document.querySelector('#calendar-reminders')?.scrollIntoView({ block: 'start' });
+            break;
         case 'khatm-new':
             await commit(endKhatm(state)); render();
             break;
@@ -2405,10 +2424,10 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
         return;
     }
     if (el.id === 'fajr-check') { await setFajrAlarm({ check: el.checked }); return; }
-    if (el.id === 'jumuah-remind' || el.id === 'fasting-remind') {
+    if (el.id === 'jumuah-remind' || el.id === 'fasting-remind' || el.id === 'suhoor-remind' || el.id === 'iftar-remind') {
         const bridge = smartBridge();
         if (el.checked && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
-        await commit({ ...state, calendar: { ...state.calendar, [el.id === 'jumuah-remind' ? 'jumuah' : 'fasting']: el.checked } });
+        await commit({ ...state, calendar: { ...state.calendar, [el.id === 'jumuah-remind' ? 'jumuah' : el.id === 'fasting-remind' ? 'fasting' : el.id === 'suhoor-remind' ? 'suhoor' : 'iftar']: el.checked } });
         try { await syncCalendar(); await syncRotation(); if (el.checked) toast(t('calendarOn')); } catch { toast(t('reminderSyncFailed')); }
         keepScroll();
         return;

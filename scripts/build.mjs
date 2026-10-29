@@ -30,6 +30,9 @@ await (await import('./import-translation.mjs')).writeTranslationModule('www/js/
 await writeFile('www/js/adhkar-data.js', `/* Generated from content/adhkar/adhkar.json — do not edit. Source: ${JSON.parse(await readFile('content/adhkar/adhkar.json', 'utf8')).dataset}. */\nexport default ${await readFile('content/adhkar/adhkar.json', 'utf8')};\n`);
 // The 99 Names: verbatim from Jami' at-Tirmidhi 3507 (scripts/build-names.mjs), with 3506 for the authentic statement.
 await writeFile('www/js/names-data.js', `/* Generated from content/names/names.json — do not edit. */\nexport default ${await readFile('content/names/names.json', 'utf8')};\n`);
+// Ramadan narrations: verbatim slices (scripts/build-ramadan.mjs); the full hadith text stays out of the app bundle.
+{ const r = JSON.parse(await readFile('content/ramadan/ramadan.json', 'utf8'));
+  await writeFile('www/js/ramadan-data.js', `/* Generated from content/ramadan/ramadan.json — do not edit. */\nexport default ${JSON.stringify({ dataset: r.dataset, items: r.items.map(({ full, ...i }) => i) })};\n`); }
 // Athan catalogue (names, credits, licences) for the recordings in public/sounds (scripts/prepare-athan.mjs).
 { const { reviewNotes, alertSeconds, recordings } = JSON.parse(await readFile('content/athan/sources.json', 'utf8'));
   await writeFile('www/js/athan-data.js', `/* Generated from content/athan/sources.json — do not edit. */\nexport default ${JSON.stringify({ reviewNotes, alertSeconds, recordings: recordings.map(({ download, sha256, ...r }) => r), online: JSON.parse(await readFile('content/athan/online.json', 'utf8')) })};\n`); }

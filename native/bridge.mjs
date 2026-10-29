@@ -33,8 +33,8 @@ const SALAH = (id) => id >= 13000000 && id < 18000000;
 const BEFORE = (id) => id >= 18000000 && id < 23000000;
 /** Test notifications from the prayer settings (src/smart.ts TEST_BEFORE_ID, TEST_ATHAN_ID). */
 const TEST = (id) => id >= 23000000 && id < 23000100;
-/** Jumu'ah (24) and voluntary-fast (25) reminders: code * 1e6 + yymmdd (src/calendar.ts). */
-const CALENDAR = (id) => id >= 24000000 && id < 26000000;
+/** Jumu'ah (24), voluntary-fast (25), suhoor (27) and iftar (28) reminders: code * 1e6 + yymmdd (src/calendar.ts). */
+const CALENDAR = (id) => (id >= 24000000 && id < 26000000) || (id >= 27000000 && id < 29000000);
 /** Fajr alarm notifications where AlarmKit is unavailable (26 * 1e6 + yymmdd, src/alarm.ts). */
 const ALARM = (id) => id >= 26000000 && id < 27000000;
 let headingListener = null;

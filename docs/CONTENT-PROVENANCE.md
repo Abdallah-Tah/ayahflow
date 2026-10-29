@@ -119,3 +119,9 @@ Colour-coded tajweed, IndoPak script and tafseer are listed as not available unt
 - The names are sliced verbatim from Jami' at-Tirmidhi 3507 (fawazahmed0/hadith-api, ara-tirmidhi) by `scripts/build-names.mjs`; none is typed by hand. The narration lists 98 names after "He is Allah, besides whom there is no god"; with the name Allah they are 99, and the app says so.
 - The listing is graded Da'if by Ahmad Shakir, al-Albani and Zubair Ali Zai, as the dataset publishes; the app shows those grades next to the authentic statement that Allah has ninety-nine names (Tirmidhi 3506, Sahih).
 - No meanings, explanations or per-name Quran references are shown: a matching Quran word is often not the name (al-mu'izz is also "goats" in 6:143). The screen shows 7:180, 17:110, 20:8 and 59:22–24 from the Tanzil text instead. Scholar review pending.
+
+## Ramadan (v21)
+
+- Day of Ramadan from the system Umm al-Qura calendar (Intl), labelled as such; local sighting may differ by a day.
+- Suhoor ends at Fajr and iftar is at Maghrib, from the same prayer-time calculation as the rest of the app (adhan-js, the user's method). Reminders: 45 min before Fajr, 10 min before Maghrib, off by default.
+- Narrations, sliced verbatim by `scripts/build-ramadan.mjs`: seeking Laylat al-Qadr in the odd nights of the last ten (Sahih al-Bukhari 2017) and the du'a taught to 'A'ishah (Jami' at-Tirmidhi 3513, grades shown as published, including Zubair Ali Zai's Da'if). Scholar review pending.

@@ -54,10 +54,10 @@ test('Only a forward turn from the next unread page moves the plan; jumps never 
 });
 
 test('Migration v19 → v20 adds no plan; a saved plan round-trips; bad plans are rejected', () => {
-    assert.equal(STATE_VERSION, 20);
-    const v19 = JSON.parse(JSON.stringify({ ...initialState(), version: 19, xp: 5 })); delete v19.khatm;
+    assert.equal(STATE_VERSION, 21);
+    const v19 = JSON.parse(JSON.stringify({ ...initialState(), version: 19, xp: 5 })); delete v19.khatm; v19.calendar = { jumuah: false, fasting: false };
     const m = validateState(v19);
-    assert.equal(m.version, 20); assert.equal(m.khatm, null); assert.equal(m.xp, 5); assert.deepEqual(m.fajrAlarm, initialState().fajrAlarm);
+    assert.equal(m.version, 21); assert.equal(m.khatm, null); assert.equal(m.xp, 5); assert.deepEqual(m.fajrAlarm, initialState().fajrAlarm);
     const s = setKhatmPage(startKhatm(initialState(), 40, 10, '2026-10-29'), 50);
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).khatm, { start: '2026-10-29', days: 40, from: 10, page: 50 });
     const ok = s.khatm;
@@ -69,7 +69,7 @@ test('Migration v19 → v20 adds no plan; a saved plan round-trips; bad plans ar
 test('Wiring: page turns go through the plan, Home and Quran entries, wording in three languages', () => {
     const app = read('src/app.ts');
     assert.match(app, /await commit\(\{ \.\.\.turnedPage\(state, before, page\), readPosition: \{ surah: s, ayah: a \} \}\);/);
-    assert.match(app, /\$\{fridayCard\(\)\}\$\{khatmCard\(\)\}/); assert.match(app, /\$\{khatmEntry\(\)\}\$\{reviewEntry\(\)\}/);
+    assert.match(app, /\$\{ramadanCard\(\)\}\$\{khatmCard\(\)\}/); assert.match(app, /\$\{khatmEntry\(\)\}\$\{reviewEntry\(\)\}/);
     for (const k of ['khatmTitle', 'khatmPlanIt', 'khatmSub', 'khatmFinishIn', 'khatmNDays', 'khatmNDaysFew', 'khatmStartAt', 'khatmFromStart', 'khatmFromHere', 'khatmPreview', 'khatmStart', 'khatmStarted', 'khatmHonest', 'khatmDayOf', 'khatmEnds', 'khatmToday', 'khatmTodayPages', 'khatmFromTo', 'khatmReached', 'khatmPageN', 'khatmNotYet', 'khatmReachedOf', 'khatmOnTrack', 'khatmTodayDone', 'khatmBehind', 'khatmAhead', 'khatmContinue', 'khatmCorrect', 'khatmCorrectNote', 'khatmBadPage', 'khatmEnd', 'khatmEndPrompt', 'khatmFinished', 'khatmFinishedNote', 'khatmNew'])
         for (const l of ['en', 'fr', 'ar']) assert.ok(tr(k, l) !== k && tr(k, l).length > 0, `${k} ${l}`);
 });

@@ -21,8 +21,9 @@ export const READER_SCALE = [0.85, 0.95, 1.05, 1.2, 1.35, 1.55, 1.8] as const;
  * from Home (`athan.awayChime`, off); v15 → v16 added the page layout, verse highlights and the user's verse notes;
  * v16 → v17 added the reading theme (`readingTheme`, auto) and the reader text size (`readerSize`, step 3 of 7);
  * v17 → v18 added the Jumu'ah and voluntary-fast reminders (`calendar`, both off) and highlight reviews (`highlightReviews`);
- * v18 → v19 added the Fajr wake-up alarm (`fajrAlarm`, off); v19 → v20 added the Quran completion plan (`khatm`, none). */
-export const STATE_VERSION = 20;
+ * v18 → v19 added the Fajr wake-up alarm (`fajrAlarm`, off); v19 → v20 added the Quran completion plan (`khatm`, none);
+ * v20 → v21 added the Ramadan suhoor and iftar reminders (`calendar.suhoor`, `calendar.iftar`, both off). */
+export const STATE_VERSION = 21;
 import ATHAN_DATA from './athan-data.js';
 /** Bundled athan recordings (content/athan/sources.json) plus the user's own imported file. */
 export const ATHAN_RECITERS: readonly string[] = ATHAN_DATA.recordings.map(r => r.id);
@@ -232,8 +233,9 @@ export interface Highlight { key: string; color: HighlightColor; at: number }
 export interface VerseNote { key: string; text: string; at: number }
 export const NOTE_MAX = 2000;
 /** Friday reminder (Surah Al-Kahf and salawat) and the evening-before reminder for voluntary fasts. Off until chosen. */
-export interface CalendarReminders { jumuah: boolean; fasting: boolean }
-export const defaultCalendar = (): CalendarReminders => ({ jumuah: false, fasting: false });
+/** Jumu'ah, voluntary fasts, and in Ramadan the end of suhoor and iftar (src/calendar.ts, src/ramadan.ts). */
+export interface CalendarReminders { jumuah: boolean; fasting: boolean; suhoor: boolean; iftar: boolean }
+export const defaultCalendar = (): CalendarReminders => ({ jumuah: false, fasting: false, suhoor: false, iftar: false });
 /** Fajr wake-up alarm. `offset`: minutes from Fajr (FAJR_OFFSETS); `snoozes`: how many times it may be snoozed;
  * `check`: after Stop, it rings once more unless the user opens AyahFlow and confirms being awake. */
 export interface FajrAlarm { enabled: boolean; offset: number; snoozes: number; snoozeMinutes: number; check: boolean }
@@ -250,7 +252,7 @@ export const PAGE_TOTAL = 604;
 export interface HighlightReview { key: string; day: string; result: 'remembered' | 'revisit' }
 export const HIGHLIGHT_REVIEW_MAX = 1000;
 export interface AppState {
-    version: 20;
+    version: 21;
     khatm: Khatm | null;
     fajrAlarm: FajrAlarm;
     calendar: CalendarReminders;
@@ -304,7 +306,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 20, khatm: null, fajrAlarm: defaultFajrAlarm(), calendar: defaultCalendar(), highlightReviews: [], readingTheme: 'auto', readerSize: 2, highlights: [], notes: [], worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 21, khatm: null, fajrAlarm: defaultFajrAlarm(), calendar: defaultCalendar(), highlightReviews: [], readingTheme: 'auto', readerSize: 2, highlights: [], notes: [], worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -413,7 +415,7 @@ export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
     const s = raw as Omit<AppState, 'khatm' | 'fajrAlarm' | 'calendar' | 'highlightReviews' | 'readingTheme' | 'readerSize' | 'highlights' | 'notes' | 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; khatm?: Khatm | null; fajrAlarm?: FajrAlarm; calendar?: CalendarReminders; highlightReviews?: HighlightReview[]; readingTheme?: ReadingTheme; readerSize?: number; highlights?: Highlight[]; notes?: VerseNote[]; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
@@ -500,7 +502,7 @@ export function validateState(raw: unknown): AppState {
         throw new Error('Invalid reading settings');
     if (s.version >= 18) {
         const c = s.calendar;
-        if (!c || typeof c.jumuah !== 'boolean' || typeof c.fasting !== 'boolean' || Object.keys(c).length !== 2)
+        if (!c || typeof c.jumuah !== 'boolean' || typeof c.fasting !== 'boolean' || (s.version >= 21 && (typeof c.suhoor !== 'boolean' || typeof c.iftar !== 'boolean')) || Object.keys(c).length !== (s.version >= 21 ? 4 : 2))
             throw new Error('Invalid calendar reminders');
         const r = s.highlightReviews;
         if (!Array.isArray(r) || r.length > HIGHLIGHT_REVIEW_MAX || new Set(r.map(x => `${x?.key}@${x?.day}`)).size !== r.length || r.some(x => !x || typeof x.key !== 'string' || !/^\d+:\d+$/.test(x.key) || typeof x.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.day) || !['remembered', 'revisit'].includes(x.result) || Object.keys(x).length !== 3))
@@ -539,7 +541,7 @@ export function validateState(raw: unknown): AppState {
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone({ ...s, version: 20, khatm: s.version < 20 ? null : s.khatm!, fajrAlarm: s.version < 19 ? defaultFajrAlarm() : s.fajrAlarm!, calendar: s.version < 18 ? defaultCalendar() : s.calendar!, highlightReviews: s.version < 18 ? [] : s.highlightReviews!, readingTheme: s.version < 17 ? 'auto' : s.readingTheme!, readerSize: s.version < 17 ? 2 : s.readerSize!, highlights: s.version < 16 ? [] : s.highlights!, notes: s.version < 16 ? [] : s.notes!, worship: s.version < 13 ? defaultWorship() : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    return structuredClone({ ...s, version: 21, khatm: s.version < 20 ? null : s.khatm!, fajrAlarm: s.version < 19 ? defaultFajrAlarm() : s.fajrAlarm!, calendar: s.version < 18 ? defaultCalendar() : s.version < 21 ? { ...s.calendar!, suhoor: false, iftar: false } : s.calendar!, highlightReviews: s.version < 18 ? [] : s.highlightReviews!, readingTheme: s.version < 17 ? 'auto' : s.readingTheme!, readerSize: s.version < 17 ? 2 : s.readerSize!, highlights: s.version < 16 ? [] : s.highlights!, notes: s.version < 16 ? [] : s.notes!, worship: s.version < 13 ? defaultWorship() : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */

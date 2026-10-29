@@ -57,11 +57,11 @@ test('Fallback notifications: two mornings, ids clear of every other reminder, r
 });
 
 test('Migration v18 → v19 keeps everything and adds the alarm, off; bad settings are rejected', () => {
-    assert.equal(STATE_VERSION, 20);
+    assert.equal(STATE_VERSION, 21);
     const v18 = JSON.parse(JSON.stringify({ ...initialState(), version: 18, xp: 12, calendar: { jumuah: true, fasting: false } }));
     delete v18.fajrAlarm;
     const m = validateState(v18);
-    assert.equal(m.version, 20); assert.equal(m.xp, 12); assert.deepEqual(m.calendar, { jumuah: true, fasting: false });
+    assert.equal(m.version, 21); assert.equal(m.xp, 12); assert.deepEqual(m.calendar, { jumuah: true, fasting: false, suhoor: false, iftar: false });
     assert.deepEqual(m.fajrAlarm, defaultFajrAlarm());
     const ok = initialState();
     for (const bad of [{ offset: 7 }, { snoozes: 9 }, { snoozeMinutes: 9 }, { enabled: 'yes' }, { check: 1 }, { extra: true }])

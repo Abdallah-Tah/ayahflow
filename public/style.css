@@ -454,3 +454,5 @@ h1,h2{text-wrap:balance}
 .name-cell{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 8px;border:1px solid var(--line);border-radius:12px;background:var(--panel);min-width:0}
 .name-cell .arabic{font-size:calc(22px * var(--ar,1));line-height:1.7;overflow-wrap:break-word;text-align:center}
 .name-cell.today{border-color:var(--gold);background:rgb(var(--tint) / .1)}
+/* Ramadan */
+.ramadan-text{font-size:calc(21px * var(--ar,1));line-height:2;margin:8px 0 2px}

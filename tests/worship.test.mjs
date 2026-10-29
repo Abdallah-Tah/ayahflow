@@ -58,7 +58,7 @@ test('Migration v12 → v13 keeps every saved field and adds empty worship data;
     const v12 = { ...initialState(), version: 12, xp: 40, bookmarks: ['1:1'], counts: [{ id: 'istighfar', day: DAY, n: 7 }] };
     delete v12.worship;
     const m = validateState(JSON.parse(JSON.stringify(v12)));
-    assert.equal(STATE_VERSION, 20); assert.equal(m.version, 20);
+    assert.equal(STATE_VERSION, 21); assert.equal(m.version, 21);
     assert.equal(m.xp, 40); assert.deepEqual(m.bookmarks, ['1:1']); assert.equal(countOn(m, 'istighfar', DAY), 7);
     assert.deepEqual(m.worship.salah, []); assert.equal(m.worship.prefs.haptics, true); assert.equal(m.worship.prefs.checkIn, false, 'reminders stay off until chosen');
     const ok = setSalah(m, DAY, 'fajr', 'done', NOW);

@@ -97,7 +97,9 @@ export const ROTATION_MAX = 64 - ATHAN_MAX - PLAN_DAYS * 3 - 6 - SALAH_MAX - RES
 export const FAST_MAX = 3;
 /** Fajr alarm notifications when AlarmKit is unavailable (alarm.ts): the next two mornings. */
 export const ALARM_FALLBACK_DAYS = 2;
-export function calendarCount(state: AppState): number { return (state.calendar.jumuah ? 1 : 0) + (state.calendar.fasting ? FAST_MAX : 0) + (state.fajrAlarm.enabled ? ALARM_FALLBACK_DAYS : 0); }
+/** Ramadan suhoor and iftar reminders: each for the next three days of Ramadan (calendar.ts). */
+export const RAMADAN_DAYS = 3;
+export function calendarCount(state: AppState): number { return (state.calendar.jumuah ? 1 : 0) + (state.calendar.fasting ? FAST_MAX : 0) + (state.fajrAlarm.enabled ? ALARM_FALLBACK_DAYS : 0) + (state.calendar.suhoor ? RAMADAN_DAYS : 0) + (state.calendar.iftar ? RAMADAN_DAYS : 0); }
 /** The rotation budget for these settings: smaller while the reminders before prayers or the calendar reminders are on. */
 export function rotationMax(state: AppState): number { return ROTATION_MAX - (state.athan.before.enabled ? BEFORE_MAX : 0) - calendarCount(state); }
 export interface RotationReminder { id: number; at: number; title: string; body: string; url: string; phrase: string }
