@@ -187,6 +187,12 @@ Native compilation and device testing (carried over):
 - [x] Browser (402×874 and 320×568, English and Arabic RTL): setup, plan screen, Home card, Quran entry, end-plan confirmation; no sideways scroll. Page turns in the Mushaf reader advanced the plan only in order.
 - [ ] Physical iPhone: swipe page turns advance the plan; Home card updates the next day; Arabic counted nouns read naturally to a native speaker.
 
+## Android widgets (2026-10-29)
+
+- [x] `./gradlew assembleDebug` builds with OpenJDK 21 (Homebrew `openjdk@21`; Capacitor 8 needs Java 21): du'a, istighfar, steps and Jumu'ah-and-fasts widgets alongside the prayer widget (android-widgets.test.mjs).
+- [ ] Run on an Android phone or emulator: the local emulator (Pixel_9_Pro) does not start (libQt6WebEngineCoreAndroidEmu missing from the SDK emulator package; reinstalling the emulator should fix it). Place each widget; check Arabic, taps and the change at midnight.
+- [ ] Android still lacks: a full Fajr alarm (notification only), "I recited it" on smart-engine notifications, a live Qibla compass.
+
 ## Quran and learning quality
 
 - [ ] Qualified reviewer checks the Arabic corpus and all displayed glyphs/marks against the chosen convention.

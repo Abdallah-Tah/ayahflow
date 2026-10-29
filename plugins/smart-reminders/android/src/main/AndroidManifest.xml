@@ -14,6 +14,30 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_info" />
         </receiver>
+        <receiver android:name="app.ayahflow.smart.DuaWidgetProvider" android:exported="false" android:label="AyahFlow · Du'a of the day">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_dua_info" />
+        </receiver>
+        <receiver android:name="app.ayahflow.smart.DhikrWidgetProvider" android:exported="false" android:label="AyahFlow · Istighfar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_dhikr_info" />
+        </receiver>
+        <receiver android:name="app.ayahflow.smart.StepsWidgetProvider" android:exported="false" android:label="AyahFlow · Steps">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_steps_info" />
+        </receiver>
+        <receiver android:name="app.ayahflow.smart.UpcomingWidgetProvider" android:exported="false" android:label="AyahFlow · Jumu'ah and fasts">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_upcoming_info" />
+        </receiver>
         <receiver android:name="app.ayahflow.smart.BootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

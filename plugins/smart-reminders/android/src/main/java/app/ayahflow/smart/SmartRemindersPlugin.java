@@ -135,6 +135,7 @@ public class SmartRemindersPlugin extends Plugin {
         SmartEngine.prefs(getContext()).edit().clear().apply();
         SmartEngine.apply(getContext());
         PrayerWidgetProvider.refresh(getContext());
+        SimpleWidget.refreshAll(getContext());
         call.resolve();
     }
 
@@ -145,6 +146,7 @@ public class SmartRemindersPlugin extends Plugin {
         if (json == null || json.equals("null")) SmartEngine.prefs(getContext()).edit().remove(PrayerWidgetProvider.DATA).apply();
         else SmartEngine.prefs(getContext()).edit().putString(PrayerWidgetProvider.DATA, json).apply();
         PrayerWidgetProvider.refresh(getContext());
+        SimpleWidget.refreshAll(getContext());
         call.resolve();
     }
 
