@@ -54,6 +54,13 @@ export function chapter(id: number): Surah { const result = Number.isInteger(id)
     throw new Error('Unknown surah'); return result; }
 export function verse(surah: number, ayah: number): string { const text = Number.isInteger(ayah) && ayah >= 1 ? chapter(surah).verses[ayah - 1] : undefined; if (!text)
     throw new Error('Ayah outside chapter'); return text; }
+/** The ayah an audioUrl() plays, from its global ayah number; null for any other audio (athan, own recordings). */
+export function ayahOfAudioUrl(url: string): [number, number] | null {
+    const m = /\/ar\.alafasy\/(\d+)\.mp3$/.exec(url);
+    if (!m) return null;
+    const g = Number(m[1]), s = SURAH_DATA.find(x => g >= x.firstGlobal && g < x.firstGlobal + x.count);
+    return s ? [s.id, g - s.firstGlobal + 1] : null;
+}
 export function audioUrl(surah: number, ayah: number): string { verse(surah, ayah); return `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${chapter(surah).firstGlobal + ayah - 1}.mp3`; }
 export type RuleId = 'ikhfa' | 'ghunnah' | 'qalqalah' | 'madd';
 export interface Lesson {

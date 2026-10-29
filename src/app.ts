@@ -1,4 +1,4 @@
-import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, juzOf, pageOf, pageAyahs, PAGE_COUNT, JUZ_STARTS, QURAN_SOURCE, translation, TRANSLATION_SOURCE, type RuleId } from './data.js';
+import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, ayahOfAudioUrl, juzOf, pageOf, pageAyahs, PAGE_COUNT, JUZ_STARTS, QURAN_SOURCE, translation, TRANSLATION_SOURCE, type RuleId } from './data.js';
 import { COUNTERS, ROTATION, ROTATION_GROUPS, LIBRARY, LIBRARY_CATEGORIES, TASBIH_VARIANTS, counter, counterPosition, type DhikrCounter, type LibraryDhikr, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
 import { nativeConfig, backgroundBlocked, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, athanHomeOnly, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily, type AlarmStatus } from './smart.js';
 import { setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, FAJR_OFFSETS, FAJR_SNOOZES, FAJR_SNOOZE_MINUTES, type HighlightColor } from './engine.js';
@@ -78,6 +78,8 @@ let lastResult: {
 } | null = null;
 let busy = false;
 let audioState = 'stopped';
+/** The ayah the reciter is reading now (from the playing audio), highlighted wherever it is on screen. Display only. */
+let recitingAyah: [number, number] | null = null, recitingClear: ReturnType<typeof setTimeout> | null = null;
 let ownAudio = false;
 let recordTimer: ReturnType<typeof setInterval> | null = null;
 let recordStart = 0;
@@ -1005,6 +1007,39 @@ function namesView(): string {
     const grid = NAMES.map(x => `<li class="name-cell ${x.n === today.n ? 'today' : ''}" ${x.n === today.n ? 'aria-current="date"' : ''}><span class="tiny muted">${num(x.n)}</span><span class="arabic" lang="ar" dir="rtl">${escapeHtml(x.ar)}</span></li>`).join('');
     return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('namesTitle')}</h1><section class="settings-section"><p class="arabic names-about" lang="ar" dir="rtl">${escapeHtml(NAMES_ABOUT.text)}</p><p class="tiny muted">${sourceLink(NAMES_ABOUT)} · ${gradeList(NAMES_ABOUT)}</p><div class="notice mt12">${ic('info', 18)}<p>${t('namesListNote').replace('{source}', sourceLink(NAMES_LIST)).replace('{grades}', gradeList(NAMES_LIST))}</p></div></section><ol class="names-grid" lang="ar">${grid}</ol><section class="settings-section"><h2>${t('namesQuran')}</h2>${quran}</section><p class="tiny muted">${t('namesNoMeanings')}</p>`;
 }
+// ---- Following the reciter -----------------------------------------------------------------------
+/** Keeps the highlight on the ayah being recited. Between two ayahs of a queue the player stops and starts again, so a
+ * stop only clears the highlight if nothing new starts within a moment. */
+function followRecitation(status: string, url: string): void {
+    if (status === 'loading' || status === 'playing') {
+        if (recitingClear) { clearTimeout(recitingClear); recitingClear = null; }
+        const next = ayahOfAudioUrl(url);
+        if (next?.[0] === recitingAyah?.[0] && next?.[1] === recitingAyah?.[1]) return;
+        recitingAyah = next;
+        showReciting(true);
+    } else if (status === 'stopped' || status === 'error') {
+        if (recitingClear) clearTimeout(recitingClear);
+        recitingClear = setTimeout(() => { recitingClear = null; recitingAyah = null; showReciting(false); }, 600);
+    }
+}
+/** Marks the recited ayah in the reader (Mushaf page, Easy reading, cards) and on the memorisation screen, turning the
+ * Mushaf page when the recitation moves past it. That turn keeps the reading place with the recitation (so the reader
+ * reopens there) but is not the user's page turn: the Quran plan does not move. */
+function showReciting(follow: boolean): void {
+    document.querySelectorAll('.reciting').forEach(el => { el.classList.remove('reciting'); el.removeAttribute('aria-current'); });
+    if (!recitingAyah) return;
+    const [s, a] = recitingAyah;
+    if (follow && view === 'reader' && state.readingLayout === 'page' && !mushafOpen && readerPage && pageOf(s, a) !== readerPage) {
+        readerSurah = s; readerPage = pageOf(s, a); menuVerse = null;
+        void commit({ ...state, readPosition: { surah: s, ayah: a } }).then(() => { if (view === 'reader') render(); });
+        return;
+    }
+    const els = [...document.querySelectorAll<HTMLElement>(`.q-v[data-surah="${s}"][data-ayah="${a}"], .hifz-ayah[data-surah="${s}"][data-ayah="${a}"]`)];
+    if (view === 'reader' && state.readingLayout === 'cards' && readerSurah === s) { const card = document.querySelector<HTMLElement>(`#ayah-${a}.ayah-card`); if (card) els.push(card); }
+    for (const el of els) { el.classList.add('reciting'); el.setAttribute('aria-current', 'true'); }
+    const first = els[0];
+    if (follow && first) { const r = first.getBoundingClientRect(); if (r.top < 80 || r.bottom > window.innerHeight - 100) first.scrollIntoView({ behavior: state.reducedMotion ? 'instant' : 'smooth', block: 'center' }); }
+}
 // ---- Home shortcuts ----------------------------------------------------------------------------------
 function qiblaTile(): string {
     const p = prayerPlace(state);
@@ -1032,7 +1067,7 @@ function hifzView(): string {
     const seg = (action: string, values: readonly number[], current: number, label: (n: number) => string) => `<div class="segment wrap" role="group">${values.map(v => `<button data-action="${action}" data-v="${v}" class="${current === v ? 'active' : ''}" aria-pressed="${current === v}">${label(v)}</button>`).join('')}</div>`;
     const pick = `<label class="select-row">${ic('book', 16)}<span class="grow small">${t('surah')}</span><select id="hifz-surah" aria-label="${t('surah')}">${SURAH_DATA.map(s => `<option value="${s.id}" ${s.id === h.surah ? 'selected' : ''}>${s.id}. ${name(s)}</option>`).join('')}</select></label><div class="row mt12 hifz-range"><label class="grow small">${t('hifzFrom')}<input id="hifz-from" type="number" inputmode="numeric" min="1" max="${c.count}" value="${h.from}"></label><label class="grow small">${t('hifzTo')}<input id="hifz-to" type="number" inputmode="numeric" min="1" max="${c.count}" value="${h.to}"></label></div><p class="tiny muted mt8">${t('hifzMax').replace('{n}', num(HIFZ_MAX_AYAHS))}</p>`;
     const listen = state.audioConsent ? `${seg('hifz-repeat', HIFZ_REPEATS, h.repeat, n => `×${num(n)}`)}<div class="row gap8">${actionButton('hifz-play', `${ic('play', 16)} ${t('hifzPlay')}`, 'button primary grow')}${actionButton('stop-audio', `${ic('close', 16)} ${t('stopAthan')}`, 'button secondary')}</div><p class="tiny muted mt8">${t('hifzPlayNote')}</p>` : `<div class="notice">${ic('info', 18)}<p>${t('hifzNeedAudio')}</p></div>${actionButton('nav', `${ic('gear', 15)} ${t('settings')}`, 'button subtle mt12', 'data-view="settings"')}`;
-    const ayahs = Array.from({ length: h.to - h.from + 1 }, (_, i) => h.from + i).map(a => `<p class="arabic hifz-ayah" lang="ar" dir="rtl">${ayahWords(verse(h.surah, a)).map((w, i) => hiddenWord(i, h.level) ? `<button class="hz-word hidden" data-action="hifz-reveal" aria-pressed="false" aria-label="${t('hifzReveal')}"><span>${escapeHtml(w)}</span></button>` : `<span class="hz-word">${escapeHtml(w)}</span>`).join(' ')} ${marker(a)}</p>`).join('');
+    const ayahs = Array.from({ length: h.to - h.from + 1 }, (_, i) => h.from + i).map(a => `<p class="arabic hifz-ayah" lang="ar" dir="rtl" data-surah="${h.surah}" data-ayah="${a}">${ayahWords(verse(h.surah, a)).map((w, i) => hiddenWord(i, h.level) ? `<button class="hz-word hidden" data-action="hifz-reveal" aria-pressed="false" aria-label="${t('hifzReveal')}"><span>${escapeHtml(w)}</span></button>` : `<span class="hz-word">${escapeHtml(w)}</span>`).join(' ')} ${marker(a)}</p>`).join('');
     const levels = ['hifzShowAll', 'hifzHideSome', 'hifzHideHalf', 'hifzHideAll'];
     return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('hifzTitle')}</h1><p class="page-sub">${t('hifzSub')}</p><section class="settings-section"><h2>${t('hifzWhat')}</h2>${pick}</section><section class="settings-section"><h2>${t('hifzListen')}</h2>${listen}</section><section class="settings-section"><h2>${t('hifzTest')}</h2>${seg('hifz-level', HIFZ_LEVELS, h.level, n => t(levels[n]!))}<p class="small muted mb8">${name(c)} <bdi dir="ltr">${h.surah}:${h.from}${h.to > h.from ? `–${h.to}` : ''}</bdi></p>${ayahs}<p class="tiny muted mt12">${t('hifzHonest')}</p></section>`;
 }
@@ -1359,7 +1394,7 @@ function currentPrayer(now = Date.now()): PrayerName {
 const views: Record<View, () => string> = { hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
-function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } syncCompass(); }
+function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } syncCompass(); showReciting(false); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
@@ -2561,7 +2596,7 @@ finally {
 window.addEventListener('ayahflow:audio', e => { const detail = (e as CustomEvent<{
     status: string;
     url: string;
-}>).detail; audioState = detail.status; ownAudio = detail.url.startsWith('blob:'); if (detail.status === 'playing' && previewing && detail.url === previewUrl && view === 'prayer') { const y = window.scrollY; render(); window.scrollTo(0, y); } if (['stopped', 'error'].includes(detail.status) && previewing && detail.url === previewUrl) { previewing = null; if (view === 'prayer') { const y = window.scrollY; render(); window.scrollTo(0, y); } } if (detail.status === 'error')
+}>).detail; audioState = detail.status; ownAudio = detail.url.startsWith('blob:'); followRecitation(detail.status, detail.url); if (detail.status === 'playing' && previewing && detail.url === previewUrl && view === 'prayer') { const y = window.scrollY; render(); window.scrollTo(0, y); } if (['stopped', 'error'].includes(detail.status) && previewing && detail.url === previewUrl) { previewing = null; if (view === 'prayer') { const y = window.scrollY; render(); window.scrollTo(0, y); } } if (detail.status === 'error')
     toast(t('audioError')); document.body.classList.toggle('audio-playing', detail.status === 'playing'); const banner = document.querySelector<HTMLElement>('#audio-banner'); if (banner) {
     banner.hidden = ['stopped', 'error'].includes(detail.status);
     const strong = banner.querySelector('strong');
