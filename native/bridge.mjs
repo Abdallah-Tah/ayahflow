@@ -66,7 +66,8 @@ function deliver(url) { if (typeof url !== 'string' || !url.startsWith('ayahflow
 export const bridge = {
     smart: {
         status: () => Smart.status(),
-        currentPosition: () => Smart.currentPosition(),
+        /** Rejects after 20 s: iOS can leave a one-off location request unanswered, which would leave the screen waiting. */
+        currentPosition: () => Promise.race([Smart.currentPosition(), new Promise((_, reject) => setTimeout(() => reject(Error('Location timed out')), 20000))]),
         requestAlways: () => Smart.requestAlways(),
         requestMotion: () => Smart.requestMotion(),
         configure: (config) => Smart.configure({ config: JSON.stringify(config) }),

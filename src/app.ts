@@ -2383,8 +2383,12 @@ root.addEventListener('click', e => {
     chromeHidden = !chromeHidden;
     reader.classList.toggle('chrome-off', chromeHidden);
 });
-root.addEventListener('click', async (e) => { const target = (e.target as Element).closest<HTMLElement>('[data-action]'); if (!target || busy || (target as HTMLButtonElement).disabled)
-    return; busy = true; try {
+/** While an action runs, other taps wait (no double submits). Back and the tabs always work, and an action that never
+ * finishes (e.g. iOS never answering a location request) cannot lock the buttons for more than BUSY_LIMIT. */
+const BUSY_LIMIT = 8000, ALWAYS_ACTIONS = new Set(['nav', 'back']);
+let busySince = 0, busyToken = 0;
+root.addEventListener('click', async (e) => { const target = (e.target as Element).closest<HTMLElement>('[data-action]'); if (!target || (target as HTMLButtonElement).disabled || (busy && !ALWAYS_ACTIONS.has(target.dataset.action ?? '') && Date.now() - busySince < BUSY_LIMIT))
+    return; busy = true; busySince = Date.now(); const mine = ++busyToken; try {
     await handleAction(target);
 }
 catch (error) {
@@ -2392,7 +2396,7 @@ catch (error) {
     toast(t('error'));
 }
 finally {
-    busy = false;
+    if (busyToken === mine) busy = false;
 } });
 root.addEventListener('input', e => { const el = e.target as HTMLInputElement; if (el.id === 'surah-search') {
     libraryQuery = el.value;
