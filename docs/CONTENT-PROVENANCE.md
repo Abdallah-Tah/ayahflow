@@ -113,3 +113,9 @@ Colour-coded tajweed, IndoPak script and tafseer are listed as not available unt
 - **Voluntary fasts:** Mondays, Thursdays and the 13th–15th of each Hijri month, never suggested in Ramadan, on Eid al-Fitr (1 Shawwal), Eid al-Adha (10 Dhu al-Hijjah) or the days of Tashreeq (11–13 Dhu al-Hijjah). Wording is a plain reminder ("a voluntary fast, if you choose to"); no hadith text is quoted.
 - **Jumu'ah:** a Friday reminder for Surah Al-Kahf and salawat on the Prophet ﷺ, opening the reader at 18:1. No hadith text is quoted.
 - These wordings and the excluded days await review by a qualified scholar (docs/RELEASE-CHECKLIST.md).
+
+## The 99 Names (2026-10-29)
+
+- The names are sliced verbatim from Jami' at-Tirmidhi 3507 (fawazahmed0/hadith-api, ara-tirmidhi) by `scripts/build-names.mjs`; none is typed by hand. The narration lists 98 names after "He is Allah, besides whom there is no god"; with the name Allah they are 99, and the app says so.
+- The listing is graded Da'if by Ahmad Shakir, al-Albani and Zubair Ali Zai, as the dataset publishes; the app shows those grades next to the authentic statement that Allah has ninety-nine names (Tirmidhi 3506, Sahih).
+- No meanings, explanations or per-name Quran references are shown: a matching Quran word is often not the name (al-mu'izz is also "goats" in 6:143). The screen shows 7:180, 17:110, 20:8 and 59:22–24 from the Tanzil text instead. Scholar review pending.

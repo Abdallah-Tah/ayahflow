@@ -446,3 +446,11 @@ h1,h2{text-wrap:balance}
 .counter-form textarea:focus-visible,.counter-form input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .option:disabled,.r-btn:disabled,.prayer-row .icon-button:disabled{cursor:not-allowed}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+/* The 99 Names */
+.name-today{font-size:calc(24px * var(--ar,1));line-height:1.6;margin:2px 0}
+.names-about{font-size:calc(22px * var(--ar,1));line-height:2}
+.names-ayah{font-size:calc(21px * var(--ar,1));line-height:2.1;margin-bottom:4px}
+.names-grid{list-style:none;margin:20px 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,132px),1fr));gap:8px;direction:rtl}
+.name-cell{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 8px;border:1px solid var(--line);border-radius:12px;background:var(--panel);min-width:0}
+.name-cell .arabic{font-size:calc(22px * var(--ar,1));line-height:1.7;overflow-wrap:break-word;text-align:center}
+.name-cell.today{border-color:var(--gold);background:rgb(var(--tint) / .1)}
