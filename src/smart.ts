@@ -247,8 +247,9 @@ export function nativeConfig(state: AppState, copy: (m: Moment) => { title: stri
     };
 }
 /** Morning (Fajr + 20 min), evening (Asr + 20 min) and sleep reminders for the next week. Without a saved place,
- * prayer times cannot be calculated, so morning and evening fall back to 07:00 and 17:00. */
-export function timedReminders(state: AppState, copy: (m: Moment) => { title: string; body: string }, now = Date.now()): TimedReminder[] {
+ * prayer times cannot be calculated, so morning and evening fall back to 07:00 and 17:00. `afterPrayer` tells `copy`
+ * the time came from that day's Fajr or Asr, so the title can say so (the two du'as of Abi Dawud 5068 look alike). */
+export function timedReminders(state: AppState, copy: (m: Moment, afterPrayer: boolean) => { title: string; body: string }, now = Date.now()): TimedReminder[] {
     if (!state.smart.timed) return [];
     const out: TimedReminder[] = [], enabled = new Set(state.smart.moments);
     for (let i = 0; i < PLAN_DAYS; i++) {
@@ -258,7 +259,7 @@ export function timedReminders(state: AppState, copy: (m: Moment) => { title: st
         const plan: [Moment, number | null][] = [['morning', t ? t.fajr + 20 * 60000 : at(7, 0)], ['evening', t ? t.asr + 20 * 60000 : at(17, 0)], ['sleep', sleepWindow(state, d)?.[0] ?? null]];
         for (const [m, when] of plan) {
             if (when === null || when <= now || !enabled.has(m) || (i === 0 && momentDone(state, m, now))) continue;
-            out.push({ id: timedId(m, day), at: when, ...copy(m), url: `ayahflow://moment/${m}`, moment: m });
+            out.push({ id: timedId(m, day), at: when, ...copy(m, !!t && m !== 'sleep'), url: `ayahflow://moment/${m}`, moment: m });
         }
     }
     return out;

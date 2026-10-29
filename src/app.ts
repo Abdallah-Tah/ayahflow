@@ -491,6 +491,8 @@ function remindersView(): string {
     return `${head}${chips}${diag}<section class="settings-section"><h2>${t('places')}</h2><p class="small muted mb16">${t('placesNote')}</p><div class="stack">${places}</div></section><section class="settings-section">${toggle('smart-location', state.smart.location, t('locationReminders'), t('locationRemindersNote'))}${needAlwaysCard}${toggle('smart-vehicle', state.smart.vehicle, t('vehicleReminders'), t('vehicleRemindersNote'))}${toggle('smart-timed', state.smart.timed, t('timedReminders'), t('timedRemindersNote'))}${timed}</section>${prayer}${which}${tests}${det}${shortcuts}${limits}`;
 }
 const copyFor = (m: Moment) => ({ title: t('m_' + m), body: momentPreview(m) ?? t('generalReminder') });
+/** Timed morning and evening reminders name the prayer they follow, so evening is not mistaken for morning. */
+const timedCopyFor = (m: Moment, afterPrayer: boolean) => ({ ...copyFor(m), ...(afterPrayer ? { title: t('timed_' + m) } : {}) });
 /** Pushes settings to the native engines, refreshes timed reminders and imports what was detected while closed. */
 async function syncSmart(): Promise<void> {
     const bridge = smartBridge();
@@ -511,7 +513,7 @@ async function syncSmart(): Promise<void> {
         void bridge.setDhikrAction(t('recitedIt'));
         notificationState = await bridge.notificationPermission(false);
         if (notificationState === 'granted') {
-            await bridge.scheduleTimed(timedReminders(state, copyFor));
+            await bridge.scheduleTimed(timedReminders(state, timedCopyFor));
             await scheduleAthan(athanSchedule(state, (p, at) => ({ title: `${t('p_' + p)} · ${clock(at)}`, body: t('athanBody') })));
             await bridge.scheduleBefore(beforeSchedule(state, (p, m) => beforeCopy(p, m, state.locale)));
             await syncIstighfar();

@@ -483,3 +483,14 @@ test('Grouped notification takes its text from the first moment with its own du\
     const smart = readFileSync(new URL('../src/smart.ts', import.meta.url), 'utf8');
     assert.match(smart, /GENERAL_MOMENTS\.includes\(m\) \? \{ \.\.\.copy\(m\), general: true \} : copy\(m\)/);
 });
+test('Timed morning and evening titles say which prayer they follow, only when prayer times are known', () => {
+    const titled = (m, after) => ({ title: after ? `${m} after prayer` : m, body: '' });
+    const r = timedReminders(withHome({ timed: true, sleepTime: '22:30' }), titled, NOW);
+    for (const m of ['morning', 'evening']) assert(r.filter(x => x.moment === m).every(x => x.title === `${m} after prayer`), m);
+    assert(r.filter(x => x.moment === 'sleep').every(x => x.title === 'sleep'));
+    const noPlace = timedReminders({ ...initialState(), smart: { ...initialState().smart, timed: true } }, titled, NOW);
+    assert(noPlace.length && noPlace.every(x => !x.title.includes('after prayer')), '07:00 and 17:00 follow no prayer');
+    const i18n = readFileSync(new URL('../src/i18n.ts', import.meta.url), 'utf8');
+    assert.match(i18n, /timed_evening: \['Evening adhkar · after ‘Asr', '[^']+', 'أذكار المساء · بعد العصر'\]/);
+    assert.match(i18n, /timed_morning: \['Morning adhkar · after Fajr'/);
+});
