@@ -10,7 +10,7 @@ public struct SmartConfig: Codable {
     public struct Region: Codable { let id: String; let lat: Double; let lng: Double; let radius: Double }
     public struct Rule: Codable { let event: String; let moments: [String]; let cooldownMinutes: Double }
     public struct Window: Codable { let day: String; let morning: [Double]?; let evening: [Double]? }
-    public struct Copy: Codable { let title: String; let body: String }
+    public struct Copy: Codable { let title: String; let body: String; let general: Bool? }
     var location: Bool
     var vehicle: Bool
     var regions: [Region]
@@ -394,7 +394,8 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     private func post(_ moments: [String], _ cfg: SmartConfig) {
         let content = UNMutableNotificationContent()
         content.title = moments.compactMap { cfg.copy[$0]?.title }.joined(separator: " · ")
-        content.body = cfg.copy[moments[0]]?.body ?? ""
+        // The first moment with a narrated du'a of its own gives the text (e.g. "Leaving work · Riding a vehicle").
+        content.body = cfg.copy[moments.first { cfg.copy[$0]?.general != true } ?? moments[0]]?.body ?? ""
         // The bundled adhkar chime (scripts/make-chime.mjs); iOS falls back to the default sound if it is missing.
         content.sound = UNNotificationSound(named: UNNotificationSoundName("public/sounds/adhkar-chime.caf"))
         content.threadIdentifier = "ayahflow.adhkar"

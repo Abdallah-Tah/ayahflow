@@ -123,6 +123,8 @@
         "ar": "دعاء الخروج من المسجد"
       }
     },
+    {"id":"work-arrive","moments":["work_arrive"],"kind":"dua","repeat":1,"source":"muslim:6878","start":"اعوذ بكلمات الله التامات","end":"من شر ما خلق","title":{"en":"Arriving at a place: seeking refuge","fr":"En s’arrêtant en un lieu : demande de protection","ar":"دعاء من نزل منزلًا"}},
+    {"id":"work-leave","moments":["work_leave"],"kind":"dua","repeat":1,"source":"tirmidhi:3433","start":"سبحانك اللهم وبحمدك","end":"واتوب اليك","also":["abudawud:4859"],"title":{"en":"Rising from a sitting (kaffarat al-majlis)","fr":"En se levant d’une assemblée (kaffârat al-majlis)","ar":"كفارة المجلس"}},
     {
       "id": "morning-bika",
       "moments": [

@@ -159,7 +159,10 @@ public final class SmartEngine {
         JSONObject copy = cfg.optJSONObject("copy");
         List<String> titles = new ArrayList<>();
         for (String m : moments) { JSONObject t = copy == null ? null : copy.optJSONObject(m); if (t != null) titles.add(t.optString("title")); }
-        JSONObject first = copy == null ? null : copy.optJSONObject(moments.get(0));
+        // The first moment with a narrated du'a of its own gives the text (e.g. "Leaving work · Riding a vehicle").
+        String lead = moments.get(0);
+        for (String m : moments) { JSONObject t = copy == null ? null : copy.optJSONObject(m); if (t != null && !t.optBoolean("general")) { lead = m; break; } }
+        JSONObject first = copy == null ? null : copy.optJSONObject(lead);
         Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse("ayahflow://moment/" + String.join("+", moments))).setPackage(c.getPackageName()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent tap = PendingIntent.getActivity(c, (int) (System.currentTimeMillis() % 100000), open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder b = new NotificationCompat.Builder(c, CHANNEL)

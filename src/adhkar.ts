@@ -10,7 +10,7 @@ export const ADHKAR_DATASET = ADHKAR.dataset;
 export const MOMENTS = ['morning', 'evening', 'leave_home', 'enter_home', 'vehicle', 'travel', 'work_arrive', 'work_leave', 'mosque_enter', 'mosque_leave', 'after_prayer', 'sleep', 'wake'] as const;
 export type Moment = typeof MOMENTS[number];
 /** Moments without a narrated supplication of their own: shown as general reminders, never as sunnah claims. */
-export const GENERAL_MOMENTS: readonly Moment[] = ['work_arrive', 'work_leave'];
+export const GENERAL_MOMENTS: readonly Moment[] = [];
 export const ADHKAR_ENTRIES: readonly AdhkarEntry[] = ADHKAR.adhkar;
 export const PRAYER_SETS: readonly PrayerSet[] = ADHKAR.prayer;
 export const COUNTERS: readonly DhikrCounter[] = ADHKAR.counters;

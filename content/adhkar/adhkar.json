@@ -332,6 +332,97 @@
    "text": "اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ"
   },
   {
+   "id": "work-arrive",
+   "moments": [
+    "work_arrive"
+   ],
+   "kind": "dua",
+   "repeat": 1,
+   "title": {
+    "en": "Arriving at a place: seeking refuge",
+    "fr": "En s’arrêtant en un lieu : demande de protection",
+    "ar": "دعاء من نزل منزلًا"
+   },
+   "source": {
+    "ref": "muslim:6878",
+    "collection": "Sahih Muslim",
+    "number": "6878",
+    "inBook": {
+     "book": 48,
+     "hadith": 72
+    },
+    "grades": []
+   },
+   "also": [],
+   "text": "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ"
+  },
+  {
+   "id": "work-leave",
+   "moments": [
+    "work_leave"
+   ],
+   "kind": "dua",
+   "repeat": 1,
+   "title": {
+    "en": "Rising from a sitting (kaffarat al-majlis)",
+    "fr": "En se levant d’une assemblée (kaffârat al-majlis)",
+    "ar": "كفارة المجلس"
+   },
+   "source": {
+    "ref": "tirmidhi:3433",
+    "collection": "Jami' at-Tirmidhi",
+    "number": "3433",
+    "inBook": {
+     "book": 48,
+     "hadith": 64
+    },
+    "grades": [
+     {
+      "by": "Ahmad Muhammad Shakir",
+      "grade": "Sahih"
+     },
+     {
+      "by": "Al-Albani",
+      "grade": "Sahih"
+     },
+     {
+      "by": "Bashar Awad Maarouf",
+      "grade": "Hasan Sahih"
+     },
+     {
+      "by": "Zubair Ali Zai",
+      "grade": "Sahih"
+     }
+    ]
+   },
+   "also": [
+    {
+     "ref": "abudawud:4859",
+     "collection": "Sunan Abi Dawud",
+     "number": "4859",
+     "inBook": {
+      "book": 43,
+      "hadith": 87
+     },
+     "grades": [
+      {
+       "by": "Al-Albani",
+       "grade": "Hasan Sahih"
+      },
+      {
+       "by": "Muhammad Muhyi Al-Din Abdul Hamid",
+       "grade": "Hasan Sahih"
+      },
+      {
+       "by": "Zubair Ali Zai",
+       "grade": "Isnaad Hasan"
+      }
+     ]
+    }
+   ],
+   "text": "سُبْحَانَكَ اللَّهُمَّ وَبِحَمْدِكَ أَشْهَدُ أَنْ لاَ إِلَهَ إِلاَّ أَنْتَ أَسْتَغْفِرُكَ وَأَتُوبُ إِلَيْكَ"
+  },
+  {
    "id": "morning-bika",
    "moments": [
     "morning"

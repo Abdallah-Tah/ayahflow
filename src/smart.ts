@@ -56,7 +56,8 @@ export interface NativeConfig {
     rules: { event: SmartEvent; moments: Moment[]; cooldownMinutes: number }[];
     oncePerDay: Moment[];
     windows: { day: string; morning: [number, number] | null; evening: [number, number] | null }[];
-    copy: Record<string, { title: string; body: string }>;
+    /** `general`: no narrated du'a of its own, so a grouped notification takes its text from another moment. */
+    copy: Record<string, { title: string; body: string; general?: boolean }>;
     enabled: Moment[];
     completedDay: Partial<Record<Moment, string>>;
     timedIds: Partial<Record<Moment, Record<string, number>>>;
@@ -223,7 +224,7 @@ export function nativeConfig(state: AppState, copy: (m: Moment) => { title: stri
         rules: RULES.map(r => ({ event: r.event, moments: [...r.moments], cooldownMinutes: r.cooldownMinutes })),
         oncePerDay: [...ONCE_PER_DAY],
         windows: days.map(d => { const w = windowsFor(state, d); return { day: w.day, morning: w.morning, evening: w.evening }; }),
-        copy: Object.fromEntries(MOMENTS.map(m => [m, copy(m)])),
+        copy: Object.fromEntries(MOMENTS.map(m => [m, GENERAL_MOMENTS.includes(m) ? { ...copy(m), general: true } : copy(m)])),
         enabled: enabledMoments(state), completedDay, timedIds, athanHome: athanHomeOnly(state),
     };
 }

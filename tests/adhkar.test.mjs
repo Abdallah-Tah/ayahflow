@@ -459,3 +459,27 @@ test('Bedtime: Abu Dawud 5058 is in the sleep adhkar, sliced verbatim from its c
     assert.ok(n(e.text).startsWith(n('الْحَمْدُ لِلَّهِ الَّذِي كَفَانِي')) && n(e.text).endsWith(n('مِنَ النَّارِ')), 'whole du\'a, from praise to refuge from the Fire');
     assert.ok(e.source.grades.some(g => g.by === 'Al-Albani'));
 });
+
+test('Work moments: the du\'a for stopping at a place (Muslim) and kaffarat al-majlis (Tirmidhi), verbatim, titled for what they are', () => {
+    const arrive = entriesFor('work_arrive'), leave = entriesFor('work_leave'), n = (x) => x.normalize('NFD');
+    assert.deepEqual(arrive.map(e => e.id), ['work-arrive']); assert.deepEqual(leave.map(e => e.id), ['work-leave']);
+    assert.equal(arrive[0].source.ref, 'muslim:6878'); assert.equal(leave[0].source.ref, 'tirmidhi:3433');
+    assert.deepEqual(leave[0].also.map(s => s.ref), ['abudawud:4859']);
+    for (const e of [...arrive, ...leave]) assert.ok(sources[e.source.ref].text.includes(e.text), `${e.id} verbatim slice`);
+    assert.equal(n(arrive[0].text), n('أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ'));
+    assert.ok(key(sources['muslim:6878'].text).includes(key('من نزل منزلا')), 'the hadith is about stopping at a place');
+    assert.ok(n(leave[0].text).startsWith(n('سُبْحَانَكَ اللَّهُمَّ وَبِحَمْدِكَ')) && n(leave[0].text).endsWith(n('وَأَتُوبُ إِلَيْكَ')));
+    assert.ok(key(sources['tirmidhi:3433'].text).includes(key('قبل ان يقوم من مجلسه')), 'said before rising from a sitting');
+    assert.ok(!/work/i.test(arrive[0].title.en + leave[0].title.en), 'not presented as a work-specific sunnah');
+    assert.equal(GENERAL_MOMENTS.length, 0);
+});
+
+test('Grouped notification takes its text from the first moment with its own du\'a, on iOS and Android', () => {
+    const swift = readFileSync(new URL('../plugins/smart-reminders/ios/Sources/SmartRemindersPlugin/SmartReminders.swift', import.meta.url), 'utf8');
+    assert.match(swift, /content\.body = cfg\.copy\[moments\.first \{ cfg\.copy\[\$0\]\?\.general != true \} \?\? moments\[0\]\]\?\.body/);
+    assert.match(swift, /struct Copy: Codable \{ let title: String; let body: String; let general: Bool\? \}/, 'optional, so saved configurations still decode');
+    const java = readFileSync(new URL('../plugins/smart-reminders/android/src/main/java/app/ayahflow/smart/SmartEngine.java', import.meta.url), 'utf8');
+    assert.match(java, /!t\.optBoolean\("general"\)\) \{ lead = m; break; \}/);
+    const smart = readFileSync(new URL('../src/smart.ts', import.meta.url), 'utf8');
+    assert.match(smart, /GENERAL_MOMENTS\.includes\(m\) \? \{ \.\.\.copy\(m\), general: true \} : copy\(m\)/);
+});
