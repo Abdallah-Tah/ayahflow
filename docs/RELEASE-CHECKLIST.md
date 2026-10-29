@@ -181,6 +181,12 @@ Native compilation and device testing (carried over):
 - [ ] Older iPhone (iOS 15–25) and Android: notification fallback at the alarm time, opening the wake screen. Android has no full alarm yet.
 - [ ] Settings → AyahFlow shows the Alarms permission with the purpose text.
 
+## Quran completion plan (khatm, v20)
+
+- [x] Unit tests: every page due exactly once for each plan length and start page, even daily share (±1 page), today's portion, behind/ahead, everything left due after the last day, starting mid-Quran; only a forward turn from the next unread page moves the plan (jumps, back turns and opening the reader do not); v19 → v20 migration; invalid plans rejected (khatm.test.mjs).
+- [x] Browser (402×874 and 320×568, English and Arabic RTL): setup, plan screen, Home card, Quran entry, end-plan confirmation; no sideways scroll. Page turns in the Mushaf reader advanced the plan only in order.
+- [ ] Physical iPhone: swipe page turns advance the plan; Home card updates the next day; Arabic counted nouns read naturally to a native speaker.
+
 ## Quran and learning quality
 
 - [ ] Qualified reviewer checks the Arabic corpus and all displayed glyphs/marks against the chosen convention.

@@ -64,11 +64,11 @@ test('Calendar reminders: off by default, ids clear of every other reminder, ins
 });
 
 test('Migration v17 → v18 keeps everything, adds the calendar switches off and no reviews; bad data is rejected', () => {
-    assert.equal(STATE_VERSION, 19);
+    assert.equal(STATE_VERSION, 20);
     const v17 = JSON.parse(JSON.stringify({ ...setHighlight(initialState(), 2, 255, 'green', 1), version: 17, xp: 40 }));
     delete v17.calendar; delete v17.highlightReviews;
     const m = validateState(v17);
-    assert.equal(m.version, 19); assert.equal(m.xp, 40); assert.deepEqual(m.calendar, { jumuah: false, fasting: false }); assert.deepEqual(m.highlightReviews, []);
+    assert.equal(m.version, 20); assert.equal(m.xp, 40); assert.deepEqual(m.calendar, { jumuah: false, fasting: false }); assert.deepEqual(m.highlightReviews, []);
     assert.equal(m.highlights[0].key, '2:255');
     const ok = initialState();
     assert.throws(() => validateState({ ...ok, calendar: { jumuah: 'yes', fasting: false } }), /calendar/);

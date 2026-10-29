@@ -12,10 +12,11 @@ import { placeCard, setPlaceRadius } from './places.js';
 import { calendarReminders, upcomingFasts, type FastReason } from './calendar.js';
 import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
 import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES } from './alarm.js';
+import { khatmToday, startKhatm, endKhatm, setKhatmPage, turnedPage, KHATM_DAYS } from './khatm.js';
 import { pageBody, easyBody, readerTitle, readingStyles, pageFor, clampPage, toEndOfJuz } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
-type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review' | 'wake';
+type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review' | 'wake' | 'khatm';
 let state: AppState = initialState();
 let view: View = 'today';
 let selectedOption: string | null = null;
@@ -106,13 +107,13 @@ catch (e) {
     throw e;
 } }
 function wave(): string { return `<span class="wave" aria-hidden="true">${[8, 13, 20, 12, 26, 32, 20, 37, 24, 16, 29, 19, 12, 7].map((h, i) => `<i style="--h:${h}px;--delay:${i * .067}s"></i>`).join('')}</span>`; }
-function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'tasbih' || view === 'wake' ? 'prayer' : view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
+function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review', 'khatm'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'prayer' || view === 'tasbih' || view === 'wake' ? 'prayer' : view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
 function header(): string {
     if (view === 'session' && state.session) {
         const s = state.session;
         return `<header class="app-header">${actionButton('pause', ic('close'), 'icon-button', `aria-label="${t('pause')}"`)}<span class="header-detail">${t('question')} ${num(s.index + 1)} ${t('of')} ${num(s.queue.length)}</span><span class="top-meta">${ic('leaf', 16)} ${num(state.xp)}</span></header>`;
     }
-    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake'].includes(view))
+    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake', 'khatm'].includes(view))
         return `<header class="app-header">${backButton()}<span class="header-wordmark">Ayah<span class="gold">Flow</span></span><span style="width:44px"></span></header>`;
     return `<header class="app-header"><button class="brand" data-action="nav" data-view="today" aria-label="AyahFlow ${t('today')}"><img src="./assets/icon.svg" alt=""><span>Ayah<span>Flow</span></span></button><div class="row gap8"><span class="top-meta" title="${t('fullDays')}" aria-label="${t('fullDays')}: ${num(salahStreak(state))}">${ic('leaf', 15)} ${num(salahStreak(state))}</span><button class="icon-button" data-action="nav" data-view="settings" aria-label="${t('settings')}">${ic('gear', 21)}</button></div></header>`;
 }
@@ -126,7 +127,7 @@ function quranMore(): string {
     return `<div class="tile-row section"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('savedVerses')} · ${num(state.bookmarks.length)}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
 <section class="section"><h2 class="section-title mb16">${t('memorization')}</h2><button class="feature-wide row" data-action="nav" data-view="practice"><span class="gold">${ic('layers', 23)}</span><span class="grow"><h3>${t('memorize')}</h3><p>${t('memorizeSub')}</p></span>${chevronEnd()}</button>${state.session ? `<button class="feature-wide row" data-action="resume"><span class="gold">${ic('play', 20)}</span><span class="grow"><h3>${t('resume')}</h3></span>${chevronEnd()}</button>` : ''}<button class="feature-wide row" data-action="nav" data-view="tajweed"><span class="gold">${ic('wave', 23)}</span><span class="grow"><h3>${t('tajweed')}</h3><p>${t('tajweedDraftShort')}</p></span>${chevronEnd()}</button><button class="feature-wide row" data-action="nav" data-view="recite"><span class="gold">${ic('mic', 23)}</span><span class="grow"><h3>${t('recite')}</h3><p>${t('reciteSub')}</p></span>${chevronEnd()}</button></section>`;
 }
-function quranView(): string { return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('readerTitle')}</h1><p class="page-sub">${t('readerSub')}</p><button class="feature-wide row mb16" data-action="read-last"><span class="gold">${ic('bookmark', 23)}</span><span class="grow"><span class="tiny muted">${t('lastRead')}</span><h3>${escapeHtml(chapter(state.readPosition.surah).name)} · ${num(state.readPosition.ayah)}</h3></span>${ic('chevron', 16)}</button>${reviewEntry()}<label class="search-box">${ic('search', 18)}<input id="surah-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${escapeHtml(libraryQuery)}"></label><div class="segment"><button data-action="library-filter" data-filter="all" class="${libraryFilter === 'all' ? 'active' : ''}">${t('all')}</button><button data-action="library-filter" data-filter="bookmarks" class="${libraryFilter === 'bookmarks' ? 'active' : ''}">${t('bookmarks')} · ${num(state.bookmarks.length)}</button></div><label class="select-row">${ic('layers', 17)}<select id="juz-filter" aria-label="${t('juz')}"><option value="0">${t('allJuz')}</option>${Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}" ${libraryJuz === i + 1 ? 'selected' : ''}>${t('juz')} ${num(i + 1)}</option>`).join('')}</select></label><div id="surah-list">${surahRows()}</div>${quranMore()}<p class="gentle">${t('offline')} · <a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`; }
+function quranView(): string { return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('readerTitle')}</h1><p class="page-sub">${t('readerSub')}</p><button class="feature-wide row mb16" data-action="read-last"><span class="gold">${ic('bookmark', 23)}</span><span class="grow"><span class="tiny muted">${t('lastRead')}</span><h3>${escapeHtml(chapter(state.readPosition.surah).name)} · ${num(state.readPosition.ayah)}</h3></span>${ic('chevron', 16)}</button>${khatmEntry()}${reviewEntry()}<label class="search-box">${ic('search', 18)}<input id="surah-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${escapeHtml(libraryQuery)}"></label><div class="segment"><button data-action="library-filter" data-filter="all" class="${libraryFilter === 'all' ? 'active' : ''}">${t('all')}</button><button data-action="library-filter" data-filter="bookmarks" class="${libraryFilter === 'bookmarks' ? 'active' : ''}">${t('bookmarks')} · ${num(state.bookmarks.length)}</button></div><label class="select-row">${ic('layers', 17)}<select id="juz-filter" aria-label="${t('juz')}"><option value="0">${t('allJuz')}</option>${Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}" ${libraryJuz === i + 1 ? 'selected' : ''}>${t('juz')} ${num(i + 1)}</option>`).join('')}</select></label><div id="surah-list">${surahRows()}</div>${quranMore()}<p class="gentle">${t('offline')} · <a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`; }
 /** Word spans for highlighting. Joined with single spaces they reproduce the source string exactly. */
 const wordSpans = (text: string) => ayahWords(text).map((w, i) => `<span class="w" data-w="${i}">${escapeHtml(w)}</span>`).join(' ');
 function followWhere(): string {
@@ -190,8 +191,9 @@ async function goToPage(n: number): Promise<void> {
     if (page === readerPage) return;
     const [s, a] = pageAyahs(page)[0]!;
     pageTurn = page > readerPage ? 'next' : 'prev';
+    const before = readerPage;
     readerPage = page; readerSurah = s; menuVerse = null;
-    await commit({ ...state, readPosition: { surah: s, ayah: a } });
+    await commit({ ...turnedPage(state, before, page), readPosition: { surah: s, ayah: a } });
     render();
 }
 /** Opens a verse in the current layout: its page in Mushaf pages, else its surah scrolled to it. */
@@ -985,6 +987,34 @@ function keepScroll(): void { const y = window.scrollY; render(); window.scrollT
 function fridayCard(): string {
     return new Date().getDay() === 5 ? `<button class="feature-wide row mb16" data-action="open-verse" data-surah="18" data-ayah="1"><span class="gold">${ic('book', 22)}</span><span class="grow"><span class="tiny muted">${t('jumuahToday')}</span><h3>${t('jumuahCard')}</h3></span>${ic('chevron', 16)}</button>` : '';
 }
+// ---- Quran completion plan (khatm) ---------------------------------------------------------------
+/** Choices on the setup screen before a plan starts (not saved until Start). */
+let khatmDays: number = 30, khatmFromHere = false;
+const pageSurah = (p: number) => { const c = chapter(pageAyahs(p)[0]![0]); return `<bdi>${escapeHtml(state.locale === 'ar' ? c.ar : c.name)}</bdi>`; };
+const khatmStatus = (k: ReturnType<typeof khatmToday>) => k.finished ? t('khatmFinished') : k.behind ? t('khatmBehind').replace('{n}', num(k.behind)) : k.ahead ? t('khatmAhead').replace('{n}', num(k.ahead)) : k.reached >= k.to ? t('khatmTodayDone') : t('khatmOnTrack');
+function khatmCard(): string {
+    if (!state.khatm) return '';
+    const k = khatmToday(state.khatm);
+    if (k.finished) return '';
+    return `<button class="feature-wide row mb16" data-action="nav" data-view="khatm"><span class="gold">${ic('book', 22)}</span><span class="grow"><span class="tiny muted">${t('khatmTitle')} · ${t('khatmDayOf').replace('{d}', num(k.day)).replace('{n}', num(state.khatm.days))}</span><h3>${t('khatmTodayPages').replace('{a}', num(k.from)).replace('{b}', num(k.to))}</h3><span class="tiny muted">${khatmStatus(k)}</span></span>${ic('chevron', 16)}</button>`;
+}
+function khatmEntry(): string {
+    if (!state.khatm) return `<button class="feature-wide row mb16" data-action="nav" data-view="khatm"><span class="gold">${ic('book', 22)}</span><span class="grow"><span class="tiny muted">${t('khatmTitle')}</span><h3>${t('khatmPlanIt')}</h3></span>${ic('chevron', 16)}</button>`;
+    const k = khatmToday(state.khatm);
+    return `<button class="feature-wide row mb16" data-action="nav" data-view="khatm"><span class="gold">${ic('book', 22)}</span><span class="grow"><span class="tiny muted">${t('khatmTitle')} · ${t('khatmDayOf').replace('{d}', num(k.day)).replace('{n}', num(state.khatm.days))}</span><h3>${k.finished ? t('khatmFinished') : t('khatmTodayPages').replace('{a}', num(k.from)).replace('{b}', num(k.to))}</h3><span class="tiny muted">${t('khatmReachedOf').replace('{a}', num(k.done)).replace('{n}', num(k.total))}</span></span>${ic('chevron', 16)}</button>`;
+}
+function khatmView(): string {
+    const head = `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('khatmTitle')}</h1>`, here = pageOf(state.readPosition.surah, state.readPosition.ayah);
+    if (!state.khatm) {
+        const from = khatmFromHere ? here : 1, pages = PAGE_COUNT - from + 1, perDay = Math.ceil(pages / khatmDays);
+        return `${head}<p class="page-sub">${t('khatmSub')}</p><section class="settings-section"><h2>${t('khatmFinishIn')}</h2><div class="segment wrap" role="group">${KHATM_DAYS.map(d => `<button data-action="khatm-days" data-v="${d}" class="${khatmDays === d ? 'active' : ''}" aria-pressed="${khatmDays === d}">${t(d <= 10 ? 'khatmNDaysFew' : 'khatmNDays').replace('{n}', num(d))}</button>`).join('')}</div><h2 class="mt20">${t('khatmStartAt')}</h2><div class="segment" role="group"><button data-action="khatm-from" data-v="start" class="${khatmFromHere ? '' : 'active'}" aria-pressed="${!khatmFromHere}">${t('khatmFromStart')}</button><button data-action="khatm-from" data-v="here" class="${khatmFromHere ? 'active' : ''}" aria-pressed="${khatmFromHere}" ${here === 1 ? 'disabled' : ''}>${t('khatmFromHere').replace('{p}', num(here))}</button></div><p class="small muted">${t('khatmPreview').replace('{n}', num(pages)).replace('{d}', num(khatmDays)).replace('{p}', num(perDay))}</p>${primary('khatm-start', t('khatmStart'))}<p class="tiny muted mt12">${t('khatmHonest')}</p></section>`;
+    }
+    const plan = state.khatm, k = khatmToday(plan), endDate = escapeHtml(new Date(`${k.endDay}T12:00:00`).toLocaleDateString(state.locale, { weekday: 'short', day: 'numeric', month: 'long' }));
+    const meter = `<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="${k.total}" aria-valuenow="${k.done}" aria-label="${t('khatmTitle')}"><span style="width:${Math.round(k.done / k.total * 100)}%"></span></div>`;
+    const today = k.finished ? `<div class="notice">${ic('check', 18)}<p>${t('khatmFinishedNote').replace('{a}', num(plan.from)).replace('{b}', num(PAGE_COUNT))}</p></div>${primary('khatm-new', t('khatmNew'))}`
+        : `<div class="diag"><div class="diag-row"><span>${t('khatmToday')}</span><span class="ok">${t('khatmTodayPages').replace('{a}', num(k.from)).replace('{b}', num(k.to))}</span></div><div class="diag-row"><span>${t('khatmFromTo')}</span><span>${pageSurah(k.from)} – ${pageSurah(k.to)}</span></div><div class="diag-row"><span>${t('khatmReached')}</span><span>${k.reached >= plan.from ? t('khatmPageN').replace('{p}', num(k.reached)) : t('khatmNotYet')}</span></div></div><p class="small ${k.behind ? 'gold' : 'muted'} mt12">${khatmStatus(k)}</p>${primary('khatm-open', t('khatmContinue').replace('{p}', num(k.nextPage)))}`;
+    return `${head}<p class="page-sub">${t('khatmDayOf').replace('{d}', num(k.day)).replace('{n}', num(plan.days))} · ${t('khatmEnds').replace('{date}', endDate)}</p>${meter}<p class="tiny muted">${t('khatmReachedOf').replace('{a}', num(k.done)).replace('{n}', num(k.total))}</p><section class="settings-section">${today}</section><section class="settings-section"><h2>${t('khatmCorrect')}</h2><p class="tiny muted mb8">${t('khatmCorrectNote')}</p><div class="row"><input id="khatm-page" type="number" inputmode="numeric" min="${plan.from - 1}" max="${PAGE_COUNT}" value="${k.reached}" aria-label="${t('khatmCorrect')}">${actionButton('khatm-set', t('saveNote'), 'button secondary grow')}</div><p class="tiny muted mt12">${t('khatmHonest')}</p><div class="mt20">${actionButton('khatm-end', t('khatmEnd'), 'button subtle full')}</div></section>`;
+}
 // ---- Highlight review ---------------------------------------------------------------------------
 /** Verses whose text the user chose to show today (recall first, then look); not saved. */
 const reviewShown = new Set<string>();
@@ -1109,7 +1139,7 @@ async function syncCalendar(): Promise<void> {
     await bridge.scheduleCalendar(calendarReminders(state, { jumuah: { title: t('jumuahTitle'), body: t('jumuahBody') }, fast: r => ({ title: t('fastTitle').replace('{why}', fastWhy(r)), body: t('fastBody') }) }));
 }
 function homeView(): string {
-    return `${dateLine()}${watchCard()}${fridayCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
+    return `${dateLine()}${watchCard()}${fridayCard()}${khatmCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
 <div class="tile-row"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('dailyVerseSub')}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
 ${nowCard()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
 }
@@ -1259,7 +1289,7 @@ function currentPrayer(now = Date.now()): PrayerName {
     return [...PRAYERS].reverse().find(p => times[p] <= now) ?? 'isha';
 }
 
-const views: Record<View, () => string> = { wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
+const views: Record<View, () => string> = { khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
 function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } syncCompass(); }
@@ -1322,7 +1352,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await navigate(d.view as View);
             break;
         case 'back':
-            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'tasbih' || view === 'wake' ? 'prayer' : 'practice');
+            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' || view === 'khatm' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' ? 'adhkar' : view === 'tasbih' || view === 'wake' ? 'prayer' : 'practice');
             break;
         case 'daily':
             await launch('mixed', 'daily');
@@ -1344,6 +1374,32 @@ async function handleAction(el: HTMLElement): Promise<void> {
             render();
             break;
         }
+        case 'khatm-days': { const v = Number(d.v); if ((KHATM_DAYS as readonly number[]).includes(v)) { khatmDays = v; keepScroll(); } break; }
+        case 'khatm-from': khatmFromHere = d.v === 'here'; keepScroll(); break;
+        case 'khatm-new':
+            await commit(endKhatm(state)); render();
+            break;
+        case 'khatm-start':
+            await commit(startKhatm(state, khatmDays, khatmFromHere ? pageOf(state.readPosition.surah, state.readPosition.ayah) : 1));
+            toast(t('khatmStarted')); render();
+            break;
+        case 'khatm-open': {
+            const k = state.khatm && khatmToday(state.khatm);
+            if (!k) break;
+            const [ps, pa] = pageAyahs(k.nextPage)[0]!;
+            if (state.readingLayout === 'page') { readerSurah = ps; readerPage = 0; await commit({ ...state, readPosition: { surah: ps, ayah: pa } }); await navigate('reader'); }
+            else await openAt(ps, pa);
+            break;
+        }
+        case 'khatm-set': {
+            const v = Number(document.querySelector<HTMLInputElement>('#khatm-page')?.value);
+            if (!Number.isInteger(v) || !state.khatm) { toast(t('khatmBadPage')); break; }
+            await commit(setKhatmPage(state, v)); toast(t('saved')); keepScroll();
+            break;
+        }
+        case 'khatm-end':
+            if (await confirmAction(t('khatmEndPrompt'))) { await commit(endKhatm(state)); render(); }
+            break;
         case 'open-verse': {
             const vs = Number(d.surah), va = Number(d.ayah);
             try { verse(vs, va); } catch { break; }
