@@ -9,7 +9,7 @@ import { initializeBridge, loadState, saveState, listRecordings, putRecording, d
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { placeCard, setPlaceRadius } from './places.js';
-import { calendarReminders, upcomingFasts, type FastReason } from './calendar.js';
+import { calendarReminders, upcomingFasts, upcomingDays, type FastReason } from './calendar.js';
 import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
 import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES } from './alarm.js';
 import { hifzRange, hifzQueue, hiddenWord, HIFZ_REPEATS, HIFZ_LEVELS, HIFZ_MAX_AYAHS } from './hifz.js';
@@ -540,7 +540,8 @@ let widgetError: string | null = null;
 async function pushWidget(): Promise<void> {
     if (!isNative()) return;
     try {
-        await setWidgetData(widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0' }, widgetDaily(), widgetWorship()));
+        const upcoming = upcomingDays({ jumuah: t('widgetJumuah'), jumuahSub: t('jumuahCard'), fast: t('widgetFast'), why: fastWhy, ramadan: t('widgetRamadan'), ramadanSub: t('fastingHijriNote') });
+        await setWidgetData({ ...widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0', upcomingTab: t('widgetUpcoming'), upcomingEmpty: t('widgetUpcomingEmpty'), todayWord: t('today') }, widgetDaily(), widgetWorship()), upcoming });
         widgetError = null;
     }
     catch (e) {

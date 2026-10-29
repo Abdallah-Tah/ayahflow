@@ -26,6 +26,9 @@ struct SharedTimeline: Decodable {
     let ayahs: [Ayah]?
     /// Prayers the user confirmed and the Ayah of the Moment for the next half hours (src/smart.ts WidgetWorship).
     let worship: Worship?
+    /// Fridays, voluntary-fast days and the start of Ramadan in the next two weeks (src/calendar.ts upcomingDays).
+    let upcoming: [Upcoming]?
+    struct Upcoming: Decodable { let at: Double; let day: String; let kind: String; let title: String; let sub: String }
 
     struct Worship: Decodable {
         struct Day: Decodable { let day: String; let kept: [String] }
@@ -840,9 +843,80 @@ struct MomentWidget: Widget {
 struct AyahFlowWidgets: WidgetBundle {
     var body: some Widget {
         NextPrayerWidget()
+        UpcomingWidget()
         MomentWidget()
         AyahWidget()
         IstighfarWidget()
         StepsWidget()
+    }
+}
+
+// MARK: - Jumu'ah and voluntary fasts
+
+struct UpcomingEntry: TimelineEntry {
+    let date: Date
+    let items: [SharedTimeline.Upcoming]
+    let labels: [String: String]
+    let rtl: Bool
+    let locale: Locale
+}
+
+/// Days from the app's last share: an entry now and one at each midnight, so "today" moves on without the app.
+struct UpcomingProvider: TimelineProvider {
+    private func entry(at date: Date, _ t: SharedTimeline?) -> UpcomingEntry {
+        let start = Calendar.current.startOfDay(for: date).timeIntervalSince1970 * 1000
+        return UpcomingEntry(date: date, items: (t?.upcoming ?? []).filter { $0.at >= start }, labels: t?.labels ?? [:], rtl: t?.rtl ?? false, locale: t?.locale.map(Locale.init(identifier:)) ?? .current)
+    }
+    func placeholder(in context: Context) -> UpcomingEntry { UpcomingEntry(date: Date(), items: [], labels: [:], rtl: false, locale: .current) }
+    func getSnapshot(in context: Context, completion: @escaping (UpcomingEntry) -> Void) { completion(entry(at: Date(), SharedTimeline.load())) }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<UpcomingEntry>) -> Void) {
+        let t = SharedTimeline.load(), now = Date(), cal = Calendar.current
+        let midnights = (1...7).compactMap { cal.date(byAdding: .day, value: $0, to: cal.startOfDay(for: now)) }
+        completion(Timeline(entries: [entry(at: now, t)] + midnights.map { entry(at: $0, t) }, policy: .after(midnights.last ?? now.addingTimeInterval(86400))))
+    }
+}
+
+struct UpcomingWidgetView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: UpcomingEntry
+    private func dayName(_ u: SharedTimeline.Upcoming) -> String {
+        let date = Date(timeIntervalSince1970: u.at / 1000)
+        if Calendar.current.isDateInToday(date) { return entry.labels["todayWord"] ?? "Today" }
+        let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM")
+        return f.string(from: date)
+    }
+    private func symbol(_ kind: String) -> String { kind == "fast" ? "moon.stars" : kind == "ramadan" ? "moon" : "book" }
+    var body: some View {
+        let shown = Array(entry.items.prefix(family == .systemSmall ? 1 : 3))
+        VStack(alignment: .leading, spacing: 8) {
+            Text(entry.labels["upcomingTab"] ?? "Coming up").font(.system(size: 11, weight: .semibold)).foregroundColor(Palette.gold)
+            if shown.isEmpty {
+                Text(entry.labels["upcomingEmpty"] ?? "No Friday or voluntary fast in the next two weeks.").font(.caption).foregroundColor(Palette.muted)
+            }
+            ForEach(Array(shown.enumerated()), id: \.offset) { _, u in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: symbol(u.kind)).foregroundColor(Palette.gold).font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(dayName(u)).font(.system(size: 11)).foregroundColor(Palette.muted)
+                        Text(u.title).font(.system(size: family == .systemSmall ? 17 : 15, design: .serif)).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.7)
+                        Text(u.sub).font(.system(size: 11)).foregroundColor(Palette.muted).lineLimit(family == .systemSmall ? 3 : 1)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .environment(\.layoutDirection, entry.rtl ? .rightToLeft : .leftToRight)
+        .widgetURL(URL(string: shown.first?.kind == "jumuah" ? "ayahflow://ayah/18:1" : "ayahflow://prayer"))
+        .modifier(WidgetBackground())
+    }
+}
+
+struct UpcomingWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "AyahFlowUpcoming", provider: UpcomingProvider()) { UpcomingWidgetView(entry: $0) }
+            .configurationDisplayName("Jumu'ah and fasts")
+            .description("The next Friday, voluntary fast days and the start of Ramadan.")
+            .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

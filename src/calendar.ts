@@ -102,3 +102,19 @@ export function calendarReminders(state: AppState, copy: CalendarCopy, now = Dat
     }
     return out.sort((a, b) => a.at - b.at);
 }
+
+/** For the "Jumu'ah and fasts" widget: Fridays, voluntary-fast days and the first of Ramadan in the next `days` days
+ * (today included), at most `max`. The widget names the day itself; nothing here is a reminder. */
+export interface UpcomingDay { at: number; day: string; kind: 'jumuah' | 'fast' | 'ramadan'; title: string; sub: string }
+export function upcomingDays(copy: { jumuah: string; jumuahSub: string; fast: string; why: (r: FastReason[]) => string; ramadan: string; ramadanSub: string }, now = Date.now(), days = 14, max = 6): UpcomingDay[] {
+    const out: UpcomingDay[] = [];
+    for (let i = 0; i < days && out.length < max; i++) {
+        const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
+        const day = dayKey(d.getTime()), noon = new Date(d); noon.setHours(12);
+        if (ramadanDay(noon) === 1) out.push({ at: d.getTime(), day, kind: 'ramadan', title: copy.ramadan, sub: copy.ramadanSub });
+        if (d.getDay() === 5) out.push({ at: d.getTime(), day, kind: 'jumuah', title: copy.jumuah, sub: copy.jumuahSub });
+        const r = fastingReasons(noon);
+        if (r.length) out.push({ at: d.getTime(), day, kind: 'fast', title: copy.fast, sub: copy.why(r) });
+    }
+    return out.slice(0, max);
+}
