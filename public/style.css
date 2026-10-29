@@ -441,7 +441,9 @@ body.reduced-motion dialog.r-sheet[open],body.reduced-motion .q-page.fitted{anim
 /* Design audit (Hallmark floor, applied in AyahFlow's own system): no sideways page scroll, the system Reduce Motion
  * setting honoured as well as the in-app one, focus by outline, a disabled control that says so by cursor too. */
 :root{--on-heart:#fdf8ec}
-html,body{overflow-x:clip}
+html,body{overflow-x:clip;touch-action:manipulation}
+/* touch-action: manipulation stops the web view's double-tap zoom (taps like "I recited it" zoomed the page) while pinch
+ * zoom keeps working for anyone who needs larger text. */
 h1,h2{text-wrap:balance}
 .counter-form textarea:focus-visible,.counter-form input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .option:disabled,.r-btn:disabled,.prayer-row .icon-button:disabled{cursor:not-allowed}
