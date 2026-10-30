@@ -41,3 +41,11 @@ test('Athan settings say iPhone mutes notification sounds on Silent, in three la
     assert.match(app, /const silent = state\.athan\.enabled \? `<div class="notice mt12">\$\{ic\('info', 18\)\}<p>\$\{t\('athanSilentNote'\)\}<\/p><\/div>` : '';/);
     assert.match(app, /\$\{detail\}\$\{silent\}`;/);
 });
+
+test('The counter hint names only the feedback that is switched on', () => {
+    assert.match(app, /const tapHint = \(\) => \{ const p = state\.worship\.prefs; return `\$\{t\('tapAnywhere'\)\} · \$\{t\(p\.haptics \? 'tapFbVibrate' : p\.sounds \? 'tapFbSound' : 'tapFbOff'\)\}`; \};/);
+    assert.doesNotMatch(app, /t\('tapAnywhere'\)\} · \$\{countLine/, 'no fixed "it vibrates" claim on the counter');
+    const i18n = readFileSync(new URL('../src/i18n.ts', import.meta.url), 'utf8');
+    assert.doesNotMatch(i18n, /tapAnywhere: \['[^']*vibrat/, 'the base hint promises no vibration');
+    for (const k of ['tapFbVibrate', 'tapFbSound', 'tapFbOff']) assert.match(i18n, new RegExp(`${k}: \\['[^']+', '[^']+', '[^']+'\\]`), k);
+});
