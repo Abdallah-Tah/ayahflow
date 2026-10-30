@@ -501,3 +501,10 @@ button.hz-word{background:none;border:0;padding:0;font:inherit;color:inherit;cur
    breaking into two-line columns. */
 .widget > .row.between:first-child{flex-wrap:wrap;row-gap:4px}
 .widget > .row.between:first-child > .eyebrow{white-space:nowrap}
+/* Long dhikr (over 60 characters) is set whole in its own card above the counter, at a readable Arabic size,
+   so it never runs over the beads, the progress marker or the count. */
+.tap-text{width:100%;margin:0;padding:16px 18px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);font-size:calc(21px * var(--ar));line-height:1.9;color:var(--gold-bright);text-align:start}
+.tap-text:not(.arabic){font-size:var(--fs-base);line-height:1.6;color:var(--text);overflow-wrap:anywhere}
+.tap-phrase.mid{font-size:calc(22px * var(--ar));line-height:1.65}
+.tap-phrase.custom.mid{font-size:calc(18px * var(--ar))}
+@media(max-width:360px){.tap-number{font-size:46px}.tap-phrase.mid{font-size:calc(19px * var(--ar))}.tap-phrase.long{font-size:calc(15px * var(--ar))}}

@@ -698,12 +698,14 @@ function prayerView(): string {
  * takes an alert's sound from its notification channel, which cannot change once the alert is planned. */
 function awaySection(): string {
     if (state.athan.sound !== 'athan' || platform() === 'android') return '';
+    // iOS mutes every notification sound on Silent and in most Focus modes; the athan is a notification, so say so here.
+    const silent = state.athan.enabled ? `<div class="notice mt12">${ic('info', 18)}<p>${t('athanSilentNote')}</p></div>` : '';
     const on = state.athan.awayChime, home = smartStatus?.home ?? 'unknown';
     const warn = (key: string, button = '') => `<div class="notice warning mt12">${ic('info', 18)}<p>${t(key)}</p></div>${button}`;
     const detail = !on ? '' : !state.places.home ? warn('awayNeedHome', actionButton('nav', `${ic('pin', 15)} ${t('awayOpenPlaces')}`, 'button subtle mt12', 'data-view="reminders"'))
         : smartStatus && smartStatus.location !== 'always' ? warn('awayNeedAlways', actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'button subtle mt12'))
         : `<p class="small mt12">${t('awayNow')}: <strong>${t(home === 'in' ? 'awayAtHome' : home === 'out' ? 'awayAway' : 'awayUnknown')}</strong></p><p class="tiny muted">${t('awayDelay')}</p>`;
-    return `<label class="setting-row mt12"><span><strong>${t('awayToggle')}</strong><p>${t('awayNote')}</p></span><input type="checkbox" id="athan-away" ${on ? 'checked' : ''} aria-label="${t('awayToggle')}"></label>${detail}`;
+    return `<label class="setting-row mt12"><span><strong>${t('awayToggle')}</strong><p>${t('awayNote')}</p></span><input type="checkbox" id="athan-away" ${on ? 'checked' : ''} aria-label="${t('awayToggle')}"></label>${detail}${silent}`;
 }
 let testReport: { kind: 'before' | 'athan'; rows: [string, string, boolean | null][]; notes: string[]; ok: boolean } | null = null;
 /** Reminder before prayer: the switch, how long before, the next one planned, and the two sound tests. */
@@ -764,6 +766,11 @@ function counterDefs(): CounterDef[] {
         ...LIBRARY.map(l => { const total = goal[l.id] ?? l.target; return { id: l.id, name: l.title[state.locale], steps: [{ text: l.text, count: total }], total, builtIn: null, library: l, custom: null, kind: l.targetKind, sourced: l.target }; }),
         ...state.myCounters.map(m => ({ id: m.id, name: m.title || m.text, steps: [{ text: m.text, count: m.target }], total: m.target, builtIn: null, library: null, custom: m, kind: 'own' as const, sourced: m.target }))];
 }
+/** Dhikr text longer than this leaves the counter circle for a card above it (checked at 320 and 375 pt). */
+const TAP_TEXT_MAX = 60;
+const tapTextOutside = (text: string) => text.length > TAP_TEXT_MAX;
+/** Size class for text inside the circle: two or three lines must stay inside the bead ring at 320 pt. */
+const tapSize = (text: string) => text.length > 40 ? 'long' : text.length > 24 ? 'mid' : '';
 const counterDef = (id: string): CounterDef => counterDefs().find(c => c.id === id) ?? counterDefs()[0]!;
 const target = (c: { atLeast?: boolean; total: number }) => c.atLeast ? `${num(c.total)}+` : num(c.total);
 /** Saves pending taps. A failed save keeps them pending (and says so) rather than showing them as saved. */
@@ -832,10 +839,14 @@ function counterView(): string {
     const chips = `<div class="chip-wrap">${near.map(id => { const x = counterDef(id); return `<button class="range-chip ${x.id === counterId && !addingCounter ? 'selected' : ''}" data-action="counter" data-counter="${x.id}" aria-pressed="${x.id === counterId && !addingCounter}" dir="auto">${escapeHtml(x.name.length > 28 ? x.name.slice(0, 27) + '…' : x.name)}</button>`; }).join('')}<button class="range-chip" data-action="nav" data-view="adhkar">${t('allAdhkar')}</button>${state.myCounters.length < MAX_CUSTOM_COUNTERS ? `<button class="range-chip add-chip ${addingCounter ? 'selected' : ''}" data-action="counter-add">+ ${t('addCounter')}</button>` : ''}</div>`;
     if (addingCounter) return `<p class="eyebrow mt12">${t('counters')}</p><h1 class="page-title">${t('addCounter')}</h1>${chips}${counterForm()}`;
     const n = count(c.id), pos = counterPosition(c, n), step = c.steps[pos.step]!;
-    const roundDone = n > 0 && pos.inRound === 0, long = step.text.length > 40, src = c.builtIn, lib = c.library, fav = state.worship.favorites.includes(c.id);
+    const roundDone = n > 0 && pos.inRound === 0, src = c.builtIn, lib = c.library, fav = state.worship.favorites.includes(c.id);
     const list = c.steps.length > 1 ? `<ol class="count-steps">${c.steps.map((x, i) => `<li class="${i < pos.step || roundDone ? 'done' : i === pos.step ? 'current' : ''}"><span class="arabic" lang="ar" dir="rtl">${escapeHtml(x.text)}</span><span class="pill">×${num(x.count)}</span></li>`).join('')}</ol>` : '';
     const wording = src ? src.steps.filter(x => x.source.ref !== src.source.ref).map(x => x.source).filter((x, i, a) => a.findIndex(y => y.ref === x.ref) === i) : [];
-    const phrase = c.custom ? `<span class="tap-phrase custom ${long ? 'long' : ''}" dir="auto">${escapeHtml(step.text)}</span>` : `<span class="arabic tap-phrase ${long ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span>`;
+    // A dhikr too long for the circle (the Ibrahimiyya, sayyid al-istighfar…) is shown whole in a card above it, so the
+    // count and beads stay clear; shorter ones sit inside the circle.
+    const outside = tapTextOutside(step.text);
+    const phrase = outside ? '' : c.custom ? `<span class="tap-phrase custom ${tapSize(step.text)}" dir="auto">${escapeHtml(step.text)}</span>` : `<span class="arabic tap-phrase ${tapSize(step.text)}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span>`;
+    const textCard = !outside ? '' : c.custom ? `<p class="tap-text" dir="auto">${escapeHtml(step.text)}</p>` : `<p class="arabic tap-text" lang="ar" dir="rtl">${escapeHtml(step.text)}</p>`;
     const countLine = c.custom ? `${t('yourTarget')}: ${num(c.total)}` : c.kind === 'sunnah' ? `${t('sunnahCount')}: ${c.atLeast ? t('moreThan') + ' ' : ''}${num(c.sourced)}${c.total !== c.sourced ? ` · ${t('yourTarget')}: ${num(c.total)}` : ''}` : `${t('personalGoal')}: ${num(c.total)}${c.total !== c.sourced ? ` (${t('suggested')} ${num(c.sourced)})` : ''}`;
     const about = lib
         ? `<div class="notice mt20">${ic('info', 18)}<p>${escapeHtml(lib.about[state.locale])}</p></div>${lib.wording === 'common' ? `<p class="tiny gold mt12">${t('commonWording')}</p><p class="tiny muted">${t('virtueHadith')}:</p><p class="arabic dhikr-text small-ar" lang="ar" dir="rtl">${escapeHtml(lib.virtue ?? '')}</p>` : ''}${lib.quranRef ? `<p class="tiny muted">${t('quranLabel')} <bdi>${lib.quranRef.replace('-', '–')}</bdi></p>` : ''}${sourceLine(lib.source, lib.also)}`
@@ -844,7 +855,7 @@ function counterView(): string {
     const targets = !c.custom && c.steps.length === 1 && !c.perPrayer ? `<section class="settings-section"><h2>${t('yourTarget')}</h2><div class="chip-wrap">${[...new Set([c.sourced, 33, 100, 300, 1000])].map(v => `<button class="range-chip ${c.total === v ? 'selected' : ''}" data-action="target-preset" data-n="${v}" aria-pressed="${c.total === v}">${num(v)}${v === c.sourced ? ` · ${t(c.kind === 'sunnah' ? 'sunnahShort' : 'suggested')}` : ''}</button>`).join('')}</div><label class="field target-field mt12"><span>${t('anyNumber')}</span><input id="target-input" type="number" inputmode="numeric" min="1" max="10000" value="${c.total}"></label></section>` : '';
     return `<p class="eyebrow mt12">${t('counters')}${c.custom ? ` · ${t('addedByYou')}` : ''}</p><div class="row between"><h1 class="page-title" dir="auto">${escapeHtml(c.custom?.title || (c.custom ? t('myCounter') : c.name))}</h1><button class="icon-button fav" data-action="fav-toggle" data-counter="${c.id}" aria-pressed="${fav}" aria-label="${t(fav ? 'unfavorite' : 'favorite')}">${ic(fav ? 'starFill' : 'star', 20)}</button></div>${chips}
 <section class="tap-zone ${celebrate === c.id ? 'celebrate' : ''}"><div class="count-meta"><span class="pill ${roundDone ? 'success' : 'gold'}">${roundDone ? `${ic('check', 12)} ${t('roundDone')}` : c.steps.length > 1 ? `${num(pos.step + 1)} / ${num(c.steps.length)}` : `${t('round')} ${num(pos.rounds + 1)}`}</span><span class="tiny muted" aria-live="polite">${t('todayCount')} <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</span></div>
-<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') || c.custom ? heart(c.id, roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner">${phrase}<span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+${textCard}<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') || c.custom ? heart(c.id, roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner">${phrase}<span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
 <p class="tiny muted">${t('tapAnywhere')} · ${countLine}</p>
 <div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}${actionButton('dhikr-copy', ic('copy', 18), 'icon-button', `aria-label="${t('copy')}"`)}${actionButton('dhikr-share', ic('share', 18), 'icon-button', `aria-label="${t('share')}"`)}</div></section>
 <div class="progress-cards"><div class="metric"><p class="value">${num(n)}</p><p class="label">${t('today')}</p></div><div class="metric"><p class="value">${num(lifetimeCount(state, c.id) - countOn(state, c.id) + n)}</p><p class="label">${t('lifetime')}</p></div></div>
@@ -915,14 +926,17 @@ const pendingTasbih: Record<string, { day: string; prayer: PrayerName; id: strin
 let tasbihTimer: ReturnType<typeof setTimeout> | null = null;
 const shownSlot = (now = Date.now()) => ayahPin && now < ayahPin.until ? ayahPin.slot : slotOf(now);
 const pinAyah = () => { ayahPin = { slot: shownSlot(), until: Date.now() + 10 * 60000 }; };
-/** Feedback for a tap, as the user chose (haptics on by default, sound off). */
+/** Feedback for a tap, as the user chose (vibration on by default, sound off). Reduce Motion is about movement on
+ * screen, so it does not turn the vibration off; only the Vibration switch does. Runs only from a tap. */
 let tickAudio: AudioContext | null = null;
 function feedback(strong = false): void {
     const p = state.worship.prefs;
-    if (p.haptics && !state.reducedMotion) { haptic(); if (strong) setTimeout(haptic, 120); }
+    if (p.haptics) { haptic(); if (strong) setTimeout(haptic, 120); }
     if (p.sounds) {
         try {
             tickAudio ??= new AudioContext();
+            // WebKit can create or leave the context suspended (first tap, after the app was in the background).
+            if (tickAudio.state !== 'running') void tickAudio.resume().catch(() => { });
             const o = tickAudio.createOscillator(), g = tickAudio.createGain(), at = tickAudio.currentTime;
             o.frequency.value = strong ? 880 : 620; g.gain.setValueAtTime(0.08, at); g.gain.exponentialRampToValueAtTime(0.0001, at + (strong ? .35 : .08));
             o.connect(g).connect(tickAudio.destination); o.start(at); o.stop(at + (strong ? .36 : .09));
@@ -1331,7 +1345,7 @@ function tasbihView(): string {
     const wording = c.steps.map(x => x.source).filter((x, i, a) => x.ref !== c.source.ref && a.findIndex(y => y.ref === x.ref) === i);
     return `<p class="eyebrow mt12">${t('guidedTasbih')}${tasbihDay !== dayKey() ? ` · ${escapeHtml(new Date(`${tasbihDay}T12:00:00`).toLocaleDateString(state.locale, { day: 'numeric', month: 'short' }))}` : ''}</p><h1 class="page-title">${t('tasbihAfter').replace('{prayer}', t('p_' + tasbihPrayer))}</h1>${prayers}
 <section class="tap-zone ${celebrate === 'tasbih' ? 'celebrate' : ''}"><div class="count-meta"><span class="pill ${done ? 'success' : 'gold'}">${done ? `${ic('check', 12)} ${t('tasbihComplete')}` : `${num(pos.step + 1)} / ${num(c.steps.length)}`}</span><span class="tiny muted" aria-live="polite">${t('total')} <strong class="gold">${num(Math.min(n, c.total))}</strong> / ${num(c.total)}</span></div>
-<button class="tap-counter" data-action="tasbih-tap" ${done || tasbihPaused ? 'disabled' : ''} aria-label="${escapeHtml(step.text)}: ${num(inStep)} ${t('of')} ${num(step.count)}">${beads(inStep, step.count)}<span class="tap-inner"><span class="arabic tap-phrase ${step.text.length > 40 ? 'long' : ''}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span><span class="tap-number">${num(inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+${tapTextOutside(step.text) ? `<p class="arabic tap-text" lang="ar" dir="rtl">${escapeHtml(step.text)}</p>` : ''}<button class="tap-counter" data-action="tasbih-tap" ${done || tasbihPaused ? 'disabled' : ''} aria-label="${escapeHtml(step.text)}: ${num(inStep)} ${t('of')} ${num(step.count)}">${beads(inStep, step.count)}<span class="tap-inner">${tapTextOutside(step.text) ? '' : `<span class="arabic tap-phrase ${tapSize(step.text)}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span>`}<span class="tap-number">${num(inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
 <p class="tiny muted">${tasbihPaused ? t('pausedNote') : done ? t('tasbihDoneNote') : t('tapAnywhere')}</p>
 <div class="row gap8">${actionButton('tasbih-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n && !tasbihPaused ? '' : 'disabled'}`)}${actionButton('tasbih-pause', ic(tasbihPaused ? 'play' : 'pause', 18), 'icon-button', `aria-label="${t(tasbihPaused ? 'resume' : 'pause')}" aria-pressed="${tasbihPaused}" ${done ? 'disabled' : ''}`)}${actionButton('tasbih-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
 ${list}<section class="section"><h2 class="section-title mb16">${t('tasbihVariants')}</h2>${variants}<p class="tiny muted mt12">${t('variantsNote')}</p></section>${sourceLine(c.source, c.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}<p class="gentle">${t('ownCount')}</p>`;
@@ -2135,7 +2149,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
                 return;
             const left = d.action === 'dhikr-done' ? 0 : (counters[key] ?? entryDef.repeat) - 1;
             counters[key] = Math.max(0, left);
-            if (!state.reducedMotion) haptic();
+            if (state.worship.prefs.haptics) haptic();
             if (left <= 0) {
                 // One completion per dhikr, moment and day: re-tapping cannot inflate the record.
                 await commit(completeDhikr(state, id, m, Date.now(), `${m}:${id}:${dayKey()}`));
