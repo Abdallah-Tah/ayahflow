@@ -31,3 +31,23 @@ installed into the project or the agent, and its themes were not applied: the ap
 ## Not checked here
 
 Contrast on the device, Dynamic Type at the largest sizes, and VoiceOver order need the iPhone (see RELEASE-CHECKLIST.md).
+
+# Refinement pass (Appllama app-design principles, 2026-10-30)
+
+Read from [Appllama's app-design skill](https://github.com/Appllama/appllama-skills/tree/main/skills/appllama-app-design-skill)
+(MIT) as reference only: nothing installed, no MCP, no account. It targets Expo/React Native, so only its principles were
+applied; the framework and the charcoal and gold palette are unchanged.
+
+- **Tokens:** one radius scale (`--r-sm` 8, `--r-md` 12, `--r-lg` 16, `--r-xl` 20 = `--radius`) replaces 15 literal radii;
+  a type ramp (`--fs-2xs` 11 … `--fs-base` 15) replaces literal 10–15 px sizes, and 10 px text is now 11 px. The tab bar
+  label stays at 10.5 px, as iOS tab bars do.
+- **Touch targets (44 pt):** icon buttons, chips, segments, text buttons and the reader title get an invisible 44 pt hit
+  area without changing their look; search, select and hifz range fields are 44 pt tall.
+- **Layout:** prayer names no longer break inside a word ("Maghri-b") at 320–375 pt; segment labels that need two lines
+  are centred with tight leading; card headers put their note under the eyebrow on narrow phones.
+- **Press feedback:** cards scale to .98 on press-in (120 ms ease-out), list rows highlight, small controls dim; with
+  Reduce Motion (system or in-app) cards highlight instead of moving.
+- **Checked:** 320, 375 pt; dark and light; Arabic RTL. Hit areas audited per screen with a headless-Chrome script.
+
+Not done here: Dynamic Type for the interface text (the app's own Arabic size setting scales the Quran text only), and the
+spacing values (still literal, see above).
