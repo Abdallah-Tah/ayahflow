@@ -490,7 +490,7 @@ function remindersView(): string {
     const needAlwaysCard = (pendingSmart.location || pendingSmart.vehicle) && smartStatus && smartStatus.location !== 'always' ? `<div class="always-card"><h3>${ic('pin', 18)} ${t('alwaysTitle')}</h3><p class="small">${t('alwaysSteps')}</p>${actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'button primary full')}</div>` : '';
     return `${head}${chips}${diag}<section class="settings-section"><h2>${t('places')}</h2><p class="small muted mb16">${t('placesNote')}</p><div class="stack">${places}</div></section><section class="settings-section">${toggle('smart-location', state.smart.location, t('locationReminders'), t('locationRemindersNote'))}${needAlwaysCard}${toggle('smart-vehicle', state.smart.vehicle, t('vehicleReminders'), t('vehicleRemindersNote'))}${toggle('smart-timed', state.smart.timed, t('timedReminders'), t('timedRemindersNote'))}${timed}</section>${prayer}${which}${tests}${det}${shortcuts}${limits}`;
 }
-const copyFor = (m: Moment) => ({ title: t('m_' + m), body: momentPreview(m) ?? t('generalReminder') });
+const copyFor = (m: Moment) => ({ title: t('m_' + m), body: momentPreview(m, n => t('notifMore').replace('{n}', num(n))) ?? t('generalReminder') });
 /** Timed morning and evening reminders name the prayer they follow, so evening is not mistaken for morning. */
 const timedCopyFor = (m: Moment, afterPrayer: boolean) => ({ ...copyFor(m), ...(afterPrayer ? { title: t('timed_' + m) } : {}) });
 /** Pushes settings to the native engines, refreshes timed reminders and imports what was detected while closed. */

@@ -1,6 +1,6 @@
 /** Smart reminders, web side: turns settings into the configuration the native engines run while the app is closed.
  * Decisions are local; places never leave the device; a reminder is never counted as a recitation. */
-import { RULES, ONCE_PER_DAY, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassages, type Moment, type DayWindows, type SmartEvent } from './adhkar.js';
+import { RULES, ONCE_PER_DAY, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassages, type Moment, type DayWindows, type SmartEvent, type AdhkarEntry } from './adhkar.js';
 import { prayerTimes, dayWindows, type Times } from './prayer.js';
 import { chapter, verse } from './data.js';
 import { QURANIC_DUAS } from './duas.js';
@@ -67,7 +67,7 @@ export interface NativeConfig {
     location: boolean;
     vehicle: boolean;
     regions: { id: string; lat: number; lng: number; radius: number }[];
-    rules: { event: SmartEvent; moments: Moment[]; cooldownMinutes: number }[];
+    rules: { event: SmartEvent; moments: Moment[]; cooldownMinutes: number; quietAfter?: { moment: Moment; minutes: number } }[];
     oncePerDay: Moment[];
     windows: { day: string; morning: [number, number] | null; evening: [number, number] | null }[];
     /** `general`: no narrated du'a of its own, so a grouped notification takes its text from another moment. */
@@ -77,6 +77,9 @@ export interface NativeConfig {
     timedIds: Partial<Record<Moment, Record<string, number>>>;
     /** Athan alerts marked homeOnly play the athan inside the Home region and a chime elsewhere; iOS watches Home for it. */
     athanHome: boolean;
+    /** When each timed reminder is planned (moment → day → epoch ms): once it has been delivered, a place or vehicle
+     * reminder later that day does not carry the same collection again. Only reminders actually scheduled. */
+    timedAt: Partial<Record<Moment, Record<string, number>>>;
 }
 export interface TimedReminder { id: number; at: number; title: string; body: string; url: string; moment: Moment }
 const CODE: Partial<Record<Moment, number>> = { morning: 1, evening: 2, sleep: 3 };
@@ -239,51 +242,94 @@ export function nativeConfig(state: AppState, copy: (m: Moment) => { title: stri
     for (const m of ['morning', 'evening', 'sleep'] as Moment[]) timedIds[m] = Object.fromEntries(days.map(d => [dayKey(d.getTime()), timedId(m, dayKey(d.getTime()))]));
     return {
         location: state.smart.location, vehicle: state.smart.vehicle, regions,
-        rules: RULES.map(r => ({ event: r.event, moments: [...r.moments], cooldownMinutes: r.cooldownMinutes })),
+        rules: RULES.map(r => ({ event: r.event, moments: [...r.moments], cooldownMinutes: r.cooldownMinutes, ...(r.quietAfter ? { quietAfter: { ...r.quietAfter } } : {}) })),
         oncePerDay: [...ONCE_PER_DAY],
         windows: days.map(d => { const w = windowsFor(state, d); return { day: w.day, morning: w.morning, evening: w.evening }; }),
         copy: Object.fromEntries(MOMENTS.map(m => [m, GENERAL_MOMENTS.includes(m) ? { ...copy(m), general: true } : copy(m)])),
-        enabled: enabledMoments(state), completedDay, timedIds, athanHome: athanHomeOnly(state),
+        enabled: enabledMoments(state), completedDay, timedIds, athanHome: athanHomeOnly(state), timedAt: timedPlan(state, now),
     };
+}
+/** Moment → day → time of the timed reminders timedReminders plans (the same rules, without the copy). */
+export function timedPlan(state: AppState, now = Date.now()): Partial<Record<Moment, Record<string, number>>> {
+    const out: Partial<Record<Moment, Record<string, number>>> = {};
+    for (const r of timedReminders(state, () => ({ title: '', body: '' }), now)) (out[r.moment] ??= {})[dayKey(r.at)] = r.at;
+    return out;
+}
+/** Today's timed moments a place or vehicle reminder already carried (the native engine cancelled the timed one then;
+ * planning it again on the next app open would send the same adhkar twice). */
+export function remindedToday(state: AppState, now = Date.now()): Set<Moment> {
+    const day = dayKey(now);
+    return new Set(state.detections.filter(d => dayKey(d.at) === day && d.at <= now).flatMap(d => d.moments ?? []));
 }
 /** Morning (Fajr + 20 min), evening (Asr + 20 min) and sleep reminders for the next week. Without a saved place,
  * prayer times cannot be calculated, so morning and evening fall back to 07:00 and 17:00. `afterPrayer` tells `copy`
  * the time came from that day's Fajr or Asr, so the title can say so (the two du'as of Abi Dawud 5068 look alike). */
 export function timedReminders(state: AppState, copy: (m: Moment, afterPrayer: boolean) => { title: string; body: string }, now = Date.now()): TimedReminder[] {
     if (!state.smart.timed) return [];
-    const out: TimedReminder[] = [], enabled = new Set(state.smart.moments);
+    const out: TimedReminder[] = [], enabled = new Set(state.smart.moments), reminded = remindedToday(state, now);
     for (let i = 0; i < PLAN_DAYS; i++) {
         const d = new Date(now); d.setDate(d.getDate() + i);
         const day = dayKey(d.getTime()), t = timesFor(state, d);
         const at = (h: number, m: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m).getTime();
         const plan: [Moment, number | null][] = [['morning', t ? t.fajr + 20 * 60000 : at(7, 0)], ['evening', t ? t.asr + 20 * 60000 : at(17, 0)], ['sleep', sleepWindow(state, d)?.[0] ?? null]];
         for (const [m, when] of plan) {
-            if (when === null || when <= now || !enabled.has(m) || (i === 0 && momentDone(state, m, now))) continue;
+            if (when === null || when <= now || !enabled.has(m) || (i === 0 && (momentDone(state, m, now) || reminded.has(m)))) continue;
             out.push({ id: timedId(m, day), at: when, ...copy(m, !!t && m !== 'sleep'), url: `ayahflow://moment/${m}`, moment: m });
         }
     }
     return out;
 }
-/** First text of a moment, used as the notification body (Arabic, verbatim). */
-/** Notification text for a moment: the first dhikr's own words (verbatim, shortened only past 600 characters at a word),
- * then its repeat count and source, so the reminder can be read and said straight from the notification. */
-export function momentPreview(m: Moment): string | null {
+/** Letters (marks ignored) of adhkar a reminder carries for one moment before leaving the rest to the app. The first
+ * dhikr is always there whole; a dhikr is never cut short. */
+export const PREVIEW_LETTERS = 160;
+/** A dhikr's text as the app shows it: the narration slice, or the Quran passages with each ayah's end sign and number. */
+function displayText(e: AdhkarEntry): string {
+    if (e.text) return e.text;
+    return quranPassages(e).map(p => p.ayahs.map(a => `${a.text} ۝${a.n.toLocaleString('ar-EG')}`).join(' ')).join('\n');
+}
+const sourceLine = (e: AdhkarEntry) => {
+    const p = e.kind === 'quran' ? quranPassages(e)[0]! : null;
+    return p ? `Quran ${p.surah}:${p.ayahs[0]!.n}${p.ayahs.length > 1 ? `–${p.ayahs.at(-1)!.n}` : ''}` : `${e.source.collection} ${e.source.number}`;
+};
+/** Notification text for a moment: its adhkar in order, each complete and verbatim with its count and source, while they
+ * fit PREVIEW_LETTERS (the first always does), then `more(n)` for the n left to read in the app, which the tap opens.
+ * Consecutive adhkar from one narration (the riding verse and its istighfar) share one source line. */
+export function momentPreview(m: Moment, more: (left: number) => string = n => `+${n}`): string | null {
     if (GENERAL_MOMENTS.includes(m)) return null;
-    const e = entriesFor(m)[0]!;
-    const passage = e.kind === 'quran' ? quranPassages(e)[0]! : null;
-    const text = e.text ?? passage!.ayahs.map(a => a.text).join(' ');
-    const body = text.length > 600 ? text.slice(0, text.lastIndexOf(' ', 600)) + ' …' : text;
-    const ref = passage ? `Quran ${passage.surah}:${passage.ayahs[0]!.n}${passage.ayahs.length > 1 ? `–${passage.ayahs.at(-1)!.n}` : ''}` : `${e.source.collection} ${e.source.number}`;
-    return `${body}\n${e.repeat > 1 ? `×${e.repeat} · ` : ''}${ref}`;
+    const all = entriesFor(m), shown: AdhkarEntry[] = [];
+    let used = 0;
+    for (const e of all) {
+        const n = letters(displayText(e));
+        if (shown.length && used + n > PREVIEW_LETTERS) break;
+        shown.push(e); used += n;
+    }
+    const lines = shown.flatMap((e, i) => {
+        const next = shown[i + 1], meta = `${e.repeat > 1 ? `×${e.repeat} · ` : ''}${sourceLine(e)}`;
+        return next && e.repeat === 1 && next.source.ref === e.source.ref && e.kind !== 'quran' ? [displayText(e)] : [displayText(e), meta];
+    });
+    if (shown.length < all.length) lines.push(more(all.length - shown.length));
+    return lines.join('\n');
+}
+/** The body of one notification for moments detected together, as the native engines build it (SmartReminders.swift
+ * post, SmartEngine.java post): each moment's text under its title when there are several, and a dhikr already shown for
+ * an earlier moment is not repeated. */
+export function groupedBody(moments: readonly Moment[], copy: NativeConfig['copy']): string {
+    const own = moments.filter(m => copy[m] && !copy[m]!.general), use = own.length ? own : moments.slice(0, 1);
+    if (use.length === 1) return copy[use[0]!]?.body ?? '';
+    const seen = new Set<string>();
+    return use.map(m => {
+        const kept = (copy[m]!.body).split('\n').filter(l => { if (!/[\u064B-\u0652]/.test(l)) return true; if (seen.has(l)) return false; seen.add(l); return true; });
+        return `${copy[m]!.title}\n${kept.join('\n')}`;
+    }).join('\n\n');
 }
 /** Place or vehicle reminders are on but iPhone no longer lets AyahFlow use location in the background (for example
  * after "Change to Only While Using"): nothing can be detected until Location is set to Always again. */
 export function backgroundBlocked(state: AppState, status: SmartStatus | null): boolean {
     return (state.smart.location || state.smart.vehicle) && !!status && status.location !== 'always';
 }
-export function mergeDetections(existing: Detection[], events: { event: Detection['event']; at: number; detail?: string }[]): Detection[] {
+export function mergeDetections(existing: Detection[], events: { event: Detection['event']; at: number; detail?: string; moments?: Moment[] }[]): Detection[] {
     const seen = new Set(existing.map(d => `${d.event}@${d.at}`));
-    return [...existing, ...events.filter(e => !seen.has(`${e.event}@${e.at}`)).map(e => ({ event: e.event, at: e.at, ...(e.detail ? { detail: e.detail.slice(0, 160) } : {}) }))].sort((a, b) => a.at - b.at).slice(-50);
+    return [...existing, ...events.filter(e => !seen.has(`${e.event}@${e.at}`)).map(e => ({ event: e.event, at: e.at, ...(e.detail ? { detail: e.detail.slice(0, 160) } : {}), ...(e.moments?.length ? { moments: e.moments.filter(m => (MOMENTS as readonly string[]).includes(m)) } : {}) }))].sort((a, b) => a.at - b.at).slice(-50);
 }
 
 // ---- Athan and widget ---------------------------------------------------------------------------

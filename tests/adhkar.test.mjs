@@ -310,16 +310,15 @@ test('v9 counts are set (not added) per counter and day, validated, migrated and
     assert.deepEqual(exportable(s).counts, s.counts);
 });
 
-test('Reminder notifications carry the dhikr text itself, verbatim, with its count and source', () => {
+test('Reminder notifications carry the dhikr text itself, verbatim and whole, with its count and source', () => {
     for (const m of MOMENTS) {
-        const body = momentPreview(m);
+        const body = momentPreview(m, n => `+${n} more`);
         if (GENERAL_MOMENTS.includes(m)) { assert.equal(body, null); continue; }
-        const e = entriesFor(m)[0], [text, meta] = body.split('\n');
-        if (e.text) assert(e.text.startsWith(text.replace(/ …$/, '')), m);
-        else assert(text.startsWith(verse(e.quran[0].surah, e.quran[0].from)), m);
-        assert(text.length <= 602, m);
-        assert.match(meta, e.text ? new RegExp(`${e.source.number}$`) : /^(×\d+ · )?Quran \d+:\d+/);
-        if (e.repeat > 1) assert(meta.startsWith(`×${e.repeat} · `), m);
+        const lines = body.split('\n'), e = entriesFor(m)[0];
+        if (e.text) assert.equal(lines[0], e.text, m); // the first dhikr, never shortened
+        else assert(lines[0].startsWith(verse(e.quran[0].surah, e.quran[0].from)), m);
+        assert(!lines.some(l => /…|\*/.test(l)), `${m}: nothing cut, no asterisk`);
+        if (e.repeat > 1) assert(lines.some(l => l.startsWith(`×${e.repeat} · `)), m);
     }
     assert.equal(momentPreview('leave_home').split('\n')[1], 'Sunan Abi Dawud 5095');
 });
@@ -475,12 +474,14 @@ test('Work moments: the du\'a for stopping at a place (Muslim) and kaffarat al-m
     assert.equal(GENERAL_MOMENTS.length, 0);
 });
 
-test('Grouped notification takes its text from the first moment with its own du\'a, on iOS and Android', () => {
+test('Grouped notification builds its text like groupedBody, on iOS and Android', () => {
     const swift = readFileSync(new URL('../plugins/smart-reminders/ios/Sources/SmartRemindersPlugin/SmartReminders.swift', import.meta.url), 'utf8');
-    assert.match(swift, /content\.body = cfg\.copy\[moments\.first \{ cfg\.copy\[\$0\]\?\.general != true \} \?\? moments\[0\]\]\?\.body/);
+    assert.match(swift, /content\.body = SmartReminders\.groupedBody\(moments, cfg\.copy\)/);
+    assert.match(swift, /copy\[\$0\]\?\.general != true/);
     assert.match(swift, /struct Copy: Codable \{ let title: String; let body: String; let general: Bool\? \}/, 'optional, so saved configurations still decode');
     const java = readFileSync(new URL('../plugins/smart-reminders/android/src/main/java/app/ayahflow/smart/SmartEngine.java', import.meta.url), 'utf8');
-    assert.match(java, /!t\.optBoolean\("general"\)\) \{ lead = m; break; \}/);
+    assert.match(java, /String body = groupedBody\(moments, copy\);/);
+    assert.match(java, /!t\.optBoolean\("general"\)\) use\.add\(m\);/);
     const smart = readFileSync(new URL('../src/smart.ts', import.meta.url), 'utf8');
     assert.match(smart, /GENERAL_MOMENTS\.includes\(m\) \? \{ \.\.\.copy\(m\), general: true \} : copy\(m\)/);
 });

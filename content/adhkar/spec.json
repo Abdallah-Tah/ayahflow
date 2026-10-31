@@ -33,7 +33,7 @@
       "repeat": 1,
       "source": "muslim:5262",
       "start": "اذا دخل الرجل بيته",
-      "end": "ولا عشاء",
+      "end": "ادركتم المبيت والعشاء",
       "also": [
         "abudawud:3765"
       ],
@@ -121,7 +121,10 @@
         "لمنقلبون"
       ],
       "note": "travelTakbir",
-      "quranRef": "43:13-14"
+      "quranRef": "43:13-14",
+      "ayahEnds": [
+        "مقرنين"
+      ]
     },
     {
       "id": "travel-return",

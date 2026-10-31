@@ -8,7 +8,9 @@ import UserNotifications
 /// Mirrors src/adhkar.ts `decide()`; the TypeScript version is the tested reference.
 public struct SmartConfig: Codable {
     public struct Region: Codable { let id: String; let lat: Double; let lng: Double; let radius: Double }
-    public struct Rule: Codable { let event: String; let moments: [String]; let cooldownMinutes: Double }
+    public struct Quiet: Codable { let moment: String; let minutes: Double }
+    /// `quietAfter`: a crossing this soon after the opposite reminder is location jitter at the edge of the place.
+    public struct Rule: Codable { let event: String; let moments: [String]; let cooldownMinutes: Double; let quietAfter: Quiet? }
     public struct Window: Codable { let day: String; let morning: [Double]?; let evening: [Double]? }
     public struct Copy: Codable { let title: String; let body: String; let general: Bool? }
     var location: Bool
@@ -25,6 +27,9 @@ public struct SmartConfig: Codable {
     /// Home-only athan: Home is watched (even with place reminders off) so pending athan alerts can be re-sounded.
     /// Optional so configurations saved by earlier builds still decode.
     var athanHome: Bool?
+    /// Planned timed reminder times by moment and day (ms): once delivered, the collection is not grouped in again that day.
+    /// Optional so configurations saved by earlier builds still decode.
+    var timedAt: [String: [String: Double]]?
 }
 
 private struct History: Codable {
@@ -363,7 +368,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         let enabled = Set(cfg.enabled)
         func blocked(_ m: String, _ cooldown: Double) -> Bool {
             if !enabled.contains(m) { return true }
-            if cfg.oncePerDay.contains(m) { return history.lastDay[m] == day || cfg.completedDay[m] == day }
+            if cfg.oncePerDay.contains(m) { return history.lastDay[m] == day || cfg.completedDay[m] == day || (cfg.timedAt?[m]?[day]).map { $0 <= now } == true }
             if let last = history.last[m], now >= last, now - last < cooldown * 60000 { return true }
             return false
         }
@@ -371,6 +376,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         var moments: [String] = []
         for event in events {
             guard let rule = cfg.rules.first(where: { $0.event == event }) else { continue }
+            if let q = rule.quietAfter, let last = history.last[q.moment], now >= last, now - last < q.minutes * 60000 { continue }
             for m in rule.moments where !blocked(m, rule.cooldownMinutes) && !moments.contains(m) { moments.append(m) }
         }
         let timeEvent = events.allSatisfy { ["MORNING", "EVENING", "SLEEP"].contains($0) }
@@ -394,8 +400,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
     private func post(_ moments: [String], _ cfg: SmartConfig) {
         let content = UNMutableNotificationContent()
         content.title = moments.compactMap { cfg.copy[$0]?.title }.joined(separator: " · ")
-        // The first moment with a narrated du'a of its own gives the text (e.g. "Leaving work · Riding a vehicle").
-        content.body = cfg.copy[moments.first { cfg.copy[$0]?.general != true } ?? moments[0]]?.body ?? ""
+        content.body = SmartReminders.groupedBody(moments, cfg.copy)
         // The bundled adhkar chime (scripts/make-chime.mjs); iOS falls back to the default sound if it is missing.
         content.sound = UNNotificationSound(named: UNNotificationSoundName("public/sounds/adhkar-chime.caf"))
         content.threadIdentifier = "ayahflow.adhkar"
@@ -405,6 +410,21 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         content.userInfo = ["cap_extra": ["url": "ayahflow://moment/" + moments.joined(separator: "+")]]
         let request = UNNotificationRequest(identifier: "ayahflow.smart.\(Int(Date().timeIntervalSince1970))", content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
+    }
+
+    /// Same as src/smart.ts groupedBody: each moment with a narrated du'a of its own under its title when there are several
+    /// (e.g. "Leaving home" then "Morning adhkar"), a dhikr already shown for an earlier moment not repeated.
+    static func groupedBody(_ moments: [String], _ copy: [String: SmartConfig.Copy]) -> String {
+        let own = moments.filter { copy[$0] != nil && copy[$0]?.general != true }, use = own.isEmpty ? Array(moments.prefix(1)) : own
+        if use.count == 1 { return copy[use[0]]?.body ?? "" }
+        var seen = Set<String>()
+        return use.map { m in
+            let kept = (copy[m]?.body ?? "").components(separatedBy: "\n").filter { line in
+                guard line.unicodeScalars.contains(where: { (0x064B...0x0652).contains($0.value) }) else { return true }
+                return seen.insert(line).inserted
+            }
+            return ([copy[m]?.title ?? ""] + kept).joined(separator: "\n")
+        }.joined(separator: "\n\n")
     }
 
     func takeLog() -> [[String: Any]] {

@@ -67,7 +67,8 @@ export interface SmartSettings {
 /** Explicit evidence: the user said they recited this dhikr. Reminders never create these. */
 export interface AdhkarCompletion { id: string; entry: string; moment: Moment; at: number; day: string }
 /** What the device detected, without coordinates. */
-export interface Detection { event: SmartEvent | 'WAKE' | 'LEFT_CHECK' | 'TRIP_START' | 'TRIP_END' | 'WATCH_OFF' | 'WATCH_ON'; at: number; detail?: string }
+/** `moments`: what the reminder for this event carried (absent when none was sent, and in records saved by earlier builds). */
+export interface Detection { event: SmartEvent | 'WAKE' | 'LEFT_CHECK' | 'TRIP_START' | 'TRIP_END' | 'WATCH_OFF' | 'WATCH_ON'; at: number; detail?: string; moments?: Moment[] }
 export const defaultSmart = (): SmartSettings => ({ location: false, vehicle: false, timed: false, method: 'MuslimWorldLeague', hanafi: false, span: 'broad', sleepTime: null, moments: [...MOMENTS] });
 /** A dhikr count the user tapped on one local day (self-reported, like a tasbih). Steps are never stored: they are read
  * live from the device pedometer. */
@@ -432,7 +433,7 @@ export function validateState(raw: unknown): AppState {
             throw new Error('Invalid smart reminder settings');
         if (!Array.isArray(s.adhkarLog) || s.adhkarLog.length > 5000 || s.adhkarLog.some(c => !c || typeof c.id !== 'string' || !ADHKAR_ENTRIES.some(e => e.id === c.entry) || !(MOMENTS as readonly string[]).includes(c.moment) || !Number.isFinite(c.at) || !/^\d{4}-\d{2}-\d{2}$/.test(c.day)))
             throw new Error('Invalid adhkar log');
-        if (!Array.isArray(s.detections) || s.detections.length > 50 || s.detections.some(d => !d || typeof d.event !== 'string' || !Number.isFinite(d.at) || !(d.detail === undefined || (typeof d.detail === 'string' && d.detail.length <= 160))))
+        if (!Array.isArray(s.detections) || s.detections.length > 50 || s.detections.some(d => !d || typeof d.event !== 'string' || !Number.isFinite(d.at) || !(d.detail === undefined || (typeof d.detail === 'string' && d.detail.length <= 160)) || !(d.moments === undefined || (Array.isArray(d.moments) && d.moments.length <= MOMENTS.length && d.moments.every(m => (MOMENTS as readonly string[]).includes(m))))))
             throw new Error('Invalid detections');
     }
     if (s.version >= 6) {

@@ -108,21 +108,24 @@ public final class SmartEngine {
             JSONArray ws = cfg.optJSONArray("windows");
             for (int i = 0; ws != null && i < ws.length(); i++) if (day.equals(ws.getJSONObject(i).optString("day"))) windows = ws.getJSONObject(i);
             List<String> enabled = strings(cfg.optJSONArray("enabled")), oncePerDay = strings(cfg.optJSONArray("oncePerDay"));
-            JSONObject completed = cfg.optJSONObject("completedDay");
+            JSONObject completed = cfg.optJSONObject("completedDay"), timedAt = cfg.optJSONObject("timedAt");
             JSONArray rules = cfg.optJSONArray("rules");
             for (String event : events) {
                 for (int i = 0; rules != null && i < rules.length(); i++) {
                     JSONObject rule = rules.getJSONObject(i);
                     if (!event.equals(rule.optString("event"))) continue;
+                    // A crossing this soon after the opposite reminder is location jitter at the edge of the place.
+                    JSONObject quiet = rule.optJSONObject("quietAfter");
+                    if (quiet != null && last.has(quiet.optString("moment"))) { double l = last.optDouble(quiet.optString("moment")); if (now >= l && now - l < quiet.optDouble("minutes") * 60000) continue; }
                     for (String m : strings(rule.optJSONArray("moments")))
-                        if (!blocked(m, rule.optDouble("cooldownMinutes"), now, day, enabled, oncePerDay, completed, last, lastDay) && !moments.contains(m)) moments.add(m);
+                        if (!blocked(m, rule.optDouble("cooldownMinutes"), now, day, enabled, oncePerDay, completed, timedAt, last, lastDay) && !moments.contains(m)) moments.add(m);
                 }
             }
             boolean timeEvent = true;
             for (String e : events) if (!e.equals("MORNING") && !e.equals("EVENING") && !e.equals("SLEEP")) timeEvent = false;
             if (!timeEvent && !moments.isEmpty() && windows != null) {
-                if (inWindow(windows.optJSONArray("morning"), now) && !blocked("morning", 0, now, day, enabled, oncePerDay, completed, last, lastDay) && !moments.contains("morning")) moments.add("morning");
-                if (inWindow(windows.optJSONArray("evening"), now) && !blocked("evening", 0, now, day, enabled, oncePerDay, completed, last, lastDay) && !moments.contains("evening")) moments.add("evening");
+                if (inWindow(windows.optJSONArray("morning"), now) && !blocked("morning", 0, now, day, enabled, oncePerDay, completed, timedAt, last, lastDay) && !moments.contains("morning")) moments.add("morning");
+                if (inWindow(windows.optJSONArray("evening"), now) && !blocked("evening", 0, now, day, enabled, oncePerDay, completed, timedAt, last, lastDay) && !moments.contains("evening")) moments.add("evening");
             }
             JSONArray log = new JSONArray(p.getString(LOG, "[]"));
             for (String e : events) log.put(new JSONObject().put("event", e).put("at", now).put("moments", new JSONArray(moments)));
@@ -138,9 +141,11 @@ public final class SmartEngine {
         return moments;
     }
 
-    private static boolean blocked(String m, double cooldown, long now, String day, List<String> enabled, List<String> oncePerDay, JSONObject completed, JSONObject last, JSONObject lastDay) {
+    private static boolean blocked(String m, double cooldown, long now, String day, List<String> enabled, List<String> oncePerDay, JSONObject completed, JSONObject timedAt, JSONObject last, JSONObject lastDay) {
         if (!enabled.contains(m)) return true;
-        if (oncePerDay.contains(m)) return day.equals(lastDay.optString(m, null)) || (completed != null && day.equals(completed.optString(m, null)));
+        // Once a day; and not again once today's timed reminder for it was delivered.
+        JSONObject timed = timedAt == null ? null : timedAt.optJSONObject(m);
+        if (oncePerDay.contains(m)) return day.equals(lastDay.optString(m, null)) || (completed != null && day.equals(completed.optString(m, null))) || (timed != null && timed.has(day) && timed.optDouble(day) <= now);
         if (last.has(m)) { double l = last.optDouble(m); return now >= l && now - l < cooldown * 60000; }
         return false;
     }
@@ -159,18 +164,36 @@ public final class SmartEngine {
         JSONObject copy = cfg.optJSONObject("copy");
         List<String> titles = new ArrayList<>();
         for (String m : moments) { JSONObject t = copy == null ? null : copy.optJSONObject(m); if (t != null) titles.add(t.optString("title")); }
-        // The first moment with a narrated du'a of its own gives the text (e.g. "Leaving work · Riding a vehicle").
-        String lead = moments.get(0);
-        for (String m : moments) { JSONObject t = copy == null ? null : copy.optJSONObject(m); if (t != null && !t.optBoolean("general")) { lead = m; break; } }
-        JSONObject first = copy == null ? null : copy.optJSONObject(lead);
+        String body = groupedBody(moments, copy);
         Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse("ayahflow://moment/" + String.join("+", moments))).setPackage(c.getPackageName()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent tap = PendingIntent.getActivity(c, (int) (System.currentTimeMillis() % 100000), open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder b = new NotificationCompat.Builder(c, CHANNEL)
             .setSmallIcon(c.getResources().getIdentifier("ic_stat_ayahflow", "drawable", c.getPackageName()))
             .setContentTitle(String.join(" · ", titles))
-            .setContentText(first == null ? "" : first.optString("body"))
-            .setStyle(new NotificationCompat.BigTextStyle().bigText(first == null ? "" : first.optString("body")))
+            .setContentText(body)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setAutoCancel(true).setContentIntent(tap);
         try { NotificationManagerCompat.from(c).notify((int) (System.currentTimeMillis() % Integer.MAX_VALUE), b.build()); } catch (SecurityException ignored) { }
+    }
+
+    /** Same as src/smart.ts groupedBody: each moment with a narrated du'a of its own under its title when there are several
+     * (e.g. "Leaving home" then "Morning adhkar"), a dhikr already shown for an earlier moment not repeated. */
+    static String groupedBody(List<String> moments, JSONObject copy) {
+        List<String> use = new ArrayList<>();
+        for (String m : moments) { JSONObject t = copy == null ? null : copy.optJSONObject(m); if (t != null && !t.optBoolean("general")) use.add(m); }
+        if (use.isEmpty()) use.add(moments.get(0));
+        if (use.size() == 1) { JSONObject t = copy == null ? null : copy.optJSONObject(use.get(0)); return t == null ? "" : t.optString("body"); }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        List<String> parts = new ArrayList<>();
+        for (String m : use) {
+            JSONObject t = copy.optJSONObject(m);
+            StringBuilder b = new StringBuilder(t.optString("title"));
+            for (String line : t.optString("body").split("\n", -1)) {
+                if (line.matches("(?s).*[\u064B-\u0652].*") && !seen.add(line)) continue;
+                b.append('\n').append(line);
+            }
+            parts.add(b.toString());
+        }
+        return String.join("\n\n", parts);
     }
 }

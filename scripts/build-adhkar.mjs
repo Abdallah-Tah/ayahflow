@@ -44,8 +44,10 @@ export function slice(text, start, end) {
  * mark is a yā' (شَىْءٌ → شَيْءٌ, عَلَىَّ → عَلَيَّ), and the marks this edition types after the alif of lām-alif belong on
  * the lām (لاَ → لَا, إِلاَّ → إِلَّا). */
 export const orthography = (s) => s.replace(/ى(?=[\u064B-\u0652])/g, 'ي').replace(/لا([\u064B-\u0652]+)/g, 'ل$1ا');
-/** A displayed text without its reading aids (display orthography applied, «،» pauses and ﴿ ﴾ removed). */
-export const bare = (s) => orthography(s).replace(/[،﴿﴾]/g, '').replace(/\s+/g, ' ').trim();
+/** A displayed text without its reading aids (display orthography applied; «،» pauses, ﴿ ﴾, ayah-end signs ۝ with their
+ * number, the edition's «*» ayah separator and its «.» sentence stops removed). */
+export const bare = (s) => orthography(s).replace(/ ?۝[٠-٩]+/g, '').replace(/[،﴿﴾*.\u200E\u200F]/g, '').replace(/\s+/g, ' ').trim();
+const arabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
 /** Whether `text` is the narration `src` as displayed: the same letters and marks in the same order. */
 export const inSource = (src, text) => bare(src).includes(bare(text));
 /** End index (after trailing marks) of plain-letter `marker` in `text`, searching the key from `from`. */
@@ -60,8 +62,9 @@ function markerEnd(text, marker, from, id) {
  * (found in order; pauses are reading aids, not part of the narration) and, where the narration quotes the Quran,
  * ornate brackets ﴿ ﴾ around the quotation (as Hisn al-Muslim prints it). The Quran quotation itself gets no pause.
  * Tests check that removing «،» and ﴿ ﴾ gives back the orthography of the source. */
-export function present(text, { pauses = [], quote = null } = {}, id = '') {
-    let out = orthography(text), from = 0;
+export function present(text, { pauses = [], quote = null, quranRef = null, ayahEnds = [] } = {}, id = '') {
+    // The edition ends a sentence of the narration with «‏.‏» (a period between direction marks): shown as a pause.
+    let out = orthography(text).replace(/\s*[\u200E\u200F]*\.[\u200E\u200F]*\s+/g, '، '), from = 0;
     for (const p of pauses) {
         const m = markerEnd(out, p, from, id);
         if (m.to >= out.length || out[m.to] !== ' ') throw new Error(`${id}: a pause must fall between words: ${p}`);
@@ -71,7 +74,17 @@ export function present(text, { pauses = [], quote = null } = {}, id = '') {
     if (quote) {
         const a = markerEnd(out, quote[0], 0, id), b = markerEnd(out, quote[1], a.next - plainKey(quote[0]).length, id);
         if (out.slice(a.start, b.to).includes('،')) throw new Error(`${id}: no pause inside a Quran quotation`);
-        out = out.slice(0, a.start) + '﴿' + out.slice(a.start, b.to) + '﴾' + out.slice(b.to);
+        // Inside the quotation one edition marks the end of an ayah with «*» (al-Bukhari's and Abu Dawud's), another not at
+        // all (Muslim's: `ayahEnds` names the last word of each ayah but the last). Either way each ayah is shown ending
+        // with the ayah-end sign ۝ and its number, as the reader shows them. Needs the quotation's reference.
+        let q = out.slice(a.start, b.to);
+        for (const w of [...ayahEnds].reverse()) { const e = markerEnd(q, w, 0, id).to; q = q.slice(0, e) + ' *' + q.slice(e); }
+        if (quranRef) {
+            const [, from, last] = /^\d+:(\d+)(?:-(\d+))?$/.exec(quranRef).map(Number), to = last || from, seps = q.split(' * ');
+            if (seps.length !== to - from + 1) throw new Error(`${id}: ${quranRef} needs ${to - from} ayah separators`);
+            q = seps.map((part, i) => `${part} ۝${arabicDigits(from + i)}`).join(' ');
+        } else if (q.includes('*')) throw new Error(`${id}: a quotation with ayah separators needs quranRef`);
+        out = out.slice(0, a.start) + '﴿' + q + '﴾' + out.slice(b.to);
     }
     return out;
 }

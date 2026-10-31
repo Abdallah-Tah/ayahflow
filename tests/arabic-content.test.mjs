@@ -24,7 +24,7 @@ test('Every displayed Arabic text uses the corrected spelling and encoding', () 
     for (const [id, s] of texts) {
         assert.doesNotMatch(s, /ى[ً-ْ]/, `${id}: a yā' carrying a mark is written ي, not ى`);
         assert.doesNotMatch(s, /لا[ً-ْ]/, `${id}: the marks of lām-alif are on the lām`);
-        assert.doesNotMatch(s, /[,;?]|�|[‎‏]|\{|\}/, `${id}: no Latin punctuation, replacement or direction characters`);
+        assert.doesNotMatch(s, /[,;?.*]|�|[‎‏]|\{|\}/, `${id}: no Latin punctuation, asterisk, replacement or direction characters`);
         assert.match(s, /^[؀-ۿ﴾﴿ﷺ\s*]+$/, `${id}: Arabic letters, marks and Arabic punctuation only`);
         assert.equal(s, s.trim(), id);
         assert.doesNotMatch(s, /^،|،$|\s،|،،|، ،/, `${id}: a pause sits right after a word, never doubled or at an edge`);
@@ -52,8 +52,11 @@ test('Each text is its cited narration, differing only by reading pauses, bracke
 
 test('Quran quotations are bracketed and get no added pause', () => {
     const riding = A.adhkar.find(e => e.id === 'riding'), travel = A.adhkar.find(e => e.id === 'travel');
-    assert.ok(nfc(riding.text).startsWith(nfc('﴿سُبْحَانَ الَّذِي سَخَّرَ لَنَا')) && nfc(riding.text).endsWith(nfc('لَمُنْقَلِبُونَ﴾')));
-    assert.ok(nfc(travel.text).startsWith(nfc(riding.text.replace(' * ', ' ') + '، اللَّهُمَّ إِنَّا نَسْأَلُكَ')), 'the travel du\'a starts where the narration does');
+    assert.ok(nfc(riding.text).startsWith(nfc('﴿سُبْحَانَ الَّذِي سَخَّرَ لَنَا')) && nfc(riding.text).endsWith(nfc('لَمُنْقَلِبُونَ ۝١٤﴾')));
+    assert.ok(nfc(travel.text).startsWith(nfc(riding.text + '، اللَّهُمَّ إِنَّا نَسْأَلُكَ')), 'the travel du\'a starts where the narration does');
+    // The edition's «*» between 43:13 and 43:14 is shown as the ayah-end sign with the ayah's number, each ayah ending so.
+    for (const e of [riding, travel]) assert.ok(nfc(e.text).includes(nfc('مُقْرِنِينَ ۝١٣ وَإِنَّا')), e.id);
+    assert.ok(nfc(sources['abudawud:2602'].text).includes(nfc('مُقْرِنِينَ * وَإِنَّا')), 'the separator replaced is the source\'s own');
     for (const e of [riding, travel]) { assert.equal(e.quranRef, '43:13-14'); assert.doesNotMatch(e.text.match(/﴿[^﴾]*﴾/)[0], /،/); }
     for (const [id, s] of texts) assert.equal((s.match(/﴿/g) ?? []).length, (s.match(/﴾/g) ?? []).length, id);
     for (const id of ['dua-yunus', 'hasbunallah']) assert.doesNotMatch(A.library.find(l => l.id === id).text, /،/, id);
