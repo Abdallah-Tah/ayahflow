@@ -7,10 +7,15 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slice, plainKey } from './build-adhkar.mjs';
+import { slice, plainKey, orthography } from './build-adhkar.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATASET = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions';
+let saved = null;
+try { saved = JSON.parse(await readFile(path.join(root, 'content/names/names.json'), 'utf8')); } catch { /* first build */ }
 async function hadith(n) {
+    // Offline by default: the narrations are saved with the output (REFETCH=1 fetches again).
+    const kept = !process.env.REFETCH && saved?.[n === 3507 ? 'list' : 'about'];
+    if (kept) return { text: kept.text, reference: kept.inBook, grades: kept.grades.map(g => ({ name: g.by, grade: g.grade })) };
     if (process.env.HADITH_DIR) return JSON.parse(await readFile(path.join(process.env.HADITH_DIR, 'ara-tirmidhi.json'), 'utf8')).hadiths.find(h => h.hadithnumber === n);
     const res = await fetch(`${DATASET}/ara-tirmidhi/${n}.json`);
     if (!res.ok) throw new Error(`tirmidhi:${n}: HTTP ${res.status}`);
@@ -38,8 +43,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const out = {
         dataset: 'fawazahmed0/hadith-api@1',
         list: { ref: 'tirmidhi:3507', collection: "Jami' at-Tirmidhi", number: '3507', inBook: list.reference ?? null, grades: grades(list), text: list.text },
-        about: { ref: 'tirmidhi:3506', collection: "Jami' at-Tirmidhi", number: '3506', inBook: about.reference ?? null, grades: grades(about), text: slice(about.text, 'ان لله تسعة وتسعين اسما', 'دخل الجنة') },
-        names: names.map((ar, i) => ({ n: i + 1, ar })),
+        about: { ref: 'tirmidhi:3506', collection: "Jami' at-Tirmidhi", number: '3506', inBook: about.reference ?? null, grades: grades(about), text: orthography(slice(about.text, 'ان لله تسعة وتسعين اسما', 'دخل الجنة')) },
+        names: names.map((ar, i) => ({ n: i + 1, ar: orthography(ar) })),
     };
     await writeFile(path.join(root, 'content/names/names.json'), JSON.stringify(out, null, 1) + '\n');
     console.log(`99 names from ${out.list.ref}: ${names.join(' ')}`);

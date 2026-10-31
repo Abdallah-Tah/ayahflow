@@ -18,7 +18,11 @@
         "en": "Leaving home",
         "fr": "En sortant de chez soi",
         "ar": "دعاء الخروج من المنزل"
-      }
+      },
+      "pauses": [
+        "بسم الله",
+        "توكلت على الله"
+      ]
     },
     {
       "id": "enter-home",
@@ -37,7 +41,10 @@
         "en": "Entering home: remember Allah",
         "fr": "En entrant chez soi : invoquer Allah",
         "ar": "ذكر الله عند دخول المنزل"
-      }
+      },
+      "pauses": [
+        "وعند طعامه"
+      ]
     },
     {
       "id": "riding",
@@ -57,7 +64,12 @@
       "quranRef": "43:13-14",
       "also": [
         "tirmidhi:3446"
-      ]
+      ],
+      "quote": [
+        "سبحان الذي سخر",
+        "لمنقلبون"
+      ],
+      "note": "ridingSequence"
     },
     {
       "id": "riding-istighfar",
@@ -71,9 +83,13 @@
       "end": "الذنوب الا انت",
       "title": {
         "en": "Riding: seeking forgiveness",
-        "fr": "En voyage : demander pardon",
+        "fr": "En montant dans un véhicule : demander pardon",
         "ar": "دعاء الركوب: الاستغفار"
-      }
+      },
+      "pauses": [
+        "ظلمت نفسي",
+        "فاغفر لي"
+      ]
     },
     {
       "id": "travel",
@@ -83,12 +99,45 @@
       "kind": "dua",
       "repeat": 1,
       "source": "muslim:3275",
-      "start": "اللهم انا نسالك في سفرنا",
+      "start": "سبحان الذي سخر لنا",
       "end": "في المال والاهل",
       "title": {
         "en": "Setting out on a journey",
         "fr": "En partant en voyage",
         "ar": "دعاء السفر"
+      },
+      "pauses": [
+        "لمنقلبون",
+        "البر والتقوى",
+        "ما ترضى",
+        "بعده",
+        "الصاحب في السفر",
+        "الخليفة في الاهل",
+        "وعثاء السفر",
+        "وكابة المنظر"
+      ],
+      "quote": [
+        "سبحان الذي سخر",
+        "لمنقلبون"
+      ],
+      "note": "travelTakbir",
+      "quranRef": "43:13-14"
+    },
+    {
+      "id": "travel-return",
+      "moments": [
+        "travel"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "muslim:3275",
+      "start": "آيبون تائبون",
+      "end": "لربنا حامدون",
+      "note": "travelReturn",
+      "title": {
+        "en": "Returning from a journey",
+        "fr": "Au retour de voyage",
+        "ar": "دعاء الرجوع من السفر"
       }
     },
     {
@@ -123,8 +172,45 @@
         "ar": "دعاء الخروج من المسجد"
       }
     },
-    {"id":"work-arrive","moments":["work_arrive"],"kind":"dua","repeat":1,"source":"muslim:6878","start":"اعوذ بكلمات الله التامات","end":"من شر ما خلق","title":{"en":"Arriving at a place: seeking refuge","fr":"En s’arrêtant en un lieu : demande de protection","ar":"دعاء من نزل منزلًا"}},
-    {"id":"work-leave","moments":["work_leave"],"kind":"dua","repeat":1,"source":"tirmidhi:3433","start":"سبحانك اللهم وبحمدك","end":"واتوب اليك","also":["abudawud:4859"],"title":{"en":"Rising from a sitting (kaffarat al-majlis)","fr":"En se levant d’une assemblée (kaffârat al-majlis)","ar":"كفارة المجلس"}},
+    {
+      "id": "work-arrive",
+      "moments": [
+        "work_arrive"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "muslim:6878",
+      "start": "اعوذ بكلمات الله التامات",
+      "end": "من شر ما خلق",
+      "title": {
+        "en": "Arriving at a place: seeking refuge",
+        "fr": "En s’arrêtant en un lieu : demande de protection",
+        "ar": "دعاء من نزل منزلًا"
+      }
+    },
+    {
+      "id": "work-leave",
+      "moments": [
+        "work_leave"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "tirmidhi:3433",
+      "start": "سبحانك اللهم وبحمدك",
+      "end": "واتوب اليك",
+      "also": [
+        "abudawud:4859"
+      ],
+      "title": {
+        "en": "Rising from a sitting (kaffarat al-majlis)",
+        "fr": "En se levant d’une assemblée (kaffârat al-majlis)",
+        "ar": "كفارة المجلس"
+      },
+      "pauses": [
+        "سبحانك اللهم وبحمدك",
+        "لا اله الا انت"
+      ]
+    },
     {
       "id": "morning-bika",
       "moments": [
@@ -139,7 +225,13 @@
         "en": "Morning: by You we enter the morning",
         "fr": "Matin : par Toi nous entrons dans le matin",
         "ar": "أذكار الصباح: اللهم بك أصبحنا"
-      }
+      },
+      "pauses": [
+        "بك اصبحنا",
+        "وبك امسينا",
+        "وبك نحيا",
+        "وبك نموت"
+      ]
     },
     {
       "id": "evening-bika",
@@ -155,7 +247,12 @@
         "en": "Evening: by You we enter the evening",
         "fr": "Soir : par Toi nous entrons dans le soir",
         "ar": "أذكار المساء: اللهم بك أمسينا"
-      }
+      },
+      "pauses": [
+        "بك امسينا",
+        "وبك نحيا",
+        "وبك نموت"
+      ]
     },
     {
       "id": "la-yadurr",
@@ -175,7 +272,10 @@
         "en": "In the name of Allah, with whose name nothing harms",
         "fr": "Au nom d’Allah, avec le nom duquel rien ne nuit",
         "ar": "بسم الله الذي لا يضر مع اسمه شيء"
-      }
+      },
+      "pauses": [
+        "ولا في السماء"
+      ]
     },
     {
       "id": "sayyid-istighfar",
@@ -286,7 +386,15 @@
         "en": "Before sleeping: praise for sufficiency and shelter",
         "fr": "Avant de dormir : louange pour la suffisance et l’abri",
         "ar": "الحمد لله الذي كفاني وآواني"
-      }
+      },
+      "pauses": [
+        "وسقاني",
+        "فافضل",
+        "فاجزل",
+        "على كل حال",
+        "ومليكه",
+        "واله كل شيء"
+      ]
     },
     {
       "id": "ayat-al-kursi",
@@ -341,7 +449,10 @@
         "en": "On waking up",
         "fr": "Au réveil",
         "ar": "دعاء الاستيقاظ من النوم"
-      }
+      },
+      "pauses": [
+        "بعد ما اماتنا"
+      ]
     },
     {
       "id": "after-prayer",
@@ -357,7 +468,14 @@
         "en": "After the obligatory prayer",
         "fr": "Après la prière obligatoire",
         "ar": "الذكر بعد الصلاة"
-      }
+      },
+      "pauses": [
+        "لا شريك له",
+        "وله الحمد",
+        "قدير",
+        "لما اعطيت",
+        "لما منعت"
+      ]
     }
   ],
   "prayer": [
@@ -528,7 +646,11 @@
           "source": "muslim:1352",
           "start": "لا اله الا الله وحده",
           "end": "قدير",
-          "count": 1
+          "count": 1,
+          "pauses": [
+            "لا شريك له",
+            "وله الحمد"
+          ]
         }
       ],
       "countSource": "muslim:1352",
@@ -693,7 +815,7 @@
         "ar": "الصلاة على النبي ﷺ"
       },
       "wording": "common",
-      "text": "اللهم صلِّ وسلِّم على نبينا محمد",
+      "text": "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ",
       "source": "muslim:912",
       "virtue": {
         "start": "من صلى علي واحدة",
@@ -850,7 +972,12 @@
         "en": "The Prophet ﷺ said saying them is dearer to him than all the sun rises over. No number is stated; 100 is a personal goal.",
         "fr": "Le Prophète ﷺ dit qu’elles lui sont plus chères que tout ce sur quoi le soleil se lève. Aucun nombre n’est fixé.",
         "ar": "قال النبي ﷺ إن قولها أحب إليه مما طلعت عليه الشمس، ولم يحدد عددًا."
-      }
+      },
+      "pauses": [
+        "سبحان الله",
+        "والحمد لله",
+        "ولا اله الا الله"
+      ]
     },
     {
       "id": "hawqala",
@@ -898,8 +1025,8 @@
       "id": "dua-yunus",
       "category": "quranic",
       "title": {
-        "en": "The supplication of Yunus ﷺ",
-        "fr": "L’invocation de Yunus ﷺ",
+        "en": "The supplication of Yunus (peace be upon him)",
+        "fr": "L’invocation de Yunus (paix sur lui)",
         "ar": "دعاء يونس عليه السلام"
       },
       "source": "tirmidhi:3505",

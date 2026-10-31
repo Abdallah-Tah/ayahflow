@@ -40,6 +40,41 @@ export function slice(text, start, end) {
     while (to < text.length && DROP.test(text[to]) && !/[‎‏]/.test(text[to])) to++;
     return text.slice(map[s], to);
 }
+/** Display orthography. Encoding only: no letter, word or vowel is added or removed. A dotless yā' that carries a vowel
+ * mark is a yā' (شَىْءٌ → شَيْءٌ, عَلَىَّ → عَلَيَّ), and the marks this edition types after the alif of lām-alif belong on
+ * the lām (لاَ → لَا, إِلاَّ → إِلَّا). */
+export const orthography = (s) => s.replace(/ى(?=[\u064B-\u0652])/g, 'ي').replace(/لا([\u064B-\u0652]+)/g, 'ل$1ا');
+/** A displayed text without its reading aids (display orthography applied, «،» pauses and ﴿ ﴾ removed). */
+export const bare = (s) => orthography(s).replace(/[،﴿﴾]/g, '').replace(/\s+/g, ' ').trim();
+/** Whether `text` is the narration `src` as displayed: the same letters and marks in the same order. */
+export const inSource = (src, text) => bare(src).includes(bare(text));
+/** End index (after trailing marks) of plain-letter `marker` in `text`, searching the key from `from`. */
+function markerEnd(text, marker, from, id) {
+    const { key, map } = keyed(text), k = plainKey(marker), i = key.indexOf(k, from);
+    if (i < 0) throw new Error(`${id}: marker not found: ${marker}`);
+    let to = map[i + k.length - 1] + 1;
+    while (to < text.length && DROP.test(text[to])) to++;
+    return { start: map[i], to, next: i + k.length };
+}
+/** What the app shows: the verbatim slice with the display orthography, a «،» reading pause after each listed phrase
+ * (found in order; pauses are reading aids, not part of the narration) and, where the narration quotes the Quran,
+ * ornate brackets ﴿ ﴾ around the quotation (as Hisn al-Muslim prints it). The Quran quotation itself gets no pause.
+ * Tests check that removing «،» and ﴿ ﴾ gives back the orthography of the source. */
+export function present(text, { pauses = [], quote = null } = {}, id = '') {
+    let out = orthography(text), from = 0;
+    for (const p of pauses) {
+        const m = markerEnd(out, p, from, id);
+        if (m.to >= out.length || out[m.to] !== ' ') throw new Error(`${id}: a pause must fall between words: ${p}`);
+        out = out.slice(0, m.to) + '،' + out.slice(m.to);
+        from = m.next;
+    }
+    if (quote) {
+        const a = markerEnd(out, quote[0], 0, id), b = markerEnd(out, quote[1], a.next - plainKey(quote[0]).length, id);
+        if (out.slice(a.start, b.to).includes('،')) throw new Error(`${id}: no pause inside a Quran quotation`);
+        out = out.slice(0, a.start) + '﴿' + out.slice(a.start, b.to) + '﴾' + out.slice(b.to);
+    }
+    return out;
+}
 async function hadith(ref, cache) {
     const [collection, number] = ref.split(':');
     if (process.env.HADITH_DIR) {
@@ -48,10 +83,13 @@ async function hadith(ref, cache) {
         if (!h) throw new Error(`${ref} not in ${collection} edition`);
         return h;
     }
+    if (!process.env.REFETCH && saved[ref]) return { text: saved[ref].text, reference: saved[ref].inBook, grades: saved[ref].grades };
     const res = await fetch(`${DATASET}/ara-${collection}/${number}.json`);
     if (!res.ok) throw new Error(`${ref}: HTTP ${res.status}`);
     return (await res.json()).hadiths[0];
 }
+let saved = {};
+try { saved = JSON.parse(await readFile(path.join(root, 'content/adhkar/sources.json'), 'utf8')).hadiths; } catch { /* first build */ }
 const source = (ref, h) => ({ ref, collection: COLLECTIONS[ref.split(':')[0]], number: ref.split(':')[1], inBook: h.reference ?? null, grades: (h.grades ?? []).map(g => ({ by: g.name, grade: g.grade })) });
 if (import.meta.url === `file://${process.argv[1]}`) {
     const spec = JSON.parse(await readFile(path.join(root, 'content/adhkar/spec.json'), 'utf8'));
@@ -64,7 +102,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         for (const ref of a.also ?? []) also.push(source(ref, await get(ref)));
         const entry = { id: a.id, moments: a.moments, kind: a.kind, repeat: a.repeat, title: a.title, source: source(a.source, h), also, ...(a.note ? { note: a.note } : {}), ...(a.quranRef ? { quranRef: a.quranRef } : {}) };
         if (a.kind === 'quran') entry.quran = Array.isArray(a.quran[0]) ? a.quran.map(([s, from, to]) => ({ surah: s, from: from ?? 1, to: to ?? null })) : [{ surah: a.quran[0], from: a.quran[1], to: a.quran[2] }];
-        else entry.text = slice(h.text, a.start, a.end);
+        else entry.text = present(slice(h.text, a.start, a.end), a, a.id);
         adhkar.push(entry);
     }
     const prayer = [];
@@ -81,7 +119,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         const h = await get(c.countSource);
         for (const ev of c.evidence) if (!plainKey(h.text).includes(plainKey(ev))) throw new Error(`${c.id}: evidence "${ev}" not in ${c.countSource}`);
         const steps = [];
-        for (const s of c.steps) steps.push({ text: slice((await get(s.source)).text, s.start, s.end), count: s.count, source: source(s.source, await get(s.source)) });
+        for (const s of c.steps) steps.push({ text: present(slice((await get(s.source)).text, s.start, s.end), s, c.id), count: s.count, source: source(s.source, await get(s.source)) });
         const also = [];
         for (const ref of c.also ?? []) also.push(source(ref, await get(ref)));
         counters.push({ id: c.id, title: c.title, steps, total: steps.reduce((n, s) => n + s.count, 0), evidence: c.evidence, source: source(c.countSource, h), also, ...(c.atLeast ? { atLeast: true } : {}), ...(c.perPrayer ? { perPrayer: true } : {}) });
@@ -97,11 +135,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         if (!!l.wording !== !!l.text || (l.wording && l.wording !== 'common')) throw new Error(`${l.id}: only 'common' wording may carry its own text`);
         const also = [];
         for (const ref of l.also ?? []) also.push(source(ref, await get(ref)));
-        library.push({ id: l.id, category: l.category, title: l.title, about: l.about, text: l.text ?? slice(h.text, l.start, l.end), ...(l.wording ? { wording: l.wording } : {}), ...(l.virtue ? { virtue: slice(h.text, l.virtue.start, l.virtue.end) } : {}), target: l.target, targetKind: l.targetKind, evidence: l.evidence ?? [], source: source(l.source, h), also, ...(l.quranRef ? { quranRef: l.quranRef } : {}) });
+        library.push({ id: l.id, category: l.category, title: l.title, about: l.about, text: l.text ?? present(slice(h.text, l.start, l.end), l, l.id), ...(l.wording ? { wording: l.wording } : {}), ...(l.virtue ? { virtue: orthography(slice(h.text, l.virtue.start, l.virtue.end)) } : {}), target: l.target, targetKind: l.targetKind, evidence: l.evidence ?? [], source: source(l.source, h), also, ...(l.quranRef ? { quranRef: l.quranRef } : {}) });
     }
     // Rotation: single phrases for interval reminders, each sliced verbatim from its cited hadith.
     const rotation = [];
-    for (const r of spec.rotation ?? []) rotation.push({ id: r.id, text: slice((await get(r.source)).text, r.start, r.end), source: source(r.source, await get(r.source)) });
+    for (const r of spec.rotation ?? []) rotation.push({ id: r.id, text: present(slice((await get(r.source)).text, r.start, r.end), r, r.id), source: source(r.source, await get(r.source)) });
     await writeFile(path.join(root, 'content/adhkar/sources.json'), JSON.stringify({ dataset: spec.dataset, url: DATASET, hadiths: sources }, null, 1) + '\n');
     await writeFile(path.join(root, 'content/adhkar/adhkar.json'), JSON.stringify({ dataset: spec.dataset, reviewStatus: 'awaiting-scholar-review', adhkar, prayer, counters, rotation, library }, null, 1) + '\n');
     console.log(`Built ${adhkar.length} adhkar, ${prayer.length} prayer-surah entries and ${counters.length} counters from ${Object.keys(sources).length} cited hadiths.`);

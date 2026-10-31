@@ -434,7 +434,7 @@ function sourceLine(src: HadithSource, also: HadithSource[] = [], note?: string)
     // The dataset numbers Sahih Muslim differently from the common (Abd al-Baqi) numbering, so Muslim is cited by its
     // in-book reference, the one sunnah.com shows and links.
     const link = (x: HadithSource) => `<a href="${sourceUrl(x)}" target="_blank" rel="noopener noreferrer">${escapeHtml(x.collection)} ${x.ref.startsWith('muslim:') && x.inBook ? `· ${t('book')} ${num(x.inBook.book)}, ${t('hadith')} ${num(x.inBook.hadith)}` : escapeHtml(x.number)}${ic('link', 11)}</a>`;
-    return `<p class="source-line">${ic('book', 13)}<span>${link(src)}${grade ? ` · ${escapeHtml(grade.by)}: ${escapeHtml(grade.grade)}` : ''}${also.length ? ` · ${t('alsoIn')} ${also.map(link).join(', ')}` : ''}${note === 'muallaq' ? `<br>${t('muallaq')}` : ''}</span></p>`;
+    return `<p class="source-line">${ic('book', 13)}<span>${link(src)}${grade ? ` · ${escapeHtml(grade.by)}: ${escapeHtml(grade.grade)}` : ''}${also.length ? ` · ${t('alsoIn')} ${also.map(link).join(', ')}` : ''}${note ? `<br>${t(note)}` : ''}</span></p>`;
 }
 function entryCard(e: AdhkarEntry, m: Moment): string {
     const done = completedToday(state, m).has(e.id), key = `${m}:${e.id}`, left = counters[key] ?? e.repeat;

@@ -7,6 +7,7 @@ import { ramadanToday, daysToRamadan, RAMADAN_TEXT } from '../www/js/ramadan.js'
 import { ramadanDay, calendarReminders, SUHOOR_CODE, IFTAR_CODE, SUHOOR_BEFORE, IFTAR_BEFORE } from '../www/js/calendar.js';
 import { timesFor, rotationMax, RAMADAN_DAYS } from '../www/js/smart.js';
 import { tr } from '../www/js/i18n.js';
+import { inSource } from '../scripts/build-adhkar.mjs';
 
 process.env.TZ = 'America/New_York';
 const home = { lat: 43.9145, lng: -69.9653, radius: 150, label: 'Home' };
@@ -51,7 +52,7 @@ test('Migration v20 → v21 adds both switches off; narrations verbatim from the
     assert.deepEqual(m.calendar, { jumuah: true, fasting: true, suhoor: false, iftar: false });
     assert.throws(() => validateState({ ...initialState(), calendar: { jumuah: false, fasting: false } }), /calendar/);
     const src = JSON.parse(readFileSync(new URL('../content/ramadan/ramadan.json', import.meta.url), 'utf8')).items;
-    for (const it of src) assert.ok(it.full.includes(it.text), it.id);
+    for (const it of src) assert.ok(inSource(it.full, it.text), it.id);
     assert.deepEqual(RAMADAN_TEXT.map(x => x.source.ref), ['bukhari:2017', 'tirmidhi:3513']);
     assert.ok(RAMADAN_TEXT[1].source.grades.some(g => g.by === 'Al-Albani' && g.grade === 'Sahih'));
     assert.ok(!('full' in RAMADAN_TEXT[0]), 'the full hadith is not bundled');

@@ -8,7 +8,7 @@ import { LIBRARY, COUNTERS, TASBIH_VARIANTS, counterPosition } from '../www/js/a
 import { initialState, validateState, setSalah, salahStatus, setTasbih, tasbihOn, setCount, countOn, lifetimeCount, toggleFavorite, markRecent, setTarget, noteQuranOpen, addCounter, removeCounter, MAX_COUNTS, STATE_VERSION, dayKey } from '../www/js/engine.js';
 import { slotOf, slotRange, ayahOfMoment, momentPool, upcomingMoments, MOMENT_MIN_LETTERS, MOMENT_MAX_LETTERS, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, salahReminders, salahReminderId, SALAH_MAX, tasbihDone } from '../www/js/worship.js';
 import { widgetData, timesFor } from '../www/js/smart.js';
-import { plainKey } from '../scripts/build-adhkar.mjs';
+import { plainKey, inSource } from '../scripts/build-adhkar.mjs';
 
 const at = (d, h, m = 0) => new Date(2026, 9, d, h, m).getTime();
 const DAY = '2026-10-25', NOW = at(25, 14);
@@ -117,12 +117,12 @@ test('Library: every text is a verbatim slice of its cited hadith; sunnah counts
     assert.equal(LIBRARY.length, 16);
     for (const l of LIBRARY) {
         const h = sources[l.source.ref].text;
-        if (l.wording === 'common') { assert.ok(l.virtue && h.includes(l.virtue), `${l.id} virtue`); continue; }
-        assert.ok(h.includes(l.text), `${l.id} text is an exact substring of ${l.source.ref}`);
+        if (l.wording === 'common') { assert.ok(l.virtue && inSource(h, l.virtue), `${l.id} virtue`); continue; }
+        assert.ok(inSource(h, l.text), `${l.id} text is an exact substring of ${l.source.ref}`);
         if (l.targetKind === 'sunnah') assert.ok(l.evidence.length && l.evidence.every(e => plainKey(h).includes(plainKey(e))), `${l.id} evidence`);
     }
     const common = LIBRARY.filter(l => l.wording === 'common');
-    assert.deepEqual(common.map(l => [l.id, l.text]), [['salawat-nabi', 'اللهم صلِّ وسلِّم على نبينا محمد']], 'only the salawat formula is given as common wording');
+    assert.deepEqual(common.map(l => [l.id, l.text]), [['salawat-nabi', 'اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ']], 'only the salawat formula is given as common wording');
     const byId = Object.fromEntries(LIBRARY.map(l => [l.id, l]));
     assert.equal(byId['salawat-ibrahimiyya'].source.ref, 'bukhari:3370');
     const ib = plainKey(byId['salawat-ibrahimiyya'].text); // comparison keys only (mark order differs between sources)

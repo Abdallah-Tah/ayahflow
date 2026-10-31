@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { NAMES, NAMES_LIST, NAMES_ABOUT, NAMES_QURAN, nameOfDay } from '../www/js/names.js';
 import { verse } from '../www/js/data.js';
-import { plainKey } from '../scripts/build-adhkar.mjs';
+import { plainKey, orthography } from '../scripts/build-adhkar.mjs';
 import { splitNames } from '../scripts/build-names.mjs';
 import { tr } from '../www/js/i18n.js';
 
@@ -13,7 +13,8 @@ test('Ninety-nine names, each verbatim and in order in the cited narration', () 
     assert.deepEqual(NAMES.map(x => x.n), Array.from({ length: 99 }, (_, i) => i + 1));
     assert.equal(NAMES_LIST.ref, 'tirmidhi:3507');
     let at = 0;
-    for (const { ar } of NAMES) { const i = NAMES_LIST.text.indexOf(ar, at); assert.ok(i >= 0, ar); at = i + ar.length; }
+    const list = orthography(NAMES_LIST.text);
+    for (const { ar } of NAMES) { const i = list.indexOf(ar, at); assert.ok(i >= 0, ar); at = i + ar.length; }
     assert.equal(plainKey(NAMES[0].ar), 'الله'); assert.equal(plainKey(NAMES[1].ar), 'الرحمن'); assert.equal(plainKey(NAMES[98].ar), 'الصبور');
     assert.equal(new Set(NAMES.map(x => plainKey(x.ar))).size, 99, 'no name twice');
     assert.deepEqual(splitNames('مَالِكُ الْمُلْكِ ذُو الْجَلاَلِ وَالإِكْرَامِ الْمُقْسِطُ'), ['مَالِكُ الْمُلْكِ', 'ذُو الْجَلاَلِ وَالإِكْرَامِ', 'الْمُقْسِطُ']);

@@ -12,7 +12,7 @@ export interface AdhkarEntry {
     quran?: { surah: number; from: number; to: number | null }[];
     source: HadithSource;
     also: HadithSource[];
-    note?: 'muallaq';
+    note?: 'muallaq' | 'ridingSequence' | 'travelTakbir' | 'travelReturn';
     /** The dua quotes these Quran ayahs (shown as a reference; the wording is the narration's). */
     quranRef?: string;
 }

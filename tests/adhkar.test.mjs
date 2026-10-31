@@ -5,6 +5,7 @@ import { verse, chapter } from '../www/js/data.js';
 import { ADHKAR_ENTRIES, PRAYER_SETS, MOMENTS, GENERAL_MOMENTS, entriesFor, quranPassages, sourceUrl, decide, emptyHistory, parseMomentUrl, momentUrl, currentMoment, RULES } from '../www/js/adhkar.js';
 import { initialState, validateState, completeDhikr, completedToday, exportable, STATE_VERSION, dayKey } from '../www/js/engine.js';
 import { prayerTimes, dayWindows } from '../www/js/prayer.js';
+import { inSource } from '../scripts/build-adhkar.mjs';
 const sources = JSON.parse(readFileSync(new URL('../content/adhkar/sources.json', import.meta.url), 'utf8')).hadiths;
 const key = s => s.normalize('NFC').replace(/[ً-ٰٟۖ-ۭـ‎‏]/g, '').replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^ء-ي ]/g, ' ').replace(/\s+/g, ' ').trim();
 const H = 3600000, DAY = '2026-10-22', at = h => new Date(2026, 9, 22, Math.floor(h), Math.round((h % 1) * 60)).getTime();
@@ -17,7 +18,7 @@ test('Every dua is a verbatim slice of its committed source hadith', () => {
         const src = sources[e.source.ref];
         assert(src, `${e.id}: source ${e.source.ref} snapshot missing`);
         if (e.kind === 'quran') { assert(e.quran.length && !e.text, e.id); continue; }
-        assert(src.text.includes(e.text), `${e.id}: text is not a verbatim substring of ${e.source.ref}`);
+        assert(inSource(src.text, e.text), `${e.id}: text is not a verbatim substring of ${e.source.ref}`);
         assert(key(e.text).split(' ').length >= 2 || e.id === 'subhan-bihamdih', e.id);
         for (const a of e.also) assert(sources[a.ref], `${e.id}: supporting ${a.ref} missing`);
     }
@@ -27,7 +28,7 @@ test('Quran-based adhkar read real ayahs from the corpus', () => {
     assert.equal(quranPassages(kursi)[0].ayahs[0].text, verse(2, 255));
     const quls = quranPassages(ADHKAR_ENTRIES.find(e => e.id === 'three-quls'));
     assert.deepEqual(quls.map(q => [q.surah, q.ayahs.length]), [[112, 4], [113, 5], [114, 6]]);
-    const riding = ADHKAR_ENTRIES.find(e => e.id === 'riding'); assert.equal(riding.kind, 'dua'); assert.equal(riding.quranRef, '43:13-14'); verse(43, 13); verse(43, 14); assert(sources['abudawud:2602'].text.includes(riding.text));
+    const riding = ADHKAR_ENTRIES.find(e => e.id === 'riding'); assert.equal(riding.kind, 'dua'); assert.equal(riding.quranRef, '43:13-14'); verse(43, 13); verse(43, 14); assert(inSource(sources['abudawud:2602'].text, riding.text));
 });
 test('No dhikr relies on a hadith graded weak by every grader recorded', () => {
     for (const e of ADHKAR_ENTRIES) {
@@ -270,7 +271,7 @@ test('Counter phrases are verbatim slices; their counts are stated in the cited 
     const { COUNTERS, counterPosition } = await import('../www/js/adhkar.js');
     assert.deepEqual(COUNTERS.map(c => [c.id, c.total]), [['istighfar', 100], ['istighfar-tawbah', 70], ['tasbih-prayer', 100], ['tasbih-prayer-34', 100], ['tasbih-prayer-10', 30]]);
     for (const c of COUNTERS) {
-        for (const s of c.steps) assert(sources[s.source.ref].text.includes(s.text), `${c.id}: "${s.text}" not verbatim in ${s.source.ref}`);
+        for (const s of c.steps) assert(inSource(sources[s.source.ref].text, s.text), `${c.id}: "${s.text}" not verbatim in ${s.source.ref}`);
         for (const ev of c.evidence) assert(key(sources[c.source.ref].text).includes(key(ev)), `${c.id}: count evidence missing`);
         assert.match(sourceUrl(c.source), /^https:\/\/sunnah\.com\/[a-z]+\/\d+\/\d+$/);
     }
@@ -369,7 +370,7 @@ test('Istighfar reminders: off by default; 3 a day for today and tomorrow; none 
 test('Rotation phrases are verbatim slices of their cited narrations, including the tahlil of Tirmidhi 3430', async () => {
     const { ROTATION, ROTATION_GROUPS } = await import('../www/js/adhkar.js');
     assert.equal(ROTATION.length, 12);
-    for (const r of ROTATION) { assert(sources[r.source.ref].text.includes(r.text), `${r.id} not verbatim in ${r.source.ref}`); assert.match(sourceUrl(r.source), /^https:\/\/sunnah\.com\//); }
+    for (const r of ROTATION) { assert(inSource(sources[r.source.ref].text, r.text), `${r.id} not verbatim in ${r.source.ref}`); assert.match(sourceUrl(r.source), /^https:\/\/sunnah\.com\//); }
     assert.deepEqual(ROTATION.filter(r => r.source.ref === 'tirmidhi:3430').map(r => key(r.text)), ['لا اله الا الله والله اكبر', 'لا اله الا الله وحده', 'لا اله الا الله وحده لا شريك له', 'لا اله الا الله له الملك وله الحمد', 'لا اله الا الله ولا حول ولا قوة الا بالله']);
     assert.deepEqual(ROTATION_GROUPS.flatMap(g => g.ids).sort(), ROTATION.map(r => r.id).sort()); // every phrase is shown once
 });
@@ -454,7 +455,7 @@ test('Bedtime: Abu Dawud 5058 is in the sleep adhkar, sliced verbatim from its c
     assert.ok(e, 'listed for sleep');
     assert.equal(e.source.ref, 'abudawud:5058');
     const src = JSON.parse(readFileSync(new URL('../content/adhkar/sources.json', import.meta.url), 'utf8')).hadiths['abudawud:5058'].text;
-    assert.ok(src.includes(e.text), 'verbatim slice');
+    assert.ok(inSource(src, e.text), 'verbatim slice');
     const n = (x) => x.normalize('NFD');
     assert.ok(n(e.text).startsWith(n('الْحَمْدُ لِلَّهِ الَّذِي كَفَانِي')) && n(e.text).endsWith(n('مِنَ النَّارِ')), 'whole du\'a, from praise to refuge from the Fire');
     assert.ok(e.source.grades.some(g => g.by === 'Al-Albani'));
@@ -465,7 +466,7 @@ test('Work moments: the du\'a for stopping at a place (Muslim) and kaffarat al-m
     assert.deepEqual(arrive.map(e => e.id), ['work-arrive']); assert.deepEqual(leave.map(e => e.id), ['work-leave']);
     assert.equal(arrive[0].source.ref, 'muslim:6878'); assert.equal(leave[0].source.ref, 'tirmidhi:3433');
     assert.deepEqual(leave[0].also.map(s => s.ref), ['abudawud:4859']);
-    for (const e of [...arrive, ...leave]) assert.ok(sources[e.source.ref].text.includes(e.text), `${e.id} verbatim slice`);
+    for (const e of [...arrive, ...leave]) assert.ok(inSource(sources[e.source.ref].text, e.text), `${e.id} verbatim slice`);
     assert.equal(n(arrive[0].text), n('أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ'));
     assert.ok(key(sources['muslim:6878'].text).includes(key('من نزل منزلا')), 'the hadith is about stopping at a place');
     assert.ok(n(leave[0].text).startsWith(n('سُبْحَانَكَ اللَّهُمَّ وَبِحَمْدِكَ')) && n(leave[0].text).endsWith(n('وَأَتُوبُ إِلَيْكَ')));
