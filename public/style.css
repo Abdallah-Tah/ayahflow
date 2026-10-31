@@ -1,8 +1,11 @@
 /* Quran text: AyahFlow Quran, a Modified Version of DigitalKhatt Madina v1.0.0 by Amine Anane, with two marks from Amiri Quran (SIL OFL 1.1, fonts/OFL-AyahFlowQuran.txt;
  * scripts/build-quran-font.py). Bundled so the Mushaf marks (small waw, madd, superscript alef…) never fall back to a system
- * font that misplaces them; it also draws yā' with its dots, the sukun
- * as the open jazm and the kasra below a shadda, like the KFGQPC digital Hafs text. */
-@font-face{font-family:'AyahFlow Quran';src:url('./fonts/AyahFlowQuran-Regular.ttf?v=617f400af4aa') format('truetype');font-display:block}
+ * font that misplaces them. The other Quran font choices (src/mushaf.ts QURAN_FONTS) are selected by html[data-quran-font];
+ * a face is only fetched once something uses it: AyahFlow Quran Amiri (scripts/build-quran-font-amiri.py, OFL) and
+ * me_quran (unmodified, fonts/LICENSE-me_quran.txt). */
+@font-face{font-family:'AyahFlow Quran';src:url('./fonts/AyahFlowQuran-Regular.ttf?v=62b923c1b2b5') format('truetype');font-display:block}
+@font-face{font-family:'AyahFlow Quran Amiri';src:url('./fonts/AyahFlowQuranAmiri-Regular.ttf?v=498f1c79416c') format('truetype');font-display:block}
+@font-face{font-family:'me_quran';src:url('./fonts/me_quran.ttf?v=83d56cab9933') format('truetype');font-display:block}
 /* AyahFlow — charcoal and gold, set like an illuminated mushaf.
    Every colour is a token. Dark is the approved default palette; light ("vellum") is the same family.
    Tint colours use `rgb(var(--tint) / alpha)` (no color-mix) so older WebViews render them. */
@@ -15,7 +18,7 @@
 --ar:1;
 --r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:20px;--radius:var(--r-xl);
 --fs-2xs:11px;--fs-xs:12px;--fs-sm:13px;--fs-md:14px;--fs-base:15px;--safe-bottom:env(safe-area-inset-bottom,0px);
---arabic:'AyahFlow Quran','Amiri Quran','Amiri','Noto Naskh Arabic','Geeza Pro','Traditional Arabic',serif;
+--arabic:var(--quran-face),'Amiri Quran','Amiri','Noto Naskh Arabic','Geeza Pro','Traditional Arabic',serif;--quran-face:'AyahFlow Quran';
 --serif:'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
 --ui:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
 html[data-theme=light]{color-scheme:light;
@@ -508,3 +511,9 @@ button.hz-word{background:none;border:0;padding:0;font:inherit;color:inherit;cur
 .tap-phrase.mid{font-size:calc(22px * var(--ar));line-height:1.65}
 .tap-phrase.custom.mid{font-size:calc(18px * var(--ar))}
 @media(max-width:360px){.tap-number{font-size:46px}.tap-phrase.mid{font-size:calc(19px * var(--ar))}.tap-phrase.long{font-size:calc(15px * var(--ar))}}
+/* Quran font choice (Settings and Reading style); the text is the same in every font. */
+html[data-quran-font=amiri]{--quran-face:'AyahFlow Quran Amiri'}html[data-quran-font=me-quran]{--quran-face:'me_quran'}
+.f-list{display:grid;gap:10px}.f-card{display:block;width:100%;text-align:start;padding:14px 16px;border-radius:var(--r-md);border:1px solid var(--line);background:var(--panel);color:var(--text)}.f-card.on{border-color:var(--gold)}.f-head{display:flex;align-items:center;gap:8px}.f-name{font-weight:600;flex:1}.f-prev{display:block;font-size:24px;line-height:2;direction:rtl;text-align:right;margin:6px 0 4px;color:var(--text)}.f-note{display:block;font-size:var(--fs-xs);color:var(--muted);line-height:1.45}
+.reader .f-card{background:var(--r-paper);border-color:var(--r-line);color:var(--r-ink);border-radius:var(--r-lg)}.reader .f-card.on{border-color:var(--r-gold);box-shadow:0 0 0 1px var(--r-gold) inset}.reader .f-prev{color:var(--r-ink)}.reader .f-note{color:var(--r-muted)}.reader .f-list{margin-top:10px}
+.settings-section .s-others{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.settings-section .s-others summary{min-height:44px;cursor:pointer;font-weight:600;display:flex;align-items:center}.settings-section .s-others ul{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:10px}.settings-section .s-others li{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--muted)}.settings-section .s-others li strong{color:var(--text)}.f-card.on{box-shadow:0 0 0 1px var(--gold) inset}
+.settings-section .f-card .s-radio{border-color:var(--muted)}.settings-section .f-card.on .s-radio{border-color:var(--gold);background:var(--gold);box-shadow:inset 0 0 0 4px var(--panel)}.settings-section .f-card .s-badge{color:var(--gold);font-size:var(--fs-2xs);letter-spacing:1.5px;font-weight:600}

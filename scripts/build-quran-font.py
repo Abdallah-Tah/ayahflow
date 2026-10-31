@@ -68,19 +68,21 @@ for cp, name, top in ((0x06EA, 'uni06EA', -170), (0x06EB, 'uni06EB', 850)):
 f.setGlyphOrder(order); glyf.glyphOrder = order; f['maxp'].numGlyphs = len(order)
 f['hhea'].numberOfHMetrics = len(order)
 # Tanzil puts a space before each pause mark (ۖ ۗ ۚ …); DigitalKhatt places them by anchors on letters, so after a space
-# they sat on the baseline. One more positioning lookup, run after all others, lifts a pause mark that follows a space
-# over the end of the word before it, as the print and Quran.com show it.
-WAQF = ' '.join(f'uni{cp:04X}' for cp in range(0x06D6, 0x06DD))
+# they sat on the baseline. Positioning lookups run after all others lift them over the end of the word before, as the
+# print and Quran.com show them. U+06D6–U+06DB always follow a space in Tanzil, and the reader shapes each word on its own
+# (the space is not in the same run), so they are lifted wherever they are; U+06DC also follows a letter twice, so it is
+# lifted only after a space.
 from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
 probe = TTFont(src)
 probe.setGlyphOrder(f.getGlyphOrder())
 for t in ('GPOS', 'GSUB'):
     if t in probe: del probe[t]
+WAQF = ' '.join(f'uni{cp:04X}' for cp in range(0x06D6, 0x06DC))
 addOpenTypeFeaturesFromString(probe, f"""languagesystem DFLT dflt;
 languagesystem arab dflt;
-@WAQF = [{WAQF}];
-lookup WAQF_UP {{ pos space @WAQF' <{WAQF_DX} {WAQF_DY} 0 0>; }} WAQF_UP;
-feature mark {{ lookup WAQF_UP; }} mark;
+lookup WAQF_UP {{ pos [{WAQF}] <{WAQF_DX} {WAQF_DY} 0 0>; }} WAQF_UP;
+lookup WAQF_SPACE {{ pos space uni06DC' <{WAQF_DX} {WAQF_DY} 0 0>; }} WAQF_SPACE;
+feature mark {{ lookup WAQF_UP; lookup WAQF_SPACE; }} mark;
 """)
 up = probe['GPOS'].table.LookupList.Lookup
 gp = f['GPOS'].table
@@ -94,12 +96,13 @@ for lk in up:  # renumber the contextual lookup's nested references
                 for rec in r.ChainPosLookupRecord or []: rec.LookupListIndex += base
 gp.LookupList.Lookup.extend(up)
 gp.LookupList.LookupCount = len(gp.LookupList.Lookup)
-top = [i for i, lk in enumerate(up) if lk.LookupType in (7, 8)]
-assert len(top) == 1
+mfeat = next(fr.Feature for fr in probe['GPOS'].table.FeatureList.FeatureRecord if fr.FeatureTag == 'mark')
+top = [base + i for i in mfeat.LookupListIndex]
+assert len(top) == 2
 added = 0
 for fr in gp.FeatureList.FeatureRecord:
     if fr.FeatureTag == 'mark':
-        fr.Feature.LookupListIndex.append(base + top[0]); fr.Feature.LookupCount += 1; added += 1
+        fr.Feature.LookupListIndex.extend(top); fr.Feature.LookupCount = len(fr.Feature.LookupListIndex); added += 1
 assert added, 'no mark feature'
 # Rename: the copyright notices stay; OFL travels with the font.
 name = f['name']

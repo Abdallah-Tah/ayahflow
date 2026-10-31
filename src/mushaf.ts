@@ -29,6 +29,42 @@ export const MUSHAF_EDITIONS: readonly MushafEdition[] = [
 ];
 const L = (locale: Locale) => locale === 'en' ? 0 : locale === 'fr' ? 1 : 2;
 
+/** Quran fonts. Available ones ship in the app (fonts/, docs/THIRD-PARTY-NOTICES.md) and draw the same Tanzil text;
+ * each note says honestly how it draws this text. The rest say why they are not in the app. Only the chosen font is
+ * loaded (html[data-quran-font] in style.css), except while this list shows its previews. */
+export interface QuranFontOption { id: string; family: string | null; name: [string, string, string]; note: [string, string, string] }
+export const QURAN_FONTS: readonly QuranFontOption[] = [
+    { id: 'madina', family: 'AyahFlow Quran',
+        name: ['Madinah Mushaf (DigitalKhatt)', 'Mushaf de Médine (DigitalKhatt)', 'مصحف المدينة (الخط الرقمي)'],
+        note: ['The Madinah Mushaf hand, closest to the print and Quran.com. Open licence (OFL). Adjusted here: wider word spaces and raised pause marks, and two rare marks (11:41, 12:11) taken from Amiri.', 'La calligraphie du Mushaf de Médine, la plus proche de l’imprimé et de Quran.com. Licence libre (OFL). Ajustée ici : espaces plus larges, signes de pause relevés, et deux signes rares (11:41, 12:11) repris d’Amiri.', 'خط مصحف المدينة، الأقرب إلى المطبوع وإلى Quran.com. برخصة مفتوحة (OFL). عُدّل هنا: مسافات أوسع بين الكلمات، ورُفعت علامات الوقف، وأُخذت علامتان نادرتان (١١:٤١ و١٢:١١) من خط أميري.'] },
+    { id: 'amiri', family: 'AyahFlow Quran Amiri',
+        name: ['Amiri Quran', 'Amiri Quran', 'أميري للقرآن'],
+        note: ['A classic Naskh; letters differ from the Madinah hand. Open licence (OFL). Adjusted here: the sukun drawn as the jazm and a shorter final meem, as in the print.', 'Un naskh classique ; les lettres diffèrent de la calligraphie de Médine. Licence libre (OFL). Ajustée ici : soukoun dessiné comme le jazm et mîm final plus court, comme dans l’imprimé.', 'خط نسخ كلاسيكي تختلف حروفه عن خط مصحف المدينة. برخصة مفتوحة (OFL). عُدّل هنا: السكون برسم الجزم، والميم الأخيرة أقصر كما في المطبوع.'] },
+    { id: 'me-quran', family: 'me_quran',
+        name: ['me_quran', 'me_quran', 'me_quran'],
+        note: ['Unmodified; free for non-commercial use (Meor Ridzuan). With this text: the sukun is drawn as a round circle, which in the Mushaf marks a silent letter, and words sit close together.', 'Non modifiée ; gratuite pour un usage non commercial (Meor Ridzuan). Avec ce texte : le soukoun est dessiné en cercle rond, qui marque une lettre muette dans le Mushaf, et les mots sont serrés.', 'دون تعديل؛ مجاني للاستخدام غير التجاري (مِئور رضوان). مع هذا النص: يُرسم السكون دائرة مستديرة، وهي في المصحف علامة الحرف الزائد، والكلمات متقاربة.'] },
+    { id: 'kfgqpc-hafs', family: null,
+        name: ['KFGQPC Uthmanic Hafs', 'KFGQPC Uthmanic Hafs', 'خط حفص العثماني (مجمع الملك فهد)'],
+        note: ['Not available: made for the King Fahd Complex’s own text encoding. With this text it draws the sukun round and the small rounded zero as a dotted circle, and its licence forbids changes.', 'Indisponible : conçue pour le codage propre au Complexe du Roi Fahd. Avec ce texte, elle dessine le soukoun rond et le petit zéro arrondi comme un cercle pointillé, et sa licence interdit toute modification.', 'غير متاح: صُمّم لترميز نص مجمع الملك فهد. مع هذا النص يرسم السكون مستديرًا والصفر المستدير الصغير دائرةً منقطة، ورخصته تمنع التعديل.'] },
+    { id: 'uthman-taha', family: null,
+        name: ['KFGQPC Uthman Taha Naskh', 'KFGQPC Uthman Taha Naskh', 'خط عثمان طه النسخ (مجمع الملك فهد)'],
+        note: ['Not available: a Naskh font for general text. It has no alif waṣla (ٱ) and lacks most Quranic marks in this text, over 25,000 places, and its licence forbids adding them.', 'Indisponible : une police naskh pour le texte courant. Elle n’a pas l’alif waṣla (ٱ) et il lui manque la plupart des signes coraniques de ce texte, plus de 25 000 occurrences ; sa licence interdit de les ajouter.', 'غير متاح: خط نسخ للنصوص العامة، ليس فيه ألف الوصل (ٱ) وتنقصه أكثر علامات المصحف في هذا النص، في أكثر من ٢٥٠٠٠ موضع، ورخصته تمنع إضافتها.'] },
+    { id: 'pdms-saleem', family: null,
+        name: ['PDMS Saleem QuranFont', 'PDMS Saleem QuranFont', 'خط سليم للقرآن (PDMS)'],
+        note: ['Not available: its licence forbids distributing it without a distribution licence from PDMS. It follows the IndoPak style rather than the Madinah one.', 'Indisponible : sa licence interdit de la distribuer sans licence de distribution de PDMS. Elle suit le style indo-pakistanais plutôt que celui de Médine.', 'غير متاح: رخصته تمنع توزيعه دون رخصة توزيع من PDMS، وهو على النمط الهندي الباكستاني لا المدني.'] },
+];
+/** The font cards (Settings and the reading-style chooser): each available font previews the opening words of 7:38,
+ * as written, in its own face; the others are listed with the reason they are not in the app. */
+export function quranFontChooser(state: AppState): string {
+    const l = state.locale, words = verse(7, 38).split(' ').slice(0, 6).join(' ');
+    const card = (f: QuranFontOption) => {
+        const on = state.quranFont === f.id;
+        return `<button class="f-card${on ? ' on' : ''}" data-action="quran-font" data-font="${f.id}" aria-pressed="${on}"><span class="f-head"><span class="s-radio" aria-hidden="true"></span><span class="f-name">${esc(f.name[L(l)])}</span>${on ? `<span class="s-badge">${esc(w('selected', l))}</span>` : ''}</span><span class="f-prev" lang="ar" dir="rtl" style="font-family:'${f.family}',serif">${esc(words)}</span><span class="f-note">${esc(f.note[L(l)])}</span></button>`;
+    };
+    const others = QURAN_FONTS.filter(f => !f.family).map(f => `<li><strong>${esc(f.name[L(l)])}</strong><span>${esc(f.note[L(l)])}</span></li>`).join('');
+    return `<div class="f-list">${QURAN_FONTS.filter(f => f.family).map(card).join('')}</div><details class="s-others"><summary><span>${esc(w('fontsOthers', l))}</span></summary><ul>${others}</ul></details>`;
+}
+
 /** The page to open: where the user last read. */
 export function startPage(state: AppState): number { return pageOf(state.readPosition.surah, state.readPosition.ayah); }
 /** The page to show for the open surah. The saved place decides: page turns save the page's first ayah, and links,
@@ -56,6 +92,9 @@ export function toEndOfJuz(surah: number, ayah: number): [number, number][] {
 /** Words the chooser and reader chrome need, kept here with the module ([en, fr, ar]). */
 const W: Record<string, [string, string, string]> = {
     styleTitle: ['Reading style', 'Style de lecture', 'طريقة القراءة'],
+    font: ['Quran font', 'Police du Coran', 'خط المصحف'],
+    fontSub: ['The same text in every font; only the letter shapes change.', 'Le même texte dans chaque police ; seule la forme des lettres change.', 'النص نفسه في كل خط؛ تتغيّر أشكال الحروف فقط.'],
+    fontsOthers: ['Fonts not in the app', 'Polices absentes de l’app', 'خطوط غير موجودة في التطبيق'],
     styleSub: ['Pick how the Quran is laid out. Your place, bookmarks, highlights and notes stay the same.', 'Choisissez la mise en page. Votre position, vos signets, surlignages et notes restent les mêmes.', 'اختر طريقة عرض المصحف. يبقى موضعك وعلاماتك وتظليلك وملاحظاتك كما هي.'],
     mushaf: ['Mushaf pages', 'Pages du Mushaf', 'صفحات المصحف'],
     mushafSub: ['One Madani page at a time, sized to fit your screen.', 'Une page de Médine à la fois, ajustée à votre écran.', 'صفحة مدنية واحدة في كل مرة، بحجم يناسب شاشتك.'],
@@ -145,6 +184,7 @@ export function readingStyles(state: AppState): string {
     return `<section class="styles"><h2 class="s-title">${x('styleTitle')}</h2><p class="s-lead">${x('styleSub')}</p>
 <div class="s-list">${style('page', 'mushaf', 'page', ['f604', 'fLines', 'fOffline'])}${style('flow', 'easy', 'easy', ['fSize', 'fTr', 'fOffline'])}${style('cards', 'cards', 'cards', ['fTools', 'fSize'])}</div>
 <h3 class="s-sec">${x('theme')}</h3><div class="t-list">${theme('auto')}${theme('classic')}${theme('night')}</div>
+<h3 class="s-sec">${x('font')}</h3><p class="s-note">${x('fontSub')}</p>${quranFontChooser(state)}
 <h3 class="s-sec">${x('edition')}</h3><p class="s-note">${x('editionBody')}</p>
 <details class="s-others"><summary><span>${x('others')}</span><span class="s-sub">${x('othersSub')}</span></summary><ul>${others}</ul></details></section>`;
 }
