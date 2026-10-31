@@ -2,7 +2,7 @@
  * scripts/build-quran-font.py). Bundled so the Mushaf marks (small waw, madd, superscript alef…) never fall back to a system
  * font that misplaces them; it also draws yā' with its dots, the sukun
  * as the open jazm and the kasra below a shadda, like the KFGQPC digital Hafs text. */
-@font-face{font-family:'AyahFlow Quran';src:url('./fonts/AyahFlowQuran-Regular.ttf?v=651311e48c7a') format('truetype');font-display:block}
+@font-face{font-family:'AyahFlow Quran';src:url('./fonts/AyahFlowQuran-Regular.ttf?v=7036835030a1') format('truetype');font-display:block}
 /* AyahFlow — charcoal and gold, set like an illuminated mushaf.
    Every colour is a token. Dark is the approved default palette; light ("vellum") is the same family.
    Tint colours use `rgb(var(--tint) / alpha)` (no color-mix) so older WebViews render them. */
