@@ -72,7 +72,7 @@
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		ABBA3C591D98622D8FE3D04D /* AyahFlowWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AyahFlowWidget.swift; sourceTree = "<group>"; };
-		DE091FA3FB16C84E1025A7E1 /* OFL-ScheherazadeNew.txt */ = {isa = PBXFileReference; includeInIndex = 1; path = "OFL-ScheherazadeNew.txt"; sourceTree = "<group>"; };
+		DE091FA3FB16C84E1025A7E1 /* OFL-Amiri.txt */ = {isa = PBXFileReference; includeInIndex = 1; path = "OFL-Amiri.txt"; sourceTree = "<group>"; };
 		E5BD3E0A282949AA3197CE5D /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		EC4BA58209286F24F33B2CFE /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/SwiftUI.framework; sourceTree = DEVELOPER_DIR; };
 		F06380F63E8765291027C074 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/WidgetKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -156,7 +156,7 @@
 				9232DA89295053ADB23E9E75 /* Info.plist */,
 				5692F7129A852E6C3A00AF49 /* AyahFlowWidget.entitlements */,
 				5DEA255583ED34A1AD0F03C2 /* AyahFlowQuran-Regular.ttf */,
-				DE091FA3FB16C84E1025A7E1 /* OFL-ScheherazadeNew.txt */,
+				DE091FA3FB16C84E1025A7E1 /* OFL-Amiri.txt */,
 				83ABFCD7F782E41AB898D48E /* AyahMoments.json */,
 			);
 			name = AyahFlowWidget;
