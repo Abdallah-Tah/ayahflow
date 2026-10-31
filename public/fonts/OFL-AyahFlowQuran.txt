@@ -1,9 +1,9 @@
+Copyright (c) 2020-2023 Amine Anane (https://github.com/DigitalKhatt)
+
 Copyright 2010-2022 The Amiri Project Authors (https://github.com/aliftype/amiri).
 
-This Font Software is licensed under the SIL Open Font License, Version 1.1.
-This license is copied below, and is also available with a FAQ at:
-https://openfontlicense.org/
-
+AyahFlow Quran is a Modified Version of DigitalKhatt Madina v1.0.0 with two marks (U+06EA, U+06EB) from Amiri Quran 1.003.
+Both are licensed under the SIL Open Font License, Version 1.1, copied below.
 
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007

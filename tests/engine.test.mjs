@@ -192,7 +192,7 @@ test('Recited words line up one-to-one with the bundled recogniser corpus (when 
     }
 });
 
-test('Quran text uses the bundled AyahFlow Quran font (Amiri Quran, adapted), web and widget alike', async () => {
+test('Quran text uses the bundled AyahFlow Quran font (DigitalKhatt Madina, adapted), web and widget alike', async () => {
     const { readFile } = await import('node:fs/promises');
     const { createHash } = await import('node:crypto');
     const css = await readFile('public/style.css', 'utf8');
@@ -202,14 +202,14 @@ test('Quran text uses the bundled AyahFlow Quran font (Amiri Quran, adapted), we
     assert.equal(sha(web), sha(widget));
     // The URL carries the font's hash, so a changed font is never served from a web view cache.
     assert(css.includes(`@font-face{font-family:'AyahFlow Quran';src:url('./fonts/AyahFlowQuran-Regular.ttf?v=${sha(web).slice(0, 12)}')`), 'font URL must carry the current font hash');
-    // The reviewed build of scripts/build-quran-font.py (Amiri Quran with the sukun drawn as the jazm and a short word-final meem; checked over all 6236 ayahs); a change needs the same review.
+    // The reviewed build of scripts/build-quran-font.py (DigitalKhatt Madina, wider word space, raised pause marks, two marks from Amiri; checked over all 6236 ayahs); a change needs the same review.
     const notices = await readFile('docs/THIRD-PARTY-NOTICES.md', 'utf8');
     assert(notices.includes(sha(web)), 'font hash must match docs/THIRD-PARTY-NOTICES.md');
-    assert(notices.includes(sha(await readFile('content/fonts/AmiriQuran.ttf'))), 'upstream font must be the documented, unmodified file');
-    // One family name for the reader, widgets and Lock Screen (Amiri has no Reserved Font Names; renamed as a Modified Version).
+    for (const up of ['content/fonts/DigitalKhattMadina.otf', 'content/fonts/AmiriQuran.ttf']) assert(notices.includes(sha(await readFile(up))), `${up} must be the documented, unmodified file`);
+    // One family name for the reader, widgets and Lock Screen (neither DigitalKhatt nor Amiri has Reserved Font Names; renamed as a Modified Version).
     const utf16 = s => Buffer.from(s.split('').flatMap(c => [0, c.charCodeAt(0)]));
     assert(web.includes(utf16('AyahFlow Quran')));
-    assert.match(await readFile('public/fonts/OFL-Amiri.txt', 'utf8'), /SIL Open Font License, Version 1\.1/);
+    assert.match(await readFile('public/fonts/OFL-AyahFlowQuran.txt', 'utf8'), /SIL Open Font License, Version 1\.1/);
     assert.match(await readFile('ios/App/AyahFlowWidget/Info.plist', 'utf8'), /<key>UIAppFonts<\/key>\s*<array><string>AyahFlowQuran-Regular\.ttf<\/string>/);
     const swift = await readFile('ios/App/AyahFlowWidget/AyahFlowWidget.swift', 'utf8');
     assert.match(swift, /\.custom\("AyahFlow Quran", size: size\)/);

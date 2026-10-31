@@ -75,7 +75,7 @@ const W: Record<string, [string, string, string]> = {
     classic: ['Classic', 'Classique', 'كلاسيكي'], classicSub: ['Warm paper', 'Papier chaud', 'ورق دافئ'],
     night: ['Night', 'Nuit', 'ليلي'], nightSub: ['For low light', 'Pour la pénombre', 'للإضاءة الخافتة'],
     edition: ['Text and font', 'Texte et police', 'النص والخط'],
-    editionBody: ['Tanzil Uthmani text 1.1 (CC BY 3.0), unchanged · page boundaries from Tanzil’s metadata · AyahFlow Quran font, adapted from Amiri Quran (SIL Open Font License). All in the app, no download.', 'Texte uthmani Tanzil 1.1 (CC BY 3.0), inchangé · limites de pages d’après les métadonnées Tanzil · police AyahFlow Quran, adaptée d’Amiri Quran (SIL Open Font License). Tout est dans l’app.', 'نص تنزيل العثماني ١٫١ (CC BY 3.0) دون تغيير · حدود الصفحات من بيانات تنزيل · خط AyahFlow Quran المعدّل من Amiri Quran (رخصة SIL المفتوحة). كل ذلك داخل التطبيق دون تنزيل.'],
+    editionBody: ['Tanzil Uthmani text 1.1 (CC BY 3.0), unchanged · page boundaries from Tanzil’s metadata · AyahFlow Quran font, adapted from DigitalKhatt Madina (SIL Open Font License). All in the app, no download.', 'Texte uthmani Tanzil 1.1 (CC BY 3.0), inchangé · limites de pages d’après les métadonnées Tanzil · police AyahFlow Quran, adaptée de DigitalKhatt Madina (SIL Open Font License). Tout est dans l’app.', 'نص تنزيل العثماني ١٫١ (CC BY 3.0) دون تغيير · حدود الصفحات من بيانات تنزيل · خط AyahFlow Quran المعدّل من DigitalKhatt Madina (رخصة SIL المفتوحة). كل ذلك داخل التطبيق دون تنزيل.'],
     others: ['Other editions', 'Autres éditions', 'طبعات أخرى'],
     othersSub: ['Not in the app yet, and why', 'Pas encore dans l’app, et pourquoi', 'غير موجودة في التطبيق بعد، وسبب ذلك'],
 };
