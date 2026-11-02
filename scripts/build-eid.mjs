@@ -1,4 +1,5 @@
-/** Builds content/eid/eid.json: the narrations shown for Eid, Zakat al-Fitr and the fasts of Arafah, Tasu'a and Ashura,
+/** Builds content/eid/eid.json: the narrations shown for Eid, Zakat al-Fitr, the fasts of Arafah, Tasu'a and Ashura, and the
+ * nisab of the Zakat calculator,
  * sliced verbatim from the public-domain fawazahmed0/hadith-api dataset (nothing typed by hand).
  *   node scripts/build-eid.mjs                       (offline: re-slices the narrations saved in content/eid/eid.json)
  *   REFETCH=1 node scripts/build-eid.mjs             (fetches each narration again)
@@ -35,6 +36,10 @@ export const ITEMS = [
     // Zakat al-Fitr: the narrations only, no ruling on the amount.
     { id: 'zakat-fitr', group: 'zakat', ref: 'bukhari:1503', start: 'فرض رسول الله', end: 'خروج الناس الى الصلاة' },
     { id: 'zakat-purpose', group: 'zakat', ref: 'abudawud:1609', start: 'فرض رسول الله', end: 'صدقة من الصدقات' },
+    // Zakat calculator: the nisab of silver (five awaq) and of gold (twenty dinars), and five in two hundred. Abu Dawud
+    // 1573 ends before «فما زاد فبحساب ذلك», which the narrator was unsure was the Prophet's words.
+    { id: 'nisab-silver', group: 'nisab', ref: 'bukhari:1447', start: 'ليس فيما دون خمس ذود', end: 'خمسة اوسق صدقة' },
+    { id: 'nisab-gold', group: 'nisab', ref: 'abudawud:1573', start: 'فاذا كانت لك مائتا درهم', end: 'ففيها نصف دينار' },
     // Fasts (for the optional reminders).
     { id: 'arafah', group: 'fast', ref: 'muslim:2746', start: 'صيام يوم عرفة', end: 'والسنة التي بعده' },
     { id: 'ashura', group: 'fast', ref: 'muslim:2746', start: 'صيام يوم عاشوراء', end: 'السنة التي قبله' },

@@ -523,3 +523,4 @@ html[data-quran-font=amiri]{--quran-face:'AyahFlow Quran Amiri'}html[data-quran-
 .eid-item{padding:12px 0;border-bottom:1px solid var(--line)}.eid-item:last-child{border-bottom:0}.eid-text{font-size:1.35rem;line-height:2;margin:4px 0 6px}.pill.athar{font-size:var(--fs-2xs);margin-inline-start:6px}
 .card-preview{display:block;width:100%;height:auto;border-radius:var(--r-md);border:1px solid var(--line);background:var(--panel)}#card-note{width:100%}
 .beads .thread{fill:none;stroke:var(--line-strong);stroke-width:1.2}.beads .imam{fill:var(--gold)}.beads.thread .bead{stroke:var(--line-strong);stroke-width:.8}
+.zakat-input{width:100%}
