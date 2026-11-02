@@ -6,12 +6,18 @@ import { timesFor, sleepWindow, FAST_MAX, RAMADAN_DAYS, OCCASION_MAX } from './s
 
 export interface HijriDate { day: number; month: number; year: number }
 const hijriFormat = new Map<string, Intl.DateTimeFormat>();
-/** The Umm al-Qura date of a local day (taken at noon, away from midnight), or null where Intl lacks the calendar. */
+/** The user's correction to the Umm al-Qura date (Settings: -1, 0 or +1 day, to match local moon sighting). Every Hijri
+ * date in the app goes through hijriDate or hijriBase, so holidays, Ramadan and reminders all follow it. */
+let hijriShift = 0;
+export function setHijriOffset(days: number): void { hijriShift = days === -1 || days === 1 ? days : 0; }
+/** The local day whose Umm al-Qura date is shown for `date` (at noon, away from midnight). */
+export function hijriBase(date: Date): Date { return new Date(date.getFullYear(), date.getMonth(), date.getDate() + hijriShift, 12); }
+/** The Hijri date of a local day: Umm al-Qura with the user's correction, or null where Intl lacks the calendar. */
 export function hijriDate(date: Date): HijriDate | null {
     try {
         const f = hijriFormat.get('n') ?? new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'numeric', year: 'numeric' });
         hijriFormat.set('n', f);
-        const parts = f.formatToParts(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12));
+        const parts = f.formatToParts(hijriBase(date));
         const get = (t: string) => Number(parts.find(p => p.type === t)?.value);
         const d = { day: get('day'), month: get('month'), year: get('year') };
         return Number.isInteger(d.day) && Number.isInteger(d.month) && d.month >= 1 && d.month <= 12 ? d : null;

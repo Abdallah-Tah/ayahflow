@@ -365,12 +365,14 @@ struct PrayerWidgetView: View {
     }
 
     private func dateHeader() -> some View { dateHeader(short: false, fixed: false) }
+    /// The day whose Umm al-Qura date is shown: the user's correction (Settings, ±1 day) shared by the app.
+    private var hijriDay: Date { Calendar.current.date(byAdding: .day, value: Int(entry.labels["hijriOffset"] ?? "0") ?? 0, to: entry.date) ?? entry.date }
     private func dateHeader(short: Bool = false, noYear: Bool = false, fixed: Bool) -> some View {
         let g: String = { if !short { return formatted(entry.date, entry.locale, hijri: false) }; let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM"); return f.string(from: entry.date) }()
         return HStack(spacing: 6) {
             Text(g).foregroundColor(Palette.muted)
             Circle().fill(Palette.line).frame(width: 3, height: 3)
-            Text(noYear ? { let f = DateFormatter(); f.locale = entry.locale; f.calendar = Calendar(identifier: .islamicUmmAlQura); f.setLocalizedDateFormatFromTemplate("d MMMM"); return f.string(from: entry.date) }() : formatted(entry.date, entry.locale, hijri: true)).foregroundColor(Palette.gold)
+            Text(noYear ? { let f = DateFormatter(); f.locale = entry.locale; f.calendar = Calendar(identifier: .islamicUmmAlQura); f.setLocalizedDateFormatFromTemplate("d MMMM"); return f.string(from: hijriDay) }() : formatted(hijriDay, entry.locale, hijri: true)).foregroundColor(Palette.gold)
         }.font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(fixed ? 1 : 0.8).fixedSize(horizontal: fixed, vertical: false)
     }
 

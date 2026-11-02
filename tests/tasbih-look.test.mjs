@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { initialState, validateState, STATE_VERSION, TASBIH_THEMES } from '../www/js/engine.js';
 
 test('v23 saves move to v24 with the ring look; counts and settings are kept; bad looks are rejected', () => {
-    assert.equal(STATE_VERSION, 24);
+    assert.equal(STATE_VERSION, 25);
     assert.deepEqual([...TASBIH_THEMES], ['ring', 'thread', 'plain']);
     const v23 = JSON.parse(JSON.stringify(initialState())); v23.version = 23; delete v23.worship.prefs.tasbihTheme;
     v23.worship.tasbih = [{ day: '2026-11-01', prayer: 'fajr', id: v23.worship.prefs.tasbihVariant, n: 40 }]; v23.worship.prefs.haptics = false;
