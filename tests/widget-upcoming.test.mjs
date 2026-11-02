@@ -42,17 +42,20 @@ test('Coming up: the Ramadan span counts to 1 Ramadan, then through it until Eid
     assert.ok(occ.some(o => o.title === 'eid-fitr'));
 });
 
-test('Coming up wiring: the span and labels are shared, the Swift view counts days itself', () => {
+test('Prayer widget: Ramadan chip in the header, next occasion on the date row, a Coming up page; data shared', () => {
     const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
     assert.match(app, /const ramadan = ramadanSpan\(\);/);
     assert.match(app, /upcoming, ramadan \}\);/);
-    for (const k of ['wRamadanUntil', 'wEidIn', 'wSighting', 'wIftar', 'wSuhoor', 'wDay1', 'wDay2', 'wDayFew', 'wDayMany', 'wOf2930']) assert.match(app, new RegExp(`${k}: t\\('${k}'\\)`), k);
+    assert.match(app, /short: u\.kind === 'jumuah' \? t\('wsJumuah'\) : u\.kind === 'fast' \? t\('wsFast'\) : occ \? t\(`ws_\$\{occ\}`\)/);
+    for (const k of ['wRamadanDay', 'wEidIn', 'wSighting', 'wSightingLong', 'wIftar', 'wDay1', 'wDay2', 'wDayFew', 'wDayMany', 'wOf2930', 'wOddNight', 'wRamadanBegins', 'upcomingPage']) assert.match(app, new RegExp(`${k}: t\\(`), k);
     const swift = readFileSync(new URL('../ios/App/AyahFlowWidget/AyahFlowWidget.swift', import.meta.url), 'utf8');
     assert.match(swift, /let ramadan: RamadanSpan\?/, 'optional, so older shared data still decodes');
-    assert.match(swift, /enum RamadanPhase/);
-    assert.match(swift, /case \(\.systemSmall, \.some\(let p\)\)/);
-    assert.match(swift, /case \(_, \.some\(\.during\(let d, let eidIn\)\)\):[\s\S]*?strip\(d\)/, 'the 30-day strip only during Ramadan');
-    assert.match(swift, /wSighting/, 'every Ramadan state shows the sighting caveat');
-    assert.match(swift, /StaticConfiguration\(kind: "AyahFlowUpcoming"/, 'same kind, so placed widgets stay');
-    assert.match(app, /ayahflow:\\\/\\\/occasions/);
+    assert.match(swift, /let short: String\? \}/);
+    assert.match(swift, /case prayer, dhikr, steps, ayah, upcoming\n/, 'new page appended so saved page numbers keep their meaning');
+    assert.match(swift, /static let order: \[WidgetPage\] = \[\.prayer, \.upcoming, \.dhikr, \.steps, \.ayah\]/);
+    assert.match(swift, /if phase != nil \{ ramadanChip\.layoutPriority\(0\.5\) \} else \{ dateHeader\(\)\.layoutPriority\(0\) \}/, 'the duplicate header date becomes the chip');
+    assert.match(swift, /ViewThatFits\(in: \.horizontal\) \{\s*HStack[\s\S]*?dateHeader\(short: true, fixed: true\)[\s\S]*?dateHeader\(\)\s*\}/, 'the occasion line steps down, then hides rather than squeezing');
+    assert.match(swift, /if let \(d, e\) = during \{[\s\S]*?ramadanStrip\(d\)/, 'strip only during Ramadan');
+    assert.match(swift, /wSightingLong/);
+    assert.match(swift, /StaticConfiguration\(kind: "AyahFlowUpcoming"[\s\S]*?configurationDisplayName\("Jumu'ah and fasts"\)/, 'the separate widget keeps its earlier look');
 });

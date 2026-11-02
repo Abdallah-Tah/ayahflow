@@ -123,7 +123,7 @@ export const OCCASION_SWITCH: readonly [OccasionKind, keyof AppState['calendar']
 /** For the "Jumu'ah and fasts" widget: Fridays, voluntary-fast days and the first of Ramadan in the next `days` days
  * (today included), at most `max`. The widget names the day itself; nothing here is a reminder. */
 export interface UpcomingDay { at: number; day: string; kind: 'jumuah' | 'fast' | 'ramadan'; title: string; sub: string }
-export type UpcomingItem = Omit<UpcomingDay, 'kind'> & { kind: UpcomingDay['kind'] | 'occasion' };
+export type UpcomingItem = Omit<UpcomingDay, 'kind'> & { kind: UpcomingDay['kind'] | 'occasion'; occ?: OccasionKind; short?: string };
 export function upcomingDays(copy: { jumuah: string; jumuahSub: string; fast: string; why: (r: FastReason[]) => string; ramadan: string; ramadanSub: string }, now = Date.now(), days = 14, max = 6): UpcomingDay[] {
     const out: UpcomingDay[] = [];
     for (let i = 0; i < days && out.length < max; i++) {
@@ -185,5 +185,5 @@ export function ramadanSpan(now = Date.now()): { start: number; eid: number } | 
 /** Occasions for the widget list (Eid, Arafah, Ashura...) in the next `days` days; the Ramadan start is the widget's
  * countdown, so it is not repeated here. */
 export function upcomingOccasions(title: (k: OccasionKind) => string, sub: string, now = Date.now(), days = 14): UpcomingItem[] {
-    return islamicOccasions(now, days).filter(o => o.kind !== 'ramadan-start').map(o => ({ at: Math.max(o.at, new Date(now).setHours(0, 0, 0, 0)), day: o.day, kind: 'occasion' as const, title: title(o.kind), sub }));
+    return islamicOccasions(now, days).filter(o => o.kind !== 'ramadan-start').map(o => ({ at: Math.max(o.at, new Date(now).setHours(0, 0, 0, 0)), day: o.day, kind: 'occasion' as const, occ: o.kind, title: title(o.kind), sub }));
 }

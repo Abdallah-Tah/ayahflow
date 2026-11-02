@@ -28,7 +28,7 @@ struct SharedTimeline: Decodable {
     let worship: Worship?
     /// Fridays, voluntary-fast days and the start of Ramadan in the next two weeks (src/calendar.ts upcomingDays).
     let upcoming: [Upcoming]?
-    struct Upcoming: Decodable { let at: Double; let day: String; let kind: String; let title: String; let sub: String }
+    struct Upcoming: Decodable { let at: Double; let day: String; let kind: String; let title: String; let sub: String; let short: String? }
     /// The current or next Ramadan (src/calendar.ts ramadanSpan): local midnights of 1 Ramadan and of Eid al-Fitr.
     let ramadan: RamadanSpan?
     struct RamadanSpan: Decodable { let start: Double; let eid: Double }
@@ -98,15 +98,21 @@ struct PrayerEntry: TimelineEntry {
     var kept: Set<String> = []
     /// The Ayah of the Moment for this entry's half hour.
     var momentAyah: SharedTimeline.Worship.Moment? = nil
+    /// The current or next Ramadan and the coming Fridays, fasts and occasions (src/calendar.ts), for the header chip,
+    /// the date row and the Coming up page.
+    var ramadan: SharedTimeline.RamadanSpan? = nil
+    var upcoming: [SharedTimeline.Upcoming] = []
 }
 
 /// The pages of the medium widget. The chosen page is kept in the widget extension's own defaults.
 enum WidgetPage: Int, CaseIterable {
-    case prayer, dhikr, steps, ayah
+    // Raw values are saved (the chosen page), so a new page is added at the end; `order` is how the tabs are shown.
+    case prayer, dhikr, steps, ayah, upcoming
+    static let order: [WidgetPage] = [.prayer, .upcoming, .dhikr, .steps, .ayah]
     static var current: WidgetPage { WidgetPage(rawValue: UserDefaults.standard.integer(forKey: "widgetPage")) ?? .prayer }
-    var symbol: String { switch self { case .prayer: return "moon.stars"; case .dhikr: return "circle.dotted"; case .steps: return "figure.walk"; case .ayah: return "book" } }
+    var symbol: String { switch self { case .prayer: return "moon.stars"; case .dhikr: return "circle.dotted"; case .steps: return "figure.walk"; case .ayah: return "book"; case .upcoming: return "moon.circle" } }
     func label(_ labels: [String: String]) -> String {
-        switch self { case .prayer: return labels["prayerTab"] ?? "Prayer"; case .dhikr: return labels["dhikrTab"] ?? "Dhikr"; case .steps: return labels["stepsTab"] ?? "Steps"; case .ayah: return labels["ayahTab"] ?? "Du'a" }
+        switch self { case .prayer: return labels["prayerTab"] ?? "Prayer"; case .dhikr: return labels["dhikrTab"] ?? "Dhikr"; case .steps: return labels["stepsTab"] ?? "Steps"; case .ayah: return labels["ayahTab"] ?? "Du'a"; case .upcoming: return labels["upcomingPage"] ?? "Coming up" }
     }
 }
 
@@ -137,7 +143,7 @@ struct Provider: TimelineProvider {
         let now = Date(), at = { (h: Double) in now.addingTimeInterval(h * 3600).timeIntervalSince1970 * 1000 }
         let today: [SharedTimeline.Prayer] = [.init(key: "fajr", label: "Fajr", at: at(-8)), .init(key: "dhuhr", label: "Dhuhr", at: at(-2)), .init(key: "asr", label: "Asr", at: at(1.4)), .init(key: "maghrib", label: "Maghrib", at: at(4)), .init(key: "isha", label: "Isha", at: at(5.3))]
         let daily = SharedTimeline.Daily(day: dayKey(now), counters: [.init(id: "istighfar", label: "Istighfar", n: 64, total: 100, atLeast: false, perPrayer: false), .init(id: "istighfar-tawbah", label: "Istighfar and tawbah", n: 20, total: 70, atLeast: true, perPrayer: false), .init(id: "tasbih-prayer", label: "Tasbih after prayer", n: 200, total: 100, atLeast: false, perPrayer: true)], adhkar: [.init(key: "morning", label: "Morning adhkar", done: 4, total: 5), .init(key: "evening", label: "Evening adhkar", done: 0, total: 5)], steps: .init(today: 5840, goal: 8000, at: now.timeIntervalSince1970 * 1000))
-        return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current, daily: daily, page: .current, ayah: .init(day: dayKey(now), surah: 37, ayah: 100, to: 100, ref: "37:100", text: "رَبِّ هَبْ لِى مِنَ ٱلصَّـٰلِحِينَ", name: "As-Saaffaat", nameAr: "الصافات"))
+        return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current, daily: daily, page: .current, ayah: .init(day: dayKey(now), surah: 37, ayah: 100, to: 100, ref: "37:100", text: "رَبِّ هَبْ لِى مِنَ ٱلصَّـٰلِحِينَ", name: "As-Saaffaat", nameAr: "الصافات"), ramadan: SharedTimeline.load()?.ramadan, upcoming: SharedTimeline.load()?.upcoming ?? [])
     }
 
     func placeholder(in context: Context) -> PrayerEntry { Provider.sample() }
@@ -165,7 +171,7 @@ struct Provider: TimelineProvider {
         let daily = data?.daily.flatMap { $0.day == dayKey(date) ? $0 : nil }
         let ayah = data?.ayahs?.first { $0.day == dayKey(date) }
         let kept = Set(data?.worship?.salah.first { $0.day == dayKey(date) }?.kept ?? [])
-        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current, ayah: ayah, kept: kept) }
+        func empty(_ s: PrayerEntry.State) -> PrayerEntry { PrayerEntry(date: date, state: s, next: nil, since: date, today: [], moment: nil, labels: data?.labels ?? [:], rtl: data?.rtl ?? false, locale: locale, daily: daily, page: .current, ayah: ayah, kept: kept, ramadan: data?.ramadan, upcoming: data?.upcoming ?? []) }
         guard let data, !data.prayers.isEmpty else { return empty(.noData) }
         let ms = date.timeIntervalSince1970 * 1000
         guard let index = data.prayers.firstIndex(where: { $0.at > ms }) else { return empty(.stale) }
@@ -180,7 +186,7 @@ struct Provider: TimelineProvider {
         let inside = { (w: [Double]?) in w.map { $0.count == 2 && ms >= $0[0] && ms < $0[1] } ?? false }
         let moment: (key: String, label: String)? = data.windows.contains { inside($0.morning) } ? (key: "morning", label: data.labels["morning"] ?? "Morning adhkar")
             : data.windows.contains { inside($0.evening) } ? (key: "evening", label: data.labels["evening"] ?? "Evening adhkar") : nil
-        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah, kept: keptShown)
+        return PrayerEntry(date: date, state: .ready, next: next, since: max(since, next.date.addingTimeInterval(-12 * 3600)), today: today.isEmpty ? Array(data.prayers[index...].prefix(5)) : today, moment: moment, labels: data.labels, rtl: data.rtl, locale: locale, daily: daily, page: .current, ayah: ayah, kept: keptShown, ramadan: data.ramadan, upcoming: data.upcoming ?? [])
     }
 }
 
@@ -304,7 +310,7 @@ struct PrayerWidgetView: View {
     }
 
     @ViewBuilder var content: some View {
-        if family == .systemMedium && entry.page != .prayer { paged(entry.page == .dhikr ? AnyView(dhikrPage) : entry.page == .steps ? AnyView(stepsPage) : AnyView(AyahBody(entry: entry, compact: true))) }
+        if family == .systemMedium && entry.page != .prayer { paged(entry.page == .dhikr ? AnyView(dhikrPage) : entry.page == .steps ? AnyView(stepsPage) : entry.page == .upcoming ? AnyView(upcomingPage) : AnyView(AyahBody(entry: entry, compact: true))) }
         else if entry.state != .ready || entry.next == nil {
             VStack(alignment: .leading, spacing: 6) {
                 Text("AyahFlow").font(.system(.headline, design: .serif)).foregroundColor(Palette.gold)
@@ -344,13 +350,30 @@ struct PrayerWidgetView: View {
         }
     }
 
-    private func dateHeader() -> some View {
-        HStack(spacing: 6) {
-            Text(formatted(entry.date, entry.locale, hijri: false)).foregroundColor(Palette.muted)
-            Circle().fill(Palette.line).frame(width: 3, height: 3)
-            Text(formatted(entry.date, entry.locale, hijri: true)).foregroundColor(Palette.gold)
-        }.font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
+    /// The date row of the Prayer page, with the next occasion at its end, whole or not at all: first with the full
+    /// date, then with a shorter Gregorian date, then the date alone (it never squeezes the date or the prayers).
+    @ViewBuilder private var dateRow: some View {
+        if let line = occasionLine, #available(iOSApplicationExtension 16.0, *) {
+            let tag = Text(line).font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.goldBright).lineLimit(1).fixedSize()
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) { dateHeader(fixed: true); Spacer(minLength: 6); tag }
+                HStack(spacing: 6) { dateHeader(short: true, fixed: true); Spacer(minLength: 6); tag }
+                HStack(spacing: 6) { dateHeader(short: true, noYear: true, fixed: true); Spacer(minLength: 6); tag }
+                dateHeader()
+            }
+        } else { dateHeader() }
     }
+
+    private func dateHeader() -> some View { dateHeader(short: false, fixed: false) }
+    private func dateHeader(short: Bool = false, noYear: Bool = false, fixed: Bool) -> some View {
+        let g: String = { if !short { return formatted(entry.date, entry.locale, hijri: false) }; let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM"); return f.string(from: entry.date) }()
+        return HStack(spacing: 6) {
+            Text(g).foregroundColor(Palette.muted)
+            Circle().fill(Palette.line).frame(width: 3, height: 3)
+            Text(noYear ? { let f = DateFormatter(); f.locale = entry.locale; f.calendar = Calendar(identifier: .islamicUmmAlQura); f.setLocalizedDateFormatFromTemplate("d MMMM"); return f.string(from: entry.date) }() : formatted(entry.date, entry.locale, hijri: true)).foregroundColor(Palette.gold)
+        }.font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(fixed ? 1 : 0.8).fixedSize(horizontal: fixed, vertical: false)
+    }
+
 
     private func prayerRows(_ next: SharedTimeline.Prayer, spacing: CGFloat, font: Font) -> some View {
         VStack(spacing: spacing) {
@@ -390,7 +413,7 @@ struct PrayerWidgetView: View {
         #if canImport(AppIntents)
         if #available(iOSApplicationExtension 17.0, *) {
             HStack(spacing: 4) {
-                ForEach(WidgetPage.allCases, id: \.rawValue) { p in
+                ForEach(WidgetPage.order, id: \.rawValue) { p in
                     Button(intent: ShowWidgetPage(p)) {
                         HStack(spacing: 3) { Image(systemName: p.symbol); if p == entry.page { Text(p.label(entry.labels)) } }
                             .font(.system(size: 10, weight: .semibold)).lineLimit(1)
@@ -406,9 +429,92 @@ struct PrayerWidgetView: View {
 
     private func paged(_ page: AnyView) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) { dateHeader().layoutPriority(0); Spacer(minLength: 4); tabs.layoutPriority(1) }
+            HStack(spacing: phase != nil ? 3 : 6) { if phase != nil { ramadanChip.layoutPriority(0.5) } else { dateHeader().layoutPriority(0) }; Spacer(minLength: phase != nil ? 0 : 4); tabs.layoutPriority(1) }
             page.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // MARK: Ramadan and occasions (Umm al-Qura dates from the app; local sighting may differ by a day)
+    private var phase: RamadanPhase? { RamadanPhase.of(entry.ramadan, on: entry.date) }
+    private func ramNum(_ n: Int) -> String { let f = NumberFormatter(); f.locale = entry.locale; return f.string(from: NSNumber(value: n)) ?? String(n) }
+    /// "day" / "days", with the Arabic forms for 1, 2, 3-10 and 11+.
+    private func dayWord(_ n: Int) -> String {
+        let ar = entry.locale.identifier.hasPrefix("ar"), l = entry.labels
+        return n == 1 ? (l["wDay1"] ?? "day") : ar && n == 2 ? (l["wDay2"] ?? "days") : ar && n <= 10 ? (l["wDayFew"] ?? "days") : (l["wDayMany"] ?? "days")
+    }
+    private func daysFrom(_ ms: Double) -> Int { let c = Calendar.current; return c.dateComponents([.day], from: c.startOfDay(for: entry.date), to: c.startOfDay(for: Date(timeIntervalSince1970: ms / 1000))).day ?? 0 }
+    private func inDays(_ n: Int) -> String { n <= 0 ? (entry.labels["wToday"] ?? "Today") : n == 1 ? (entry.labels["wTomorrow"] ?? "Tomorrow") : "\(ramNum(n)) \(dayWord(n))" }
+    private var iftar: String? {
+        guard let m = entry.today.first(where: { $0.key == "maghrib" }), Calendar.current.isDate(m.date, inSameDayAs: entry.date) else { return nil }
+        let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("jmm"); return f.string(from: m.date)
+    }
+    private var coming: [SharedTimeline.Upcoming] { let start = Calendar.current.startOfDay(for: entry.date).timeIntervalSince1970 * 1000; return entry.upcoming.filter { $0.at >= start }.sorted { $0.at < $1.at } }
+    /// Header chip: the days until Ramadan, or the day of Ramadan with today's iftar.
+    @ViewBuilder private var ramadanChip: some View {
+        if let p = phase {
+            let l = entry.labels
+            let text: String = { switch p {
+                case let .before(n, _): return "\(l["wRamadanDay"] ?? "Ramadan") · \(ramNum(n)) \(dayWord(n))"
+                case let .during(d, _): return "\(l["wDayWord"] ?? "Day") \(ramNum(d))" + (iftar.map { " · \(l["wIftar"] ?? "Iftar") \($0)" } ?? "")
+            } }()
+            let short: String = { switch p {
+                case let .before(n, _): return "\(ramNum(n)) \(dayWord(n))"
+                case let .during(d, _): return "\(l["wDayWord"] ?? "Day") \(ramNum(d))"
+            } }()
+            let chip = { (t: String) in HStack(spacing: 4) { Image(systemName: "moon").font(.system(size: 9, weight: .semibold)); Text(t) }
+                .font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.goldBright).lineLimit(1).fixedSize()
+                .padding(.horizontal, 6).padding(.vertical, 4).overlay(Capsule().stroke(Palette.gold.opacity(0.45), lineWidth: 1)) }
+            Group {
+                // The whole text beside the short "Prayer" tab; the short form beside the longer tab labels (never cut off).
+                if entry.page == .prayer { chip(text) } else { chip(short) }
+            }.accessibilityElement(children: .ignore).accessibilityLabel("\(text). \(l["wSighting"] ?? "Umm al-Qura")")
+        }
+    }
+    /// The date row's right end: an odd night of the last ten tonight, else the next Friday, fast or occasion.
+    private var occasionLine: String? {
+        if case let .during(d, _) = phase, d + 1 >= 21, d + 1 <= 29, (d + 1) % 2 == 1 { return entry.labels["wOddNight"] ?? "Odd night tonight" }
+        guard let u = coming.first else { return nil }
+        return "\(u.short ?? u.title) · \(inDays(daysFrom(u.at)))"
+    }
+    /// The 30 days of Ramadan: past days filled, today brighter, the odd nights of the last ten marked, day 30 faint.
+    private func ramadanStrip(_ day: Int) -> some View {
+        HStack(spacing: 2) {
+            ForEach(1...30, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(i < day ? Palette.gold : i == day ? Palette.goldBright : i >= 21 && i % 2 == 1 ? Palette.line.opacity(1.6) : Palette.panel)
+                    .frame(height: i == day ? 7 : 5).opacity(i == 30 && day < 30 ? 0.5 : 1)
+            }
+        }.accessibilityHidden(true)
+    }
+    /// The Coming up page: the next dates with weekday and days to go, the Ramadan strip during Ramadan, and the
+    /// Umm al-Qura note.
+    private var upcomingPage: some View {
+        let l = entry.labels, f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM")
+        var rows: [(String, Double)] = coming.map { ($0.title, $0.at) }
+        // Before Ramadan its first day is always the last row (it is usually further away than the rest).
+        if case let .before(_, start) = phase { rows = Array(rows.prefix(3)) + [(l["wRamadanBegins"] ?? "Ramadan begins", start.timeIntervalSince1970 * 1000)] }
+        var during: (Int, Int)? = nil
+        if case let .during(d, e) = phase { during = (d, e) }
+        return VStack(alignment: .leading, spacing: 5) {
+            if let (d, e) = during {
+                HStack {
+                    Text("\(l["wDayWord"] ?? "Day") \(ramNum(d)) · \(l["wOf2930"] ?? "of 29 or 30")").font(.system(size: 13, design: .serif)).foregroundColor(Palette.goldBright)
+                    Spacer(minLength: 6)
+                    Text((l["wEidIn"] ?? "Eid al-Fitr in {n}").replacingOccurrences(of: "{n}", with: inDays(e))).font(.system(size: 10)).foregroundColor(Palette.muted)
+                }.lineLimit(1).minimumScaleFactor(0.8)
+                ramadanStrip(d)
+            }
+            ForEach(Array(rows.prefix(during == nil ? 4 : 2).enumerated()), id: \.offset) { _, r in
+                HStack(spacing: 6) {
+                    Text(r.0).font(.system(size: 13, design: .serif)).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer(minLength: 6)
+                    Text("\(f.string(from: Date(timeIntervalSince1970: r.1 / 1000))) · \(inDays(daysFrom(r.1)))").font(.system(size: 10.5)).foregroundColor(Palette.muted).lineLimit(1).fixedSize()
+                }
+            }
+            Spacer(minLength: 0)
+            Text(l["wSightingLong"] ?? "Umm al-Qura · ±1 day. Local moon sighting may differ.").font(.system(size: 9.5)).foregroundColor(Palette.muted.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .widgetURL(URL(string: "ayahflow://occasions"))
     }
 
     private func counter(_ id: String) -> SharedTimeline.Daily.Counter? { entry.daily?.counters.first { $0.id == id } }
@@ -502,7 +608,7 @@ struct PrayerWidgetView: View {
 
     private func medium(_ next: SharedTimeline.Prayer) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            dateHeader()
+            dateRow
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) { nextBlock(next, size: 24); Spacer(minLength: 0); progress(next) }.frame(maxWidth: .infinity, alignment: .leading)
                 prayerRows(next, spacing: 3, font: .system(size: 12)).frame(maxWidth: .infinity)
@@ -898,149 +1004,44 @@ struct UpcomingProvider: TimelineProvider {
 struct UpcomingWidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: UpcomingEntry
-    private func label(_ k: String, _ fallback: String) -> String { entry.labels[k] ?? fallback }
     private func dayName(_ u: SharedTimeline.Upcoming) -> String {
         let date = Date(timeIntervalSince1970: u.at / 1000)
-        if Calendar.current.isDate(date, inSameDayAs: entry.date) { return label("todayWord", "Today") }
+        if Calendar.current.isDateInToday(date) { return entry.labels["todayWord"] ?? "Today" }
         let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM")
         return f.string(from: date)
     }
-    private func number(_ n: Int) -> String { let f = NumberFormatter(); f.locale = entry.locale; return f.string(from: NSNumber(value: n)) ?? String(n) }
-    /// "day" / "days", with the Arabic forms for 1, 2, 3–10 and 11+.
-    private func days(_ n: Int) -> String {
-        let ar = entry.locale.identifier.hasPrefix("ar")
-        return n == 1 ? label("wDay1", "day") : ar && n == 2 ? label("wDay2", "days") : ar && n <= 10 ? label("wDayFew", "days") : label("wDayMany", "days")
-    }
-    private func time(_ ms: Double) -> String { let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("jmm"); return f.string(from: Date(timeIntervalSince1970: ms / 1000)) }
-    /// Today's Fajr (suhoor ends) and Maghrib (iftar) from the shared prayer times, when a place is saved.
-    private func todays(_ key: String) -> String? {
-        let today = dayKey(entry.date)
-        return entry.prayers.first { $0.key == key && ($0.day ?? dayKey(Date(timeIntervalSince1970: $0.at / 1000))) == today }.map { time($0.at) }
-    }
     private func symbol(_ kind: String) -> String { kind == "fast" ? "moon.stars" : kind == "ramadan" ? "moon" : kind == "occasion" ? "sparkles" : "book" }
-    private var sighting: some View { Text(label("wSighting", "Umm al-Qura · local sighting may differ by a day")).font(.system(size: 10)).foregroundColor(Palette.muted.opacity(0.85)).lineLimit(2).minimumScaleFactor(0.85).fixedSize(horizontal: false, vertical: true) }
-    private func eyebrow(_ text: String) -> some View {
-        HStack(spacing: 4) { Image(systemName: "moon").font(.system(size: 10, weight: .semibold)); Text(text).font(.system(size: 11, weight: .semibold)) }.foregroundColor(Palette.gold)
-    }
-    private func hero(_ phase: RamadanPhase) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            switch phase {
-            case let .before(n, _):
-                Text(number(n)).font(.system(size: 46, design: .serif)).foregroundColor(Palette.goldBright).minimumScaleFactor(0.6).lineLimit(1)
-                Text("\(days(n)) \(label("wRamadanUntil", "until Ramadan"))").font(.system(size: 14, design: .serif)).foregroundColor(Palette.text).lineLimit(2).minimumScaleFactor(0.8)
-            case let .during(d, _):
-                Text(label("wDayWord", "Day")).font(.system(size: 13, design: .serif)).foregroundColor(Palette.muted)
-                Text(number(d)).font(.system(size: 46, design: .serif)).foregroundColor(Palette.goldBright).minimumScaleFactor(0.6).lineLimit(1)
-            }
-        }
-    }
-    private func row(_ u: SharedTimeline.Upcoming) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: symbol(u.kind)).foregroundColor(Palette.gold).font(.system(size: 13)).frame(width: 14)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(dayName(u)).font(.system(size: 10.5)).foregroundColor(Palette.muted)
-                Text(u.title).font(.system(size: 14, design: .serif)).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.75)
-            }
-        }
-    }
-    /// The 30 days of Ramadan: past days filled, today brighter, the odd nights of the last ten marked, day 30 faint
-    /// (Ramadan may have 29 days).
-    private func strip(_ day: Int) -> some View {
-        HStack(spacing: 2) {
-            ForEach(1...30, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(i < day ? Palette.gold : i == day ? Palette.goldBright : i >= 21 && i % 2 == 1 ? Palette.line.opacity(1.6) : Palette.panel)
-                    .frame(height: i == day ? 7 : 5)
-                    .opacity(i == 30 && day < 30 ? 0.5 : 1)
-            }
-        }
-        .accessibilityLabel("\(label("wDayWord", "Day")) \(number(day))")
-    }
-    private func ramadanTitle() -> String {
-        var cal = Calendar(identifier: .islamicUmmAlQura); cal.locale = entry.locale
-        let y = cal.component(.year, from: entry.date)
-        return "\(label("wRamadanDay", "Ramadan")) \(number(y))"
-    }
-    @ViewBuilder private func content(_ phase: RamadanPhase?) -> some View {
-        let list = Array(entry.items.prefix(3))
-        switch (family, phase) {
-        case (.systemSmall, .some(let p)):
-            VStack(alignment: .leading, spacing: 4) {
-                eyebrow(label("wRamadanDay", "Ramadan"))
-                Spacer(minLength: 0)
-                hero(p)
-                Spacer(minLength: 0)
-                if case let .before(_, start) = p {
-                    Text({ let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM"); return f.string(from: start) }()).font(.system(size: 11)).foregroundColor(Palette.muted)
-                } else if case let .during(_, eidIn) = p {
-                    HStack(spacing: 0) {
-                        if let iftar = todays("maghrib") { Text("\(label("wIftar", "Iftar")) \(iftar)").foregroundColor(Palette.gold); Text(" · ").foregroundColor(Palette.muted) }
-                        Text(label("wEidIn", "Eid al-Fitr in {n}").replacingOccurrences(of: "{n}", with: "\(number(eidIn)) \(days(eidIn))")).foregroundColor(Palette.muted)
-                    }.font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.7)
-                }
-                sighting
-            }
-        case (_, .some(.during(let d, let eidIn))):
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    eyebrow(ramadanTitle())
-                    Spacer()
-                    if let iftar = todays("maghrib") { Text("\(label("wIftar", "Iftar")) \(iftar)").font(.system(size: 11)).foregroundColor(Palette.gold).padding(.horizontal, 8).padding(.vertical, 2).overlay(Capsule().stroke(Palette.line)) }
-                }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\(label("wDayWord", "Day")) \(number(d))").font(.system(size: 36, design: .serif)).foregroundColor(Palette.goldBright).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(label("wOf2930", "of 29 or 30")).font(.system(size: 11)).foregroundColor(Palette.muted)
-                }
-                strip(d)
-                HStack {
-                    if let suhoor = todays("fajr") { Text("\(label("wSuhoor", "Suhoor ends")) \(suhoor)") }
-                    Spacer()
-                    Text(label("wEidIn", "Eid al-Fitr in {n}").replacingOccurrences(of: "{n}", with: "\(number(eidIn)) \(days(eidIn))"))
-                }.font(.system(size: 11)).foregroundColor(Palette.muted).lineLimit(1).minimumScaleFactor(0.7)
-                Spacer(minLength: 0)
-                HStack { Spacer(); sighting }
-            }
-        case (_, .some(let p)):
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    eyebrow(label("upcomingTab", "Coming up"))
-                    Spacer(minLength: 0)
-                    hero(p)
-                    Spacer(minLength: 0)
-                    sighting
-                }.frame(width: 128, alignment: .leading)
-                Rectangle().fill(Palette.line).frame(width: 1)
-                VStack(alignment: .leading, spacing: 9) {
-                    if list.isEmpty { Text(label("upcomingEmpty", "No Friday or voluntary fast in the next two weeks.")).font(.caption).foregroundColor(Palette.muted) }
-                    ForEach(Array(list.enumerated()), id: \.offset) { _, u in row(u) }
-                    Spacer(minLength: 0)
-                }
-            }
-        default:
-            // No Ramadan date shared (older app data): the list on its own, as before.
-            VStack(alignment: .leading, spacing: 8) {
-                eyebrow(label("upcomingTab", "Coming up"))
-                if list.isEmpty { Text(label("upcomingEmpty", "No Friday or voluntary fast in the next two weeks.")).font(.caption).foregroundColor(Palette.muted) }
-                ForEach(Array(list.prefix(family == .systemSmall ? 1 : 3).enumerated()), id: \.offset) { _, u in row(u) }
-                Spacer(minLength: 0)
-            }
-        }
-    }
     var body: some View {
-        let phase = RamadanPhase.of(entry.ramadan, on: entry.date)
-        content(phase)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .environment(\.layoutDirection, entry.rtl ? .rightToLeft : .leftToRight)
-            .widgetURL(URL(string: phase != nil && family == .systemSmall ? "ayahflow://occasions" : entry.items.first?.kind == "jumuah" ? "ayahflow://ayah/18:1" : "ayahflow://occasions"))
-            .modifier(WidgetBackground())
+        let shown = Array(entry.items.prefix(family == .systemSmall ? 1 : 3))
+        VStack(alignment: .leading, spacing: 8) {
+            Text(entry.labels["upcomingTab"] ?? "Coming up").font(.system(size: 11, weight: .semibold)).foregroundColor(Palette.gold)
+            if shown.isEmpty {
+                Text(entry.labels["upcomingEmpty"] ?? "No Friday or voluntary fast in the next two weeks.").font(.caption).foregroundColor(Palette.muted)
+            }
+            ForEach(Array(shown.enumerated()), id: \.offset) { _, u in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: symbol(u.kind)).foregroundColor(Palette.gold).font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(dayName(u)).font(.system(size: 11)).foregroundColor(Palette.muted)
+                        Text(u.title).font(.system(size: family == .systemSmall ? 17 : 15, design: .serif)).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.7)
+                        Text(u.sub).font(.system(size: 11)).foregroundColor(Palette.muted).lineLimit(family == .systemSmall ? 3 : 1)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .environment(\.layoutDirection, entry.rtl ? .rightToLeft : .leftToRight)
+        .widgetURL(URL(string: shown.first?.kind == "jumuah" ? "ayahflow://ayah/18:1" : "ayahflow://prayer"))
+        .modifier(WidgetBackground())
     }
 }
 
 struct UpcomingWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "AyahFlowUpcoming", provider: UpcomingProvider()) { UpcomingWidgetView(entry: $0) }
-            .configurationDisplayName("Coming up")
-            .description("Days until Ramadan (or the day of Ramadan), the next Friday, voluntary fasts and Islamic occasions.")
+            .configurationDisplayName("Jumu'ah and fasts")
+            .description("The next Friday, voluntary fast days and the start of Ramadan.")
             .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

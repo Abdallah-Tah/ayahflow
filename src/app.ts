@@ -14,7 +14,7 @@ import { initializeBridge, loadState, saveState, listRecordings, putRecording, d
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { placeCard, setPlaceRadius } from './places.js';
-import { calendarReminders, upcomingFasts, upcomingDays, upcomingOccasions, ramadanSpan, islamicOccasions, calendarSpan, type FastReason, type Occasion } from './calendar.js';
+import { calendarReminders, upcomingFasts, upcomingDays, upcomingOccasions, ramadanSpan, islamicOccasions, calendarSpan, type FastReason, type Occasion, type UpcomingItem } from './calendar.js';
 import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
 import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES } from './alarm.js';
 import { hifzRange, hifzQueue, hiddenWord, HIFZ_REPEATS, HIFZ_LEVELS, HIFZ_MAX_AYAHS } from './hifz.js';
@@ -557,9 +557,9 @@ let widgetError: string | null = null;
 async function pushWidget(): Promise<void> {
     if (!isNative()) return;
     try {
-        const upcoming = [...upcomingDays({ jumuah: t('widgetJumuah'), jumuahSub: t('jumuahCard'), fast: t('widgetFast'), why: fastWhy, ramadan: t('widgetRamadan'), ramadanSub: t('fastingHijriNote') }).filter(u => u.kind !== 'ramadan'), ...upcomingOccasions(k => t(`occ_${k}`), t('occSighting'))].sort((a, b) => a.at - b.at).slice(0, 6);
+        const upcoming = [...upcomingDays({ jumuah: t('widgetJumuah'), jumuahSub: t('jumuahCard'), fast: t('widgetFast'), why: fastWhy, ramadan: t('widgetRamadan'), ramadanSub: t('fastingHijriNote') }).filter(u => u.kind !== 'ramadan'), ...upcomingOccasions(k => t(`occ_${k}`), t('occSighting'))].sort((a, b) => a.at - b.at).slice(0, 6).map(({ occ, ...u }: UpcomingItem) => ({ ...u, short: u.kind === 'jumuah' ? t('wsJumuah') : u.kind === 'fast' ? t('wsFast') : occ ? t(`ws_${occ}`) : u.title }));
         const ramadan = ramadanSpan();
-        await setWidgetData({ ...widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0', upcomingTab: t('widgetUpcoming'), upcomingEmpty: t('widgetUpcomingEmpty'), todayWord: t('today'), wRamadanUntil: t('wRamadanUntil'), wRamadanDay: t('wRamadanDay'), wEidIn: t('wEidIn'), wSighting: t('wSighting'), wIftar: t('wIftar'), wSuhoor: t('wSuhoor'), wDayWord: t('wDayWord'), wOf2930: t('wOf2930'), wDay1: t('wDay1'), wDay2: t('wDay2'), wDayFew: t('wDayFew'), wDayMany: t('wDayMany') }, widgetDaily(), widgetWorship()), upcoming, ramadan });
+        await setWidgetData({ ...widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0', upcomingTab: t('widgetUpcoming'), upcomingEmpty: t('widgetUpcomingEmpty'), todayWord: t('today'), wRamadanUntil: t('wRamadanUntil'), wRamadanDay: t('wRamadanDay'), wEidIn: t('wEidIn'), wSighting: t('wSighting'), wIftar: t('wIftar'), wSuhoor: t('wSuhoor'), wDayWord: t('wDayWord'), wOf2930: t('wOf2930'), wSightingLong: t('wSightingLong'), wOddNight: t('wOddNight'), wToday: t('occToday'), wTomorrow: t('occTomorrow'), wRamadanBegins: t('widgetRamadan'), upcomingPage: t('widgetUpcoming'), wDay1: t('wDay1'), wDay2: t('wDay2'), wDayFew: t('wDayFew'), wDayMany: t('wDayMany') }, widgetDaily(), widgetWorship()), upcoming, ramadan });
         widgetError = null;
     }
     catch (e) {
