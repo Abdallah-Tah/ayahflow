@@ -5,7 +5,7 @@ import { reportMailto } from './support.js';
 import { eidText, eidSections, currentEid, type EidKind } from './eid.js';
 import { drawCard, CARD_TEXTS, CARD_STYLES, NOTE_MAX as CARD_NOTE_MAX, type CardText, type CardStyle } from './cards.js';
 import type { EidId } from './eid-data.js';
-import { QURAN_FONT_IDS, OCCASION_REMINDERS, stageCounts, REVIEW_STAGES, setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, FAJR_OFFSETS, FAJR_SNOOZES, FAJR_SNOOZE_MINUTES, type HighlightColor } from './engine.js';
+import { QURAN_FONT_IDS, OCCASION_REMINDERS, TASBIH_THEMES, type TasbihTheme, stageCounts, REVIEW_STAGES, setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, FAJR_OFFSETS, FAJR_SNOOZES, FAJR_SNOOZE_MINUTES, type HighlightColor } from './engine.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber, beforeCopy } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, starEmblem } from './icons.js';
@@ -805,9 +805,14 @@ function counterTile(c: CounterDef): string {
     return `<button class="moment-tile ${done ? 'finished' : ''}" data-action="counter" data-counter="${c.id}"><span class="gold">${ic('tasbih', 22)}</span><span class="moment-name" dir="auto">${escapeHtml(c.name)}</span>${c.custom ? `<span class="tiny gold">${t('addedByYou')}</span>` : ''}<span class="tiny muted">${c.perPrayer ? `${num(Math.floor(n / c.total))} ${t('rounds')}` : `${num(n)} / ${target(c)}`}</span></button>`;
 }
 /** A ring of tasbih beads: one per count up to 33; longer targets fill the same beads proportionally. */
-function beads(done: number, total: number): string {
-    const n = Math.min(total, 33), on = total <= 33 ? done : Math.floor(done / total * n), step = 360 / Math.max(n, 1);
-    return `<svg class="beads" viewBox="0 0 200 200" aria-hidden="true">${Array.from({ length: n }, (_, i) => { const a = (i * step - 90) * Math.PI / 180; return `<circle class="bead ${i < on ? 'on' : i === on ? 'current' : ''}" cx="${(100 + 88 * Math.cos(a)).toFixed(2)}" cy="${(100 + 88 * Math.sin(a)).toFixed(2)}" r="${n > 20 ? 5 : 6.5}"/>`; }).join('')}</svg>`;
+/** The beads around the counter, in the chosen look: the ring of dots, beads on a thread with an imam bead at the top,
+ * or none (the ring alone). Only the drawing changes; no look adds motion. */
+function beads(done: number, total: number, theme: TasbihTheme = 'ring'): string {
+    if (theme === 'plain') return '';
+    const n = Math.min(total, 33), on = total <= 33 ? done : Math.floor(done / total * n), thread = theme === 'thread';
+    const step = (thread ? 340 : 360) / Math.max(n - (thread ? 1 : 0), 1), start = thread ? -80 : -90, r = thread ? (n > 20 ? 5.6 : 7.2) : n > 20 ? 5 : 6.5;
+    const dots = Array.from({ length: n }, (_, i) => { const a = (start + i * step) * Math.PI / 180; return `<circle class="bead ${i < on ? 'on' : i === on ? 'current' : ''}" cx="${(100 + 88 * Math.cos(a)).toFixed(2)}" cy="${(100 + 88 * Math.sin(a)).toFixed(2)}" r="${r}"/>`; }).join('');
+    return `<svg class="beads ${theme}" viewBox="0 0 200 200" aria-hidden="true">${thread ? '<circle class="thread" cx="100" cy="100" r="88"/><path class="imam" d="M100 4 l6 8 -6 8 -6 -8Z"/>' : ''}${dots}</svg>`;
 }
 /** Istighfar heart (an anatomical heart drawn for AyahFlow): charcoal, filling with red from the bottom as the count
  * nears the target. A visual only, not a measure of anything. */
@@ -868,7 +873,7 @@ function counterView(): string {
     const targets = !c.custom && c.steps.length === 1 && !c.perPrayer ? `<section class="settings-section"><h2>${t('yourTarget')}</h2><div class="chip-wrap">${[...new Set([c.sourced, 33, 100, 300, 1000])].map(v => `<button class="range-chip ${c.total === v ? 'selected' : ''}" data-action="target-preset" data-n="${v}" aria-pressed="${c.total === v}">${num(v)}${v === c.sourced ? ` · ${t(c.kind === 'sunnah' ? 'sunnahShort' : 'suggested')}` : ''}</button>`).join('')}</div><label class="field target-field mt12"><span>${t('anyNumber')}</span><input id="target-input" type="number" inputmode="numeric" min="1" max="10000" value="${c.total}"></label></section>` : '';
     return `<p class="eyebrow mt12">${t('counters')}${c.custom ? ` · ${t('addedByYou')}` : ''}</p><div class="row between"><h1 class="page-title" dir="auto">${escapeHtml(c.custom?.title || (c.custom ? t('myCounter') : c.name))}</h1><button class="icon-button fav" data-action="fav-toggle" data-counter="${c.id}" aria-pressed="${fav}" aria-label="${t(fav ? 'unfavorite' : 'favorite')}">${ic(fav ? 'starFill' : 'star', 20)}</button></div>${chips}
 <section class="tap-zone ${celebrate === c.id ? 'celebrate' : ''}"><div class="count-meta"><span class="pill ${roundDone ? 'success' : 'gold'}">${roundDone ? `${ic('check', 12)} ${t('roundDone')}` : c.steps.length > 1 ? `${num(pos.step + 1)} / ${num(c.steps.length)}` : `${t('round')} ${num(pos.rounds + 1)}`}</span><span class="tiny muted" aria-live="polite">${t('todayCount')} <strong class="gold">${num(n)}</strong>${pos.rounds ? ` · ${num(pos.rounds)} ${t('rounds')}` : ''}</span></div>
-${textCard}<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count)}${c.id.startsWith('istighfar') || c.custom ? heart(c.id, roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner">${phrase}<span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+${textCard}<button class="tap-counter" data-action="count-tap" aria-label="${t('tapToCount')}: ${num(pos.inStep)} / ${num(step.count)}">${beads(pos.inStep, step.count, state.worship.prefs.tasbihTheme)}${c.id.startsWith('istighfar') || c.custom ? heart(c.id, roundDone ? 1 : pos.inRound / c.total) : ''}<span class="tap-inner">${phrase}<span class="tap-number">${num(pos.inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
 <p class="tiny muted">${tapHint()} · ${countLine}</p>
 <div class="row gap8">${actionButton('count-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n ? '' : 'disabled'}`)}${actionButton('count-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}${actionButton('dhikr-copy', ic('copy', 18), 'icon-button', `aria-label="${t('copy')}"`)}${actionButton('dhikr-share', ic('share', 18), 'icon-button', `aria-label="${t('share')}"`)}</div></section>
 <div class="progress-cards"><div class="metric"><p class="value">${num(n)}</p><p class="label">${t('today')}</p></div><div class="metric"><p class="value">${num(lifetimeCount(state, c.id) - countOn(state, c.id) + n)}</p><p class="label">${t('lifetime')}</p></div></div>
@@ -1430,10 +1435,10 @@ function tasbihView(): string {
     const wording = c.steps.map(x => x.source).filter((x, i, a) => x.ref !== c.source.ref && a.findIndex(y => y.ref === x.ref) === i);
     return `<p class="eyebrow mt12">${t('guidedTasbih')}${tasbihDay !== dayKey() ? ` · ${escapeHtml(new Date(`${tasbihDay}T12:00:00`).toLocaleDateString(state.locale, { day: 'numeric', month: 'short' }))}` : ''}</p><h1 class="page-title">${t('tasbihAfter').replace('{prayer}', t('p_' + tasbihPrayer))}</h1>${prayers}
 <section class="tap-zone ${celebrate === 'tasbih' ? 'celebrate' : ''}"><div class="count-meta"><span class="pill ${done ? 'success' : 'gold'}">${done ? `${ic('check', 12)} ${t('tasbihComplete')}` : `${num(pos.step + 1)} / ${num(c.steps.length)}`}</span><span class="tiny muted" aria-live="polite">${t('total')} <strong class="gold">${num(Math.min(n, c.total))}</strong> / ${num(c.total)}</span></div>
-${tapTextOutside(step.text) ? `<p class="arabic tap-text" lang="ar" dir="rtl">${escapeHtml(step.text)}</p>` : ''}<button class="tap-counter" data-action="tasbih-tap" ${done || tasbihPaused ? 'disabled' : ''} aria-label="${escapeHtml(step.text)}: ${num(inStep)} ${t('of')} ${num(step.count)}">${beads(inStep, step.count)}<span class="tap-inner">${tapTextOutside(step.text) ? '' : `<span class="arabic tap-phrase ${tapSize(step.text)}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span>`}<span class="tap-number">${num(inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
+${tapTextOutside(step.text) ? `<p class="arabic tap-text" lang="ar" dir="rtl">${escapeHtml(step.text)}</p>` : ''}<button class="tap-counter" data-action="tasbih-tap" ${done || tasbihPaused ? 'disabled' : ''} aria-label="${escapeHtml(step.text)}: ${num(inStep)} ${t('of')} ${num(step.count)}">${beads(inStep, step.count, state.worship.prefs.tasbihTheme)}<span class="tap-inner">${tapTextOutside(step.text) ? '' : `<span class="arabic tap-phrase ${tapSize(step.text)}" lang="ar" dir="rtl">${escapeHtml(step.text)}</span>`}<span class="tap-number">${num(inStep)}</span><small class="tap-of">${t('of')} ${num(step.count)}</small></span></button>
 <p class="tiny muted">${tasbihPaused ? t('pausedNote') : done ? t('tasbihDoneNote') : tapHint()}</p>
 <div class="row gap8">${actionButton('tasbih-undo', ic('back', 18), 'icon-button', `aria-label="${t('undo')}" ${n && !tasbihPaused ? '' : 'disabled'}`)}${actionButton('tasbih-pause', ic(tasbihPaused ? 'play' : 'pause', 18), 'icon-button', `aria-label="${t(tasbihPaused ? 'resume' : 'pause')}" aria-pressed="${tasbihPaused}" ${done ? 'disabled' : ''}`)}${actionButton('tasbih-reset', ic('loop', 18), 'icon-button', `aria-label="${t('resetCount')}" ${n ? '' : 'disabled'}`)}</div></section>
-${list}<section class="section"><h2 class="section-title mb16">${t('tasbihVariants')}</h2>${variants}<p class="tiny muted mt12">${t('variantsNote')}</p></section>${sourceLine(c.source, c.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}<p class="gentle">${t('ownCount')}</p>`;
+${list}<section class="section"><h2 class="section-title mb16">${t('tasbihVariants')}</h2>${variants}<p class="tiny muted mt12">${t('variantsNote')}</p></section><section class="section"><h2 class="section-title mb16">${t('tasbihLook')}</h2><div class="segment" role="group" aria-label="${t('tasbihLook')}">${TASBIH_THEMES.map(v => `<button data-action="tasbih-theme" data-v="${v}" class="${state.worship.prefs.tasbihTheme === v ? 'active' : ''}" aria-pressed="${state.worship.prefs.tasbihTheme === v}">${t(`tasbihLook_${v}`)}</button>`).join('')}</div><p class="tiny muted mt12">${t('tasbihLookNote')}</p></section>${sourceLine(c.source, c.also)}${wording.length ? `<p class="tiny muted">${t('wordingFrom')}</p>${wording.map(x => sourceLine(x)).join('')}` : ''}<p class="gentle">${t('ownCount')}</p>`;
 }
 // Verses -------------------------------------------------------------------------------------------
 function verseBlock(s: number, a: number, extra = ''): string {
@@ -1601,6 +1606,18 @@ async function handleAction(el: HTMLElement): Promise<void> {
         case 'open-qibla':
             prayerTab = 'qibla'; await navigate('prayer');
             break;
+        case 'eid-open':
+            eidKind = d.kind === 'eid-adha' ? 'eid-adha' : 'eid-fitr';
+            if (view === 'eid') render(); else await navigate('eid');
+            break;
+        case 'khatm-ramadan':
+            if (!state.khatm) { await commit(startKhatm(state, 30, 1)); toast(t('khatmStarted')); render(); }
+            break;
+        case 'tasbih-theme':
+            if (!(TASBIH_THEMES as readonly string[]).includes(d.v ?? '')) return;
+            await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, tasbihTheme: d.v as TasbihTheme } } });
+            keepScroll();
+            break;
         case 'card-text':
             if ((CARD_TEXTS as readonly string[]).includes(d.v ?? '')) cardText = d.v as CardText;
             keepScroll();
@@ -1612,13 +1629,6 @@ async function handleAction(el: HTMLElement): Promise<void> {
         case 'card-share':
             try { await shareImage(await drawCard(cardContent()), 'ayahflow-eid-card.png'); }
             catch (e) { if (!(e instanceof DOMException && e.name === 'AbortError') && !String((e as Error)?.message).toLowerCase().includes('cancel')) toast(t('cardFailed')); }
-            break;
-        case 'eid-open':
-            eidKind = d.kind === 'eid-adha' ? 'eid-adha' : 'eid-fitr';
-            if (view === 'eid') render(); else await navigate('eid');
-            break;
-        case 'khatm-ramadan':
-            if (!state.khatm) { await commit(startKhatm(state, 30, 1)); toast(t('khatmStarted')); render(); }
             break;
         case 'ramadan-reminders':
             prayerTab = 'times'; await navigate('prayer'); document.querySelector('#calendar-reminders')?.scrollIntoView({ block: 'start' });
