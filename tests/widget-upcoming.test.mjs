@@ -19,8 +19,40 @@ test('Fridays, fast days (with why) and the first of Ramadan, from today, in ord
 });
 
 test('Wiring: shared with the widget data; widget decodes it and is in the bundle', () => {
-    assert.match(readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8'), /await setWidgetData\(\{ \.\.\.widgetData\([\s\S]*?, upcoming \}\);/);
+    assert.match(readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8'), /await setWidgetData\(\{ \.\.\.widgetData\([\s\S]*?, upcoming, ramadan \}\);/);
     const swift = readFileSync(new URL('../ios/App/AyahFlowWidget/AyahFlowWidget.swift', import.meta.url), 'utf8');
     assert.match(swift, /let upcoming: \[Upcoming\]\?/, 'optional, so older shared data still decodes');
     assert.match(swift, /NextPrayerWidget\(\)\n        UpcomingWidget\(\)/);
+});
+
+test('Coming up: the Ramadan span counts to 1 Ramadan, then through it until Eid al-Fitr', async () => {
+    const { ramadanSpan, upcomingOccasions, hijriDate } = await import('../www/js/calendar.js');
+    const before = ramadanSpan(new Date(2026, 10, 1, 9).getTime());
+    const h = (ms) => hijriDate(new Date(ms + 12 * 3600000));
+    assert.deepEqual([h(before.start).month, h(before.start).day], [9, 1]);
+    assert.deepEqual([h(before.eid).month, h(before.eid).day], [10, 1]);
+    assert.ok([29, 30].includes(Math.round((before.eid - before.start) / 86400000)));
+    assert.equal(new Date(before.start).getHours(), 0, 'local midnight');
+    // During Ramadan it is the same span; on Eid it moves on to the next year's.
+    assert.deepEqual(ramadanSpan(before.start + 10 * 86400000 + 9 * 3600000), before);
+    assert.ok(ramadanSpan(before.eid + 9 * 3600000).start > before.eid);
+    const occ = upcomingOccasions(k => k, 'UQ', before.start - 86400000 * 2, 60);
+    assert.ok(occ.every(o => o.kind === 'occasion' && o.sub === 'UQ'));
+    assert.ok(!occ.some(o => o.title === 'ramadan-start'), 'the countdown is the widget hero, not a list row');
+    assert.ok(occ.some(o => o.title === 'eid-fitr'));
+});
+
+test('Coming up wiring: the span and labels are shared, the Swift view counts days itself', () => {
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+    assert.match(app, /const ramadan = ramadanSpan\(\);/);
+    assert.match(app, /upcoming, ramadan \}\);/);
+    for (const k of ['wRamadanUntil', 'wEidIn', 'wSighting', 'wIftar', 'wSuhoor', 'wDay1', 'wDay2', 'wDayFew', 'wDayMany', 'wOf2930']) assert.match(app, new RegExp(`${k}: t\\('${k}'\\)`), k);
+    const swift = readFileSync(new URL('../ios/App/AyahFlowWidget/AyahFlowWidget.swift', import.meta.url), 'utf8');
+    assert.match(swift, /let ramadan: RamadanSpan\?/, 'optional, so older shared data still decodes');
+    assert.match(swift, /enum RamadanPhase/);
+    assert.match(swift, /case \(\.systemSmall, \.some\(let p\)\)/);
+    assert.match(swift, /case \(_, \.some\(\.during\(let d, let eidIn\)\)\):[\s\S]*?strip\(d\)/, 'the 30-day strip only during Ramadan');
+    assert.match(swift, /wSighting/, 'every Ramadan state shows the sighting caveat');
+    assert.match(swift, /StaticConfiguration\(kind: "AyahFlowUpcoming"/, 'same kind, so placed widgets stay');
+    assert.match(app, /ayahflow:\\\/\\\/occasions/);
 });

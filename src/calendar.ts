@@ -106,6 +106,7 @@ export function calendarReminders(state: AppState, copy: CalendarCopy, now = Dat
 /** For the "Jumu'ah and fasts" widget: Fridays, voluntary-fast days and the first of Ramadan in the next `days` days
  * (today included), at most `max`. The widget names the day itself; nothing here is a reminder. */
 export interface UpcomingDay { at: number; day: string; kind: 'jumuah' | 'fast' | 'ramadan'; title: string; sub: string }
+export type UpcomingItem = Omit<UpcomingDay, 'kind'> & { kind: UpcomingDay['kind'] | 'occasion' };
 export function upcomingDays(copy: { jumuah: string; jumuahSub: string; fast: string; why: (r: FastReason[]) => string; ramadan: string; ramadanSub: string }, now = Date.now(), days = 14, max = 6): UpcomingDay[] {
     const out: UpcomingDay[] = [];
     for (let i = 0; i < days && out.length < max; i++) {
@@ -147,3 +148,25 @@ export function occasionOn(date: Date, kinds?: readonly OccasionKind[]): Occasio
     return islamicOccasions(date.getTime(), 0).find(o => (!kinds || kinds.includes(o.kind)) && calendarSpan(o).includes(today)) ?? null;
 }
 export function calendarSpan(o: Occasion): string[] { return Array.from({ length: o.days }, (_, i) => { const d = new Date(o.at); d.setHours(12); d.setDate(d.getDate() + i); return dayKey(d.getTime()); }); }
+
+/** The current or next Ramadan for the "Coming up" widget: local midnight of 1 Ramadan and of 1 Shawwal (Eid al-Fitr),
+ * Umm al-Qura. The widget counts the days itself at each midnight, so the count stays right between app launches. */
+export function ramadanSpan(now = Date.now()): { start: number; eid: number } | null {
+    const mid = (i: number) => { const d = new Date(now); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + i); return d; };
+    for (let i = -30; i <= 384; i++) {
+        if (ramadanDay(mid(i)) !== 1) continue;
+        for (let j = i + 28; j <= i + 31; j++) {
+            const h = hijriDate(mid(j));
+            if (h?.month !== 10 || h.day !== 1) continue;
+            if (j <= 0) break;
+            const start = mid(i), eid = mid(j); start.setHours(0); eid.setHours(0);
+            return { start: start.getTime(), eid: eid.getTime() };
+        }
+    }
+    return null;
+}
+/** Occasions for the widget list (Eid, Arafah, Ashura...) in the next `days` days; the Ramadan start is the widget's
+ * countdown, so it is not repeated here. */
+export function upcomingOccasions(title: (k: OccasionKind) => string, sub: string, now = Date.now(), days = 14): UpcomingItem[] {
+    return islamicOccasions(now, days).filter(o => o.kind !== 'ramadan-start').map(o => ({ at: Math.max(o.at, new Date(now).setHours(0, 0, 0, 0)), day: o.day, kind: 'occasion' as const, title: title(o.kind), sub }));
+}
