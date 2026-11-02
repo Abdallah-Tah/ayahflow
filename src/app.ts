@@ -2559,7 +2559,7 @@ root.addEventListener('input', e => { const el = e.target as HTMLInputElement; i
     libraryQuery = el.value;
     document.querySelector('#surah-list')!.innerHTML = surahRows();
 } });
-root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-away', 'before-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind', 'rot-enabled', 'rot-from', 'rot-to', 'target-input'].includes(el.id) && !el.id.startsWith('rot-p-') && !el.id.startsWith('pref-'))
+root.addEventListener('change', async (e) => { const el = e.target as HTMLInputElement; if (!['audio-toggle', 'motion-toggle', 'voice-toggle', 'recite-surah', 'recite-ayah', 'juz-filter', 'range-add', 'smart-location', 'smart-vehicle', 'smart-timed', 'smart-hanafi', 'smart-method', 'smart-sleep', 'athan-enabled', 'athan-away', 'before-enabled', 'athan-fajr', 'athan-file', 'istighfar-remind', 'rot-enabled', 'rot-from', 'rot-to', 'target-input', 'jumuah-remind', 'fasting-remind', 'suhoor-remind', 'iftar-remind', 'fajr-alarm-on', 'fajr-check', 'hifz-surah', 'hifz-from', 'hifz-to', 'card-note'].includes(el.id) && !el.id.startsWith('rot-p-') && !el.id.startsWith('pref-') && !el.id.startsWith('occ-remind-'))
     return; try {
     if (el.id === 'audio-toggle') {
         if (!el.checked)
