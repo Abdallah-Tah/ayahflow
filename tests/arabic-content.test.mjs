@@ -84,6 +84,6 @@ test('No record lost or duplicated; every note has its text in three languages',
     const ret = A.adhkar.findIndex(e => e.id === 'travel-return');
     assert.equal(A.adhkar[ret - 1].id, 'travel'); assert.deepEqual(A.adhkar[ret].moments, ['travel']);
     assert.equal(nfc(A.adhkar[ret].text), nfc('آيِبُونَ تَائِبُونَ عَابِدُونَ لِرَبِّنَا حَامِدُونَ'));
-    for (const e of A.adhkar.filter(x => x.note)) for (const l of ['en', 'fr', 'ar']) assert.notEqual(tr(l, e.note), e.note, `${e.id} ${l}`);
+    for (const e of A.adhkar.filter(x => x.note)) for (const l of ['en', 'fr', 'ar']) assert.notEqual(tr(e.note, l), e.note, `${e.id} ${l}`);
     assert.equal(nfc(A.library.find(l => l.id === 'salawat-nabi').text), nfc('اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ'));
 });

@@ -34,7 +34,7 @@ test('An occasion that has begun stays listed until its last day', () => {
 
 test('The Mawlid is not listed, and the view says why; every date carries the sighting caveat', () => {
     assert.ok(!islamicOccasions(NOW).some(o => o.hijri.month === 3));
-    for (const l of ['en', 'fr', 'ar']) { assert.notEqual(tr(l, 'mawlidNote'), 'mawlidNote'); assert.notEqual(tr(l, 'occSighting'), 'occSighting'); }
+    for (const l of ['en', 'fr', 'ar']) { assert.notEqual(tr('mawlidNote', l), 'mawlidNote'); assert.notEqual(tr('occSighting', l), 'occSighting'); }
     const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
     assert.match(app, /function occasionsView[\s\S]*?occasionsNote[\s\S]*?mawlidNote/);
     assert.match(app, /function occasionCard[\s\S]*?occSighting/);
