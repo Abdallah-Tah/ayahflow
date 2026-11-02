@@ -213,6 +213,8 @@ export const bridge = {
     /** Notification taps, iOS Shortcuts and links call this; links that arrive before the app is ready are queued. */
     onDeepLink(handler) { deepLinkHandler = handler; queuedLinks.splice(0).forEach(handler); },
     async shareText(title, text) { await Share.share({ title, text, dialogTitle: title }); },
+    /** An Eid card drawn on the device (PNG, base64), through the share sheet. */
+    async shareImage(data, name) { await shareFile(name, data); },
     async load() { return (await Preferences.get({ key: STATE })).value; },
     async save(value) { await Preferences.set({ key: STATE, value }); },
     async recordings() { const rows = await index(); return Promise.all(rows.map(async (r) => { const { data } = await Filesystem.readFile({ path: audioPath(r.id), directory: Directory.Data }); return { ...r, blob: data instanceof Blob ? data : blob64(data, r.mime) }; })); },

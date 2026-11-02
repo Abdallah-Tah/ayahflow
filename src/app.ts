@@ -3,12 +3,13 @@ import { COUNTERS, ROTATION, ROTATION_GROUPS, LIBRARY, LIBRARY_CATEGORIES, TASBI
 import { nativeConfig, backgroundBlocked, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, athanHomeOnly, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily, type AlarmStatus } from './smart.js';
 import { reportMailto } from './support.js';
 import { eidText, eidSections, currentEid, type EidKind } from './eid.js';
+import { drawCard, CARD_TEXTS, CARD_STYLES, NOTE_MAX as CARD_NOTE_MAX, type CardText, type CardStyle } from './cards.js';
 import type { EidId } from './eid-data.js';
 import { QURAN_FONT_IDS, OCCASION_REMINDERS, stageCounts, REVIEW_STAGES, setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, FAJR_OFFSETS, FAJR_SNOOZES, FAJR_SNOOZE_MINUTES, type HighlightColor } from './engine.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber, beforeCopy } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, starEmblem } from './icons.js';
-import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
+import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, shareImage, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { placeCard, setPlaceRadius } from './places.js';
@@ -1155,7 +1156,26 @@ function eidView(): string {
     const sections = eidSections(kind).map(sec => `<section class="settings-section"><h2>${t(`eidSec_${sec.id}`)}</h2>${sec.id === 'zakat' ? `<div class="notice mb16">${ic('info', 18)}<p>${t('zakatFitrNote')}</p></div>` : ''}${sec.items.map(cited).join('')}</section>`).join('');
     const takbir = `<section class="settings-section"><h2>${t('eidSec_takbir')}</h2><p class="arabic eid-text" lang="ar" dir="rtl">${escapeHtml(verse(2, 185))} ${marker(185)}</p><p class="tiny muted">${escapeHtml(state.locale === 'ar' ? chapter(2).ar : chapter(2).name)} <bdi dir="ltr">2:185</bdi></p><p class="tiny muted mt8">${t('takbirNote')}</p></section>`;
     const tabs = `<div class="segment mb16" role="group">${(['eid-fitr', 'eid-adha'] as const).map(k => `<button data-action="eid-open" data-kind="${k}" class="${kind === k ? 'active' : ''}" aria-pressed="${kind === k}">${t(`occ_${k}`)}</button>`).join('')}</div>`;
-    return `<p class="eyebrow mt12">${t('hijriCalendar')}</p><h1 class="page-title">${t(`occ_${kind}`)}</h1>${tabs}<p class="small muted mb8">${when}</p><p class="tiny muted mb16">${t('occSighting')}</p>${sections}${takbir}<p class="tiny muted mt20">${t('eidGreetingNote')}</p>`;
+    return `<p class="eyebrow mt12">${t('hijriCalendar')}</p><h1 class="page-title">${t(`occ_${kind}`)}</h1>${tabs}<p class="small muted mb8">${when}</p><p class="tiny muted mb16">${t('occSighting')}</p>${sections}${takbir}${cardSection()}<p class="tiny muted mt20">${t('eidGreetingNote')}</p>`;
+}
+// Greeting cards: chosen text, style and the user's own line (kept only while the app is open; nothing is saved).
+let cardText: CardText = 'eid-greeting', cardStyle: CardStyle = 'night', cardNote = '';
+function cardContent() {
+    const kind = eidKind ?? currentEid()?.kind ?? 'eid-fitr', o = islamicOccasionsOf(kind);
+    const quran = cardText === 'quran-10-58', x = eidText('eid-greeting');
+    const face = getComputedStyle(document.documentElement).getPropertyValue('--quran-face').trim() || "'AyahFlow Quran'";
+    return { text: quran ? verse(10, 58) : x.text, reference: quran ? `${chapter(10).name} 10:58` : `${x.source.collection} ${x.source.number}`, heading: `${t(`occ_${kind}`)}${o ? ` ${o.hijri.year}` : ''}`, note: cardNote, style: cardStyle, font: face };
+}
+let cardUrl: string | null = null;
+async function cardPreview(): Promise<void> {
+    const img = document.querySelector<HTMLImageElement>('#card-preview');
+    if (!img) return;
+    try { const blob = await drawCard(cardContent()); if (cardUrl) URL.revokeObjectURL(cardUrl); cardUrl = URL.createObjectURL(blob); img.src = cardUrl; }
+    catch { img.alt = t('cardFailed'); }
+}
+function cardSection(): string {
+    const seg = <T extends string>(action: string, list: readonly T[], on: T, label: (v: T) => string) => `<div class="segment mb12" role="group">${list.map(v => `<button data-action="${action}" data-v="${v}" class="${on === v ? 'active' : ''}" aria-pressed="${on === v}">${label(v)}</button>`).join('')}</div>`;
+    return `<section class="settings-section" id="eid-card"><h2>${t('cardTitle')}</h2><p class="tiny muted mb12">${t('cardNote')}</p>${seg('card-text', CARD_TEXTS, cardText, v => t(`card_${v}`))}${seg('card-style', CARD_STYLES, cardStyle, v => t(`cardStyle_${v}`))}<label class="small" for="card-note">${t('cardOwn')}</label><input id="card-note" type="text" maxlength="${CARD_NOTE_MAX}" value="${escapeHtml(cardNote)}" placeholder="${t('cardOwnHint')}" class="mt8 mb12"><img id="card-preview" class="card-preview" alt="${t('cardTitle')}" width="1080" height="1350">${actionButton('card-share', `${ic('share', 16)} ${t('cardShare')}`, 'button primary full mt12')}</section>`;
 }
 const islamicOccasionsOf = (kind: EidKind) => islamicOccasions().find(x => x.kind === kind) ?? null;
 // ---- Ramadan ----------------------------------------------------------------------------------------
@@ -1475,7 +1495,7 @@ function currentPrayer(now = Date.now()): PrayerName {
 const views: Record<View, () => string> = { eid: eidView, occasions: occasionsView, hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
-function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } syncCompass(); showReciting(false); }
+function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } if (view === 'eid') void cardPreview(); syncCompass(); showReciting(false); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
@@ -1580,6 +1600,18 @@ async function handleAction(el: HTMLElement): Promise<void> {
         }
         case 'open-qibla':
             prayerTab = 'qibla'; await navigate('prayer');
+            break;
+        case 'card-text':
+            if ((CARD_TEXTS as readonly string[]).includes(d.v ?? '')) cardText = d.v as CardText;
+            keepScroll();
+            break;
+        case 'card-style':
+            if ((CARD_STYLES as readonly string[]).includes(d.v ?? '')) cardStyle = d.v as CardStyle;
+            keepScroll();
+            break;
+        case 'card-share':
+            try { await shareImage(await drawCard(cardContent()), 'ayahflow-eid-card.png'); }
+            catch (e) { if (!(e instanceof DOMException && e.name === 'AbortError') && !String((e as Error)?.message).toLowerCase().includes('cancel')) toast(t('cardFailed')); }
             break;
         case 'eid-open':
             eidKind = d.kind === 'eid-adha' ? 'eid-adha' : 'eid-fitr';
@@ -2615,6 +2647,7 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
         return;
     }
     if (el.id === 'fajr-check') { await setFajrAlarm({ check: el.checked }); return; }
+    if (el.id === 'card-note') { cardNote = (el as unknown as HTMLInputElement).value.slice(0, CARD_NOTE_MAX); void cardPreview(); return; }
     if (el.id === 'hifz-surah' || el.id === 'hifz-from' || el.id === 'hifz-to') { setHifzRange(); return; }
     if (el.id === 'jumuah-remind' || el.id === 'fasting-remind' || el.id === 'suhoor-remind' || el.id === 'iftar-remind') {
         const bridge = smartBridge();

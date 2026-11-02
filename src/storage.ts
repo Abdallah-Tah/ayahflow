@@ -19,6 +19,7 @@ interface NativeBridge {
     exportFile: (text: string, name: string) => Promise<void>;
     shareRecording: (r: Recording) => Promise<void>;
     shareText: (title: string, text: string) => Promise<void>;
+    shareImage: (base64: string, name: string) => Promise<void>;
     remind: (time: string | null) => Promise<void>;
     haptic: () => void;
     smart: SmartBridge;
@@ -105,6 +106,16 @@ export async function shareAudio(r: Recording): Promise<void> { requireNativeSto
 }
 else
     downloadBlob(r.blob, name); }
+/** User-initiated image share (an Eid card drawn on the device): the share sheet, or a download in a browser without
+ * file sharing. Never sends anything itself. */
+export async function shareImage(blob: Blob, name: string): Promise<void> { requireNativeStorage(); if (nativeBridge) {
+    const data = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result).split(',')[1]!); r.onerror = () => reject(r.error); r.readAsDataURL(blob); });
+    await nativeBridge.shareImage(data, name);
+    return;
+} const file = new File([blob], name, { type: 'image/png' }); if (navigator.canShare?.({ files: [file] }))
+    await navigator.share({ files: [file] });
+else
+    downloadBlob(blob, name); }
 /** User-initiated text share (e.g. a content report). Falls back to the clipboard; never sends anything itself. */
 export async function shareText(title: string, text: string): Promise<'shared' | 'copied'> { requireNativeStorage(); if (nativeBridge) {
     await nativeBridge.shareText(title, text);

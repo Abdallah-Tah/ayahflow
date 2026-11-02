@@ -30,6 +30,8 @@ export const ITEMS = [
     { id: 'eat-adha', group: 'eid', ref: 'tirmidhi:542', start: 'كان النبي صلى الله عليه وسلم لا يخرج', end: 'حتى يصلي' },
     { id: 'other-route', group: 'eid', ref: 'bukhari:986', start: 'كان النبي صلى الله عليه وسلم اذا كان يوم عيد', end: 'خالف الطريق' },
     { id: 'ghusl', group: 'fitr', ref: 'malik:429', start: 'ان عبد الله بن عمر', end: 'الى المصلى', athar: true },
+    // Greeting cards: the Prophet's words alone, without the address to Abu Bakr.
+    { id: 'eid-greeting', group: 'card', ref: 'bukhari:952', start: 'ان لكل قوم عيدا', end: 'وهذا عيدنا' },
     // Zakat al-Fitr: the narrations only, no ruling on the amount.
     { id: 'zakat-fitr', group: 'zakat', ref: 'bukhari:1503', start: 'فرض رسول الله', end: 'خروج الناس الى الصلاة' },
     { id: 'zakat-purpose', group: 'zakat', ref: 'abudawud:1609', start: 'فرض رسول الله', end: 'صدقة من الصدقات' },

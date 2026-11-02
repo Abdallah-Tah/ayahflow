@@ -7,7 +7,7 @@ const E = JSON.parse(readFileSync(new URL('../content/eid/eid.json', import.meta
 
 test('Each Eid text is its cited narration, with reference, and only Malik 429 is an athar', () => {
     assert.equal(E.dataset, 'fawazahmed0/hadith-api@1');
-    assert.deepEqual(E.items.map(i => i.id), ['our-eid', 'fitr-dates', 'eat-adha', 'other-route', 'ghusl', 'zakat-fitr', 'zakat-purpose', 'arafah', 'ashura', 'tasua', 'ten-days']);
+    assert.deepEqual(E.items.map(i => i.id), ['our-eid', 'fitr-dates', 'eat-adha', 'other-route', 'ghusl', 'eid-greeting', 'zakat-fitr', 'zakat-purpose', 'arafah', 'ashura', 'tasua', 'ten-days']);
     for (const i of E.items) {
         assert.ok(inSource(i.full, i.text), i.id);
         assert.ok(i.source.collection && i.source.number && i.source.inBook, `${i.id}: reference`);
