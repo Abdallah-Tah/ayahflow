@@ -4,7 +4,7 @@ import { nativeConfig, backgroundBlocked, timedReminders, windowsFor, sleepWindo
 import { reportMailto } from './support.js';
 import { eidText, eidSections, currentEid, type EidKind } from './eid.js';
 import type { EidId } from './eid-data.js';
-import { QURAN_FONT_IDS, stageCounts, REVIEW_STAGES, setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, FAJR_OFFSETS, FAJR_SNOOZES, FAJR_SNOOZE_MINUTES, type HighlightColor } from './engine.js';
+import { QURAN_FONT_IDS, OCCASION_REMINDERS, stageCounts, REVIEW_STAGES, setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, FAJR_OFFSETS, FAJR_SNOOZES, FAJR_SNOOZE_MINUTES, type HighlightColor } from './engine.js';
 import { initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber, beforeCopy } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, starEmblem } from './icons.js';
@@ -1132,6 +1132,13 @@ function occasionCard(): string {
     if (!o) return '';
     return `<button class="feature-wide row mb16" data-action="nav" data-view="occasions"><span class="gold">${ic('moon', 22)}</span><span class="grow"><h3>${t(`occ_${o.kind}`)}</h3><p>${escapeHtml(gDate(o.at))} · ${inDays(o)} · ${t('occSighting')}</p></span>${chevronEnd()}</button>`;
 }
+/** Reminder the evening before an occasion: the cited narration for a fast (verbatim, with its collection), and the
+ * sighting caveat on every one. */
+function occasionCopy(kind: Occasion['kind']): { title: string; body: string } {
+    const quote = (id: EidId) => { const x = eidText(id); return `${x.text} (${x.source.collection})`; };
+    const lead = kind === 'arafah' ? quote('arafah') : kind === 'ashura' ? quote('ashura') : kind === 'tasua' ? quote('tasua') : kind === 'dhul-hijjah-ten' ? quote('ten-days') : kind === 'eid-fitr' ? t('occRemZakat') : t('occRemEid');
+    return { title: t('occRemTitle').replace('{name}', t(`occ_${kind}`)), body: `${lead}\n${t('occSighting')}` };
+}
 // ---- Eid ------------------------------------------------------------------------------------------------
 let eidKind: EidKind | null = null;
 /** A narration as quoted: verbatim Arabic, its reference (sunnah.com in-book numbers for Muslim and the Muwatta, whose
@@ -1307,12 +1314,12 @@ function calendarSection(): string {
     const fasts = upcomingFasts(Date.now(), 8).slice(0, 4), native = !!smartBridge();
     const toggle = (id: string, on: boolean, label: string, note: string) => `<label class="setting-row"><span><strong>${label}</strong><p>${note}</p></span><input type="checkbox" id="${id}" ${on ? 'checked' : ''} aria-label="${label}"></label>`;
     const rows = fasts.map(f => `<div class="diag-row"><span>${escapeHtml(f.date.toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'short' }))}<span class="tiny muted detection-detail">${escapeHtml(hijri(f.date))}</span></span><span>${fastWhy(f.reasons)}</span></div>`).join('');
-    return `<section class="settings-section" id="calendar-reminders"><h2>${t('calendarSection')}</h2>${native ? `${toggle('jumuah-remind', state.calendar.jumuah, t('jumuahToggle'), t('jumuahNote'))}${toggle('fasting-remind', state.calendar.fasting, t('fastingToggle'), t('fastingNote'))}${toggle('suhoor-remind', state.calendar.suhoor, t('suhoorToggle'), t('suhoorNote'))}${toggle('iftar-remind', state.calendar.iftar, t('iftarToggle'), t('iftarNote'))}` : ''}<h3 class="small gold mt20 mb8">${t('nextFasts')}</h3>${rows ? `<div class="diag">${rows}</div>` : `<p class="small muted">${t('noFastsSoon')}</p>`}<p class="tiny muted mt12">${t('fastingHijriNote')}</p></section>`;
+    return `<section class="settings-section" id="calendar-reminders"><h2>${t('calendarSection')}</h2>${native ? `${toggle('jumuah-remind', state.calendar.jumuah, t('jumuahToggle'), t('jumuahNote'))}${toggle('fasting-remind', state.calendar.fasting, t('fastingToggle'), t('fastingNote'))}${toggle('suhoor-remind', state.calendar.suhoor, t('suhoorToggle'), t('suhoorNote'))}${toggle('iftar-remind', state.calendar.iftar, t('iftarToggle'), t('iftarNote'))}<h3 class="small gold mt20 mb8">${t('occRemSection')}</h3>${OCCASION_REMINDERS.map(k => toggle(`occ-remind-${k}`, state.calendar.occasions[k], t(`occRem_${k}`), t('occRemNote'))).join('')}` : ''}<h3 class="small gold mt20 mb8">${t('nextFasts')}</h3>${rows ? `<div class="diag">${rows}</div>` : `<p class="small muted">${t('noFastsSoon')}</p>`}<p class="tiny muted mt12">${t('fastingHijriNote')}</p></section>`;
 }
 async function syncCalendar(): Promise<void> {
     const bridge = smartBridge();
     if (!bridge) return;
-    await bridge.scheduleCalendar(calendarReminders(state, { jumuah: { title: t('jumuahTitle'), body: t('jumuahBody') }, fast: r => ({ title: t('fastTitle').replace('{why}', fastWhy(r)), body: t('fastBody') }), suhoor: f => ({ title: t('suhoorTitle'), body: t('suhoorBody').replace('{time}', clock(f)) }), iftar: m => ({ title: t('iftarTitle'), body: t('iftarBody').replace('{time}', clock(m)) }) }));
+    await bridge.scheduleCalendar(calendarReminders(state, { jumuah: { title: t('jumuahTitle'), body: t('jumuahBody') }, fast: r => ({ title: t('fastTitle').replace('{why}', fastWhy(r)), body: t('fastBody') }), suhoor: f => ({ title: t('suhoorTitle'), body: t('suhoorBody').replace('{time}', clock(f)) }), iftar: m => ({ title: t('iftarTitle'), body: t('iftarBody').replace('{time}', clock(m)) }), occasion: occasionCopy }));
 }
 function homeView(): string {
     return `${dateLine()}${watchCard()}${fridayCard()}${ramadanCard()}${khatmCard()}${occasionCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
@@ -2617,6 +2624,16 @@ root.addEventListener('change', async (e) => { const el = e.target as HTMLInputE
         keepScroll();
         return;
     }
+    if (el.id.startsWith('occ-remind-')) {
+        const key = el.id.slice(11) as typeof OCCASION_REMINDERS[number];
+        if (!OCCASION_REMINDERS.includes(key)) return;
+        const bridge = smartBridge();
+        if (el.checked && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
+        await commit({ ...state, calendar: { ...state.calendar, occasions: { ...state.calendar.occasions, [key]: el.checked } } });
+        try { await syncCalendar(); await syncRotation(); if (el.checked) toast(t('calendarOn')); } catch { toast(t('reminderSyncFailed')); }
+        keepScroll();
+        return;
+    }
     if (el.id === 'istighfar-remind') {
         const bridge = smartBridge();
         if (el.checked && bridge && await bridge.notificationPermission(true) !== 'granted') { toast(t('needNotifications')); el.checked = false; return; }
@@ -2720,7 +2737,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } if (/^ayahflow:\/\/wake\/?$/.test(url)) { void navigate('wake'); return; } if (/^ayahflow:\/\/occasions\/?$/.test(url)) { void navigate('occasions'); return; } const recited = /^(ayahflow:\/\/moment\/[a-z_+]+)\/?\?recited=1$/.exec(url); if (recited) { const rm = parseMomentUrl(recited[1]!); if (rm.length) { momentIds = rm; void recitedFromNotification(rm).then(() => navigate('moment')); } return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } if (/^ayahflow:\/\/wake\/?$/.test(url)) { void navigate('wake'); return; } if (/^ayahflow:\/\/occasions\/?$/.test(url)) { void navigate('occasions'); return; } if (/^ayahflow:\/\/eid\/?$/.test(url)) { eidKind = null; void navigate('eid'); return; } const recited = /^(ayahflow:\/\/moment\/[a-z_+]+)\/?\?recited=1$/.exec(url); if (recited) { const rm = parseMomentUrl(recited[1]!); if (rm.length) { momentIds = rm; void recitedFromNotification(rm).then(() => navigate('moment')); } return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });

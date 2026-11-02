@@ -2,7 +2,7 @@
  * Hijri dates use the Umm al-Qura calendar built into the system (Intl, `islamic-umalqura`); local moon sighting may
  * differ by a day, and the app says so wherever a Hijri date is shown. Nothing here uses the network. */
 import { dayKey, type AppState } from './engine.js';
-import { timesFor, sleepWindow, FAST_MAX, RAMADAN_DAYS } from './smart.js';
+import { timesFor, sleepWindow, FAST_MAX, RAMADAN_DAYS, OCCASION_MAX } from './smart.js';
 
 export interface HijriDate { day: number; month: number; year: number }
 const hijriFormat = new Map<string, Intl.DateTimeFormat>();
@@ -50,17 +50,18 @@ export function upcomingFasts(now: number, days: number): { day: string; date: D
 export function ramadanDay(date: Date): number | null { const h = hijriDate(date); return h && h.month === 9 ? h.day : null; }
 /** Ids 24 × 10⁶ + yymmdd (Jumu'ah, of the Friday), 25 × 10⁶ + yymmdd (fast, of the fasting day), 27 (suhoor) and 28
  * (iftar): clear of adhkar (1–3), athan (4–8), istighfar (9–11), rotation (12), check-ins (13–17), before-prayer (18–22),
- * tests (23) and the Fajr alarm fallback (26). */
-export const JUMUAH_CODE = 24, FAST_CODE = 25, SUHOOR_CODE = 27, IFTAR_CODE = 28;
+ * tests (23) and the Fajr alarm fallback (26); 29 × 10⁶ + yymmdd for an Islamic occasion (of the occasion's day). */
+export const JUMUAH_CODE = 24, FAST_CODE = 25, SUHOOR_CODE = 27, IFTAR_CODE = 28, OCCASION_CODE = 29;
 /** Suhoor reminder this long before Fajr (when eating must stop); iftar reminder this long before Maghrib. */
 export const SUHOOR_BEFORE = 45, IFTAR_BEFORE = 10;
 const idFor = (code: number, day: string) => code * 1000000 + Number(day.slice(2).replace(/-/g, ''));
-export interface CalendarReminder { id: number; at: number; kind: 'jumuah' | 'fast' | 'suhoor' | 'iftar'; day: string; title: string; body: string; url: string }
+export interface CalendarReminder { id: number; at: number; kind: 'jumuah' | 'fast' | 'suhoor' | 'iftar' | 'occasion'; day: string; title: string; body: string; url: string }
 export interface CalendarCopy {
     jumuah: { title: string; body: string };
     fast: (reasons: FastReason[], hijri: HijriDate | null) => { title: string; body: string };
     suhoor?: (fajr: number) => { title: string; body: string };
     iftar?: (maghrib: number) => { title: string; body: string };
+    occasion?: (kind: OccasionKind) => { title: string; body: string };
 }
 /** Friday: 90 minutes before Dhuhr (10:30 without a saved place), opening Al-Kahf. Fast: the evening before at 20:30,
  * or 30 minutes before the sleep time when that is earlier. Nothing already past is planned. */
@@ -100,8 +101,24 @@ export function calendarReminders(state: AppState, copy: CalendarCopy, now = Dat
             days++;
         }
     }
+    // Islamic occasions, each the evening before (as the fasts): the OCCASION_MAX soonest of those switched on.
+    const on = state.calendar.occasions, kinds = OCCASION_SWITCH.filter(([, k]) => on[k]).map(([kind]) => kind);
+    if (kinds.length && copy.occasion) {
+        let n = 0;
+        for (const o of islamicOccasions(now, 60)) {
+            if (!kinds.includes(o.kind) || n >= OCCASION_MAX) continue;
+            const eve = new Date(o.at); eve.setDate(eve.getDate() - 1);
+            const sleep = sleepWindow(state, eve)?.[0] ?? null, usual = new Date(eve.getFullYear(), eve.getMonth(), eve.getDate(), 20, 30).getTime();
+            const at = sleep !== null && sleep - 30 * 60000 < usual ? sleep - 30 * 60000 : usual;
+            if (at <= now) continue;
+            out.push({ id: idFor(OCCASION_CODE, o.day), at, kind: 'occasion', day: o.day, ...copy.occasion(o.kind), url: o.kind === 'eid-fitr' || o.kind === 'eid-adha' ? 'ayahflow://eid' : 'ayahflow://occasions' });
+            n++;
+        }
+    }
     return out.sort((a, b) => a.at - b.at);
 }
+/** Which switch plans which occasion: Arafah; Tasu'a and Ashura; the first of Dhul Hijjah; the eve of each Eid. */
+export const OCCASION_SWITCH: readonly [OccasionKind, keyof AppState['calendar']['occasions']][] = [['arafah', 'arafah'], ['tasua', 'ashura'], ['ashura', 'ashura'], ['dhul-hijjah-ten', 'dhulHijjah'], ['eid-fitr', 'eidEve'], ['eid-adha', 'eidEve']];
 
 /** For the "Jumu'ah and fasts" widget: Fridays, voluntary-fast days and the first of Ramadan in the next `days` days
  * (today included), at most `max`. The widget names the day itself; nothing here is a reminder. */

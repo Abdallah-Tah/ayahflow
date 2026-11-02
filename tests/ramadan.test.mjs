@@ -49,7 +49,7 @@ test('Suhoor and iftar reminders only in Ramadan, three days ahead, ids clear of
 test('Migration v20 → v21 adds both switches off; narrations verbatim from their cited hadiths', () => {
     const v20 = JSON.parse(JSON.stringify({ ...initialState(), version: 20, calendar: { jumuah: true, fasting: true } }));
     const m = validateState(v20);
-    assert.deepEqual(m.calendar, { jumuah: true, fasting: true, suhoor: false, iftar: false });
+    assert.deepEqual(m.calendar, { jumuah: true, fasting: true, suhoor: false, iftar: false, occasions: { arafah: false, ashura: false, dhulHijjah: false, eidEve: false } });
     assert.throws(() => validateState({ ...initialState(), calendar: { jumuah: false, fasting: false } }), /calendar/);
     const src = JSON.parse(readFileSync(new URL('../content/ramadan/ramadan.json', import.meta.url), 'utf8')).items;
     for (const it of src) assert.ok(inSource(it.full, it.text), it.id);
