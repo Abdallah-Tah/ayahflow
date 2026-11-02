@@ -638,6 +638,10 @@ export function completeDhikr(state: AppState, entryId: string, moment: Moment, 
 /** Entries of a moment the user confirmed today. */
 export function completedToday(state: AppState, moment: Moment, at = Date.now()): Set<string> { const d = dayKey(at); return new Set(state.adhkarLog.filter(c => c.moment === moment && c.day === d).map(c => c.entry)); }
 /** A copy safe to export: saved place coordinates, detections and device-local audio files stay on the device. */
+/** A complete backup the user keeps: everything the app saved, places included, except references to files that live
+ * only on this device (a custom or downloaded athan), which fall back to a bundled reciter as in `exportable`. Voice
+ * recordings are separate files and are not in it. Restored through the same validation and migration as any save. */
+export function backup(state: AppState): AppState { return { ...exportable(state), places: structuredClone(state.places), detections: structuredClone(state.detections) }; }
 export function exportable(state: AppState): AppState { const a = state.athan, local = (id: string) => id === 'custom' || id.startsWith('online-'); return { ...state, places: { home: null, work: null, mosque: null }, detections: [], athan: { ...a, custom: null, downloads: [], reciter: local(a.reciter) ? ATHAN_RECITERS[0]! : a.reciter, fajrReciter: local(a.fajrReciter) ? ATHAN_RECITERS[0]! : a.fajrReciter } }; }
 /** Set (not add) today's count for a counter. Setting the same value twice is a no-op, so a repeated save cannot inflate it. */
 export function setCount(state: AppState, id: string, n: number, at: number): AppState {

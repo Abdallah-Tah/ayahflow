@@ -93,10 +93,10 @@ else {
     await idbOperation('readwrite', s => s.clear());
     localStorage.removeItem(STORAGE_KEY);
 } }
-export async function exportProgress(s: AppState): Promise<void> { requireNativeStorage(); const text = JSON.stringify(s, null, 2); if (nativeBridge) {
-    await nativeBridge.exportFile(text, 'ayahflow-progress.json');
+export async function exportProgress(s: AppState, name = 'ayahflow-progress.json'): Promise<void> { requireNativeStorage(); const text = JSON.stringify(s, null, 2); if (nativeBridge) {
+    await nativeBridge.exportFile(text, name);
     return;
-} downloadBlob(new Blob([text], { type: 'application/json' }), 'ayahflow-progress.json'); }
+} downloadBlob(new Blob([text], { type: 'application/json' }), name); }
 export function downloadBlob(blob: Blob, name: string): void { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
 export async function shareAudio(r: Recording): Promise<void> { requireNativeStorage(); if (nativeBridge) {
     await nativeBridge.shareRecording(r);
