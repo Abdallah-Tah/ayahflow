@@ -134,3 +134,11 @@ Colour-coded tajweed, IndoPak script and tafseer are listed as not available unt
 496f71c, pinned sha256) and the 2017 Tanzil text it indexes (pinned sha256, build-time only). Spans are kept only where the
 annotated characters are identical in the app's Tanzil 1.1 text; about 1.3% are dropped. Status: machine-made, unreviewed;
 the reader presents it as colouring only, never as an assessment of the user's recitation. Off by default.
+
+## Hadith library (added 2026-11-01)
+
+`content/hadith/library.json` is built by `scripts/build-library.mjs` from the fawazahmed0/hadith-api dataset (Unlicense,
+public domain dedication; the same dataset as the adhkar), editions `ara-nawawi` (42) and `ara-qudsi` (40), with each file's
+sha256 recorded. Arabic text only, unchanged; the dataset gives no grades or topics for these collections, so none are shown.
+The dataset's English translations are not used because their origin cannot be traced. Status: not reviewed by a scholar;
+the screen says so and links each hadith to sunnah.com.

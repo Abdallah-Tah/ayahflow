@@ -14,9 +14,9 @@ test('Back and tabs bypass the busy guard; the guard expires; location requests 
 
 test('Every screen with a back button has a parent to go back to', () => {
     const app = read('src/app.ts');
-    const withBack = /\['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake', 'khatm', 'names', 'hifz', 'occasions', 'eid', 'zakat'\]\.includes\(view\)/;
+    const withBack = /\['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake', 'khatm', 'names', 'hifz', 'occasions', 'eid', 'zakat', 'hadith'\]\.includes\(view\)/;
     assert.match(app, withBack);
     const back = app.slice(app.indexOf("case 'back':"), app.indexOf("case 'daily':"));
-    for (const v of ['reader', 'verses', 'recitations', 'practice', 'review', 'khatm', 'hifz', 'lesson', 'settings', 'steps', 'moment', 'reminders', 'counter', 'rotation', 'names', 'tasbih', 'wake', 'occasions', 'eid', 'zakat'])
+    for (const v of ['reader', 'verses', 'recitations', 'practice', 'review', 'khatm', 'hifz', 'lesson', 'settings', 'steps', 'moment', 'reminders', 'counter', 'rotation', 'names', 'tasbih', 'wake', 'occasions', 'eid', 'zakat', 'hadith'])
         assert.ok(back.includes(`view === '${v}'`), `${v} has no explicit back target`);
 });

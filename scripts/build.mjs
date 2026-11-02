@@ -39,6 +39,9 @@ await writeFile('www/js/names-data.js', `/* Generated from content/names/names.j
 // Tajweed colouring spans (scripts/build-tajweed.py from cpfair/quran-tajweed, CC BY 4.0); loaded only when switched on.
 { const r = JSON.parse(await readFile('content/tajweed/tajweed.json', 'utf8'));
   await writeFile('www/js/tajweed-data.js', `/* Generated from content/tajweed/tajweed.json — do not edit. ${r.credit}. */\nexport default ${JSON.stringify({ credit: r.credit, spans: r.spans })};\n`); }
+// Hadith library: an-Nawawi's Forty and the Forty Hadith Qudsi, Arabic, verbatim (scripts/build-library.mjs); loaded on demand.
+{ const r = JSON.parse(await readFile('content/hadith/library.json', 'utf8'));
+  await writeFile('www/js/hadith-data.js', `/* Generated from content/hadith/library.json — do not edit. */\nexport default ${JSON.stringify({ collections: r.collections.map(({ id, name, url, items }) => ({ id, name, url, items })) })};\n`); }
 // Athan catalogue (names, credits, licences) for the recordings in public/sounds (scripts/prepare-athan.mjs).
 { const { reviewNotes, alertSeconds, recordings } = JSON.parse(await readFile('content/athan/sources.json', 'utf8'));
   await writeFile('www/js/athan-data.js', `/* Generated from content/athan/sources.json — do not edit. */\nexport default ${JSON.stringify({ reviewNotes, alertSeconds, recordings: recordings.map(({ download, sha256, ...r }) => r), online: JSON.parse(await readFile('content/athan/online.json', 'utf8')) })};\n`); }

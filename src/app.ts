@@ -8,7 +8,7 @@ import { zakatFigures, parseAmount, GOLD_NISAB_G, SILVER_NISAB_G } from './zakat
 import { drawCard, CARD_TEXTS, CARD_STYLES, NOTE_MAX as CARD_NOTE_MAX, type CardText, type CardStyle } from './cards.js';
 import type { EidId } from './eid-data.js';
 import { QURAN_FONT_IDS, HIJRI_OFFSETS, OCCASION_REMINDERS, TASBIH_THEMES, type TasbihTheme, stageCounts, REVIEW_STAGES, setHighlight, setNote, reviewHighlight, highlightReviewQueue, HIGHLIGHT_COLORS, NOTE_MAX, READER_SCALE, FAJR_OFFSETS, FAJR_SNOOZES, FAJR_SNOOZE_MINUTES, type HighlightColor } from './engine.js';
-import { backup, initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
+import { backup, comparable, initialState, validateState, dayKey, streak, planSession, questionFor, applyAnswer, dueItems, weakItems, completedAccuracy, retention, locateGuess, identicalAyahs, ayahWords, recitedWordIndices, surahRecallQueue, sessionRecap, exportable, completeDhikr, completedToday, setCount, countOn, addCounter, removeCounter, setSalah, salahStatus, setTasbih, tasbihOn, toggleFavorite, markRecent, setTarget, noteQuranOpen, lifetimeCount, CHECK_IN_AFTER, BEFORE_MINUTES, type SalahStatus, MAX_CUSTOM_COUNTERS, ROTATION_INTERVALS, MAX_COUNT, type CustomCounter, PRAYER_METHODS, PRAYERS, type PrayerName, type PlaceKind, type PrayerMethod, type AppState, type Mode, type Locale, type Theme, type ArabicSize, type ReadingLayout, type QueueItem, type Session, type Question } from './engine.js';
 import { tr, formatNumber, beforeCopy } from './i18n.js';
 import { icon, archArt, ayahMarker, medallion, starEmblem } from './icons.js';
 import { initializeBridge, loadState, saveState, listRecordings, putRecording, deleteRecording, clearLocalData, exportProgress, shareAudio, shareText, shareImage, smartBridge, onDeepLink, scheduleAthan, setWidgetData, nativeAthan, setReminder, isNative, isTemporary, haptic, type Recording } from './storage.js';
@@ -25,7 +25,7 @@ import { khatmToday, startKhatm, endKhatm, setKhatmPage, turnedPage, KHATM_DAYS 
 import { pageBody, easyBody, readerTitle, readingStyles, quranFontChooser, pageFor, clampPage, toEndOfJuz } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
-type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review' | 'wake' | 'khatm' | 'names' | 'hifz' | 'occasions' | 'eid' | 'zakat';
+type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review' | 'wake' | 'khatm' | 'names' | 'hifz' | 'occasions' | 'eid' | 'zakat' | 'hadith';
 let state: AppState = initialState();
 let view: View = 'today';
 let selectedOption: string | null = null;
@@ -118,13 +118,13 @@ catch (e) {
     throw e;
 } }
 function wave(): string { return `<span class="wave" aria-hidden="true">${[8, 13, 20, 12, 26, 32, 20, 37, 24, 16, 29, 19, 12, 7].map((h, i) => `<i style="--h:${h}px;--delay:${i * .067}s"></i>`).join('')}</span>`; }
-function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review', 'khatm', 'hifz'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' || view === 'names' ? 'adhkar' : view === 'prayer' || view === 'tasbih' || view === 'wake' ? 'prayer' : view === 'steps' || view === 'occasions' || view === 'eid' || view === 'zakat' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
+function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review', 'khatm', 'hifz'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' || view === 'names' || view === 'hadith' ? 'adhkar' : view === 'prayer' || view === 'tasbih' || view === 'wake' ? 'prayer' : view === 'steps' || view === 'occasions' || view === 'eid' || view === 'zakat' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
 function header(): string {
     if (view === 'session' && state.session) {
         const s = state.session;
         return `<header class="app-header">${actionButton('pause', ic('close'), 'icon-button', `aria-label="${t('pause')}"`)}<span class="header-detail">${t('question')} ${num(s.index + 1)} ${t('of')} ${num(s.queue.length)}</span><span class="top-meta">${ic('leaf', 16)} ${num(state.xp)}</span></header>`;
     }
-    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake', 'khatm', 'names', 'hifz', 'occasions', 'eid', 'zakat'].includes(view))
+    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake', 'khatm', 'names', 'hifz', 'occasions', 'eid', 'zakat', 'hadith'].includes(view))
         return `<header class="app-header">${backButton()}<span class="header-wordmark">Ayah<span class="gold">Flow</span></span><span style="width:44px"></span></header>`;
     return `<header class="app-header"><button class="brand" data-action="nav" data-view="today" aria-label="AyahFlow ${t('today')}"><img src="./assets/icon.svg" alt=""><span>Ayah<span>Flow</span></span></button><div class="row gap8"><span class="top-meta" title="${t('fullDays')}" aria-label="${t('fullDays')}: ${num(salahStreak(state))}">${ic('leaf', 15)} ${num(salahStreak(state))}</span><button class="icon-button" data-action="nav" data-view="settings" aria-label="${t('settings')}">${ic('gear', 21)}</button></div></header>`;
 }
@@ -1044,9 +1044,24 @@ function fridayCard(): string {
 // ---- The 99 Names --------------------------------------------------------------------------------
 const gradeList = (s: { grades: { by: string; grade: string }[] }) => `<bdi dir="ltr">${s.grades.map(g => `${escapeHtml(g.by)}: ${escapeHtml(g.grade)}`).join('; ')}</bdi>`;
 const sourceLink = (s: { collection: string; number: string; inBook: { book: number; hadith: number } | null; ref: string }) => `<a dir="ltr" href="${sourceUrl({ ...s, grades: [] })}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.collection)} ${s.number}${ic('link', 11)}</a>`;
+// ---- Hadith library (Arabic, verbatim; loaded when opened; not reviewed by a scholar) -----------------------
+type HadithLib = typeof import('./hadith-data.js').default;
+let hadithLib: HadithLib | null = null, hadithCol: 'nawawi' | 'qudsi' = 'nawawi', hadithQuery = '';
+async function openHadith(): Promise<void> { if (!hadithLib) hadithLib = (await import('./hadith-data.js')).default; await navigate('hadith'); }
+function hadithList(): string {
+    if (!hadithLib) return '';
+    const c = hadithLib.collections.find(x => x.id === hadithCol)!, q = comparable(hadithQuery), n = Number(hadithQuery.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))));
+    const items = c.items.filter(h => !hadithQuery.trim() || (Number.isInteger(n) && n > 0 ? h.n === n : comparable(h.text).includes(q)));
+    return items.length ? items.map(h => `<article class="eid-item"><h3 class="small gold mb8">${escapeHtml(t(`hadithCol_${c.id}`))} · ${num(h.n)}</h3><p class="arabic eid-text" lang="ar" dir="rtl">${escapeHtml(h.text)}</p><p class="tiny muted"><a dir="ltr" href="${c.url}:${h.n}" target="_blank" rel="noopener noreferrer">sunnah.com · ${escapeHtml(c.name)} ${h.n}${ic('link', 11)}</a>${h.grades.length ? ` · ${gradeList(h)}` : ''}</p></article>`).join('') : `<p class="empty">${t('hadithNone')}</p>`;
+}
+function hadithView(): string {
+    if (!hadithLib) void import('./hadith-data.js').then(m => { hadithLib = m.default; if (view === 'hadith') render(); });
+    const seg = `<div class="segment mb12" role="group">${(['nawawi', 'qudsi'] as const).map(k => `<button data-action="hadith-col" data-v="${k}" class="${hadithCol === k ? 'active' : ''}" aria-pressed="${hadithCol === k}">${t(`hadithCol_${k}`)}</button>`).join('')}</div>`;
+    return `<p class="eyebrow mt12">${t('adhkar')}</p><h1 class="page-title">${t('hadithTitle')}</h1><div class="notice mb16">${ic('info', 18)}<p>${t('hadithNote')}</p></div>${seg}<input id="hadith-search" type="search" dir="auto" autocomplete="off" value="${escapeHtml(hadithQuery)}" placeholder="${t('hadithSearch')}" class="mb12 zakat-input" aria-label="${t('hadithSearch')}"><section class="settings-section" id="hadith-list">${hadithList()}</section>`;
+}
 function namesEntry(): string {
     const today = nameOfDay();
-    return `<button class="feature-wide row mb16" data-action="nav" data-view="names"><span class="gold">${ic('spark', 22)}</span><span class="grow"><span class="tiny muted">${t('nameOfDay')}</span><h3 class="arabic name-today" lang="ar" dir="rtl">${escapeHtml(today.ar)}</h3><span class="tiny muted">${t('namesTitle')}</span></span>${ic('chevron', 16)}</button>`;
+    return `<button class="feature-wide row mb16" data-action="hadith-open"><span class="gold">${ic('book', 22)}</span><span class="grow"><h3>${t('hadithTitle')}</h3><p>${t('hadithSub')}</p></span>${chevronEnd()}</button><button class="feature-wide row mb16" data-action="nav" data-view="names"><span class="gold">${ic('spark', 22)}</span><span class="grow"><span class="tiny muted">${t('nameOfDay')}</span><h3 class="arabic name-today" lang="ar" dir="rtl">${escapeHtml(today.ar)}</h3><span class="tiny muted">${t('namesTitle')}</span></span>${ic('chevron', 16)}</button>`;
 }
 function namesView(): string {
     const today = nameOfDay();
@@ -1524,7 +1539,7 @@ function currentPrayer(now = Date.now()): PrayerName {
     return [...PRAYERS].reverse().find(p => times[p] <= now) ?? 'isha';
 }
 
-const views: Record<View, () => string> = { zakat: zakatView, eid: eidView, occasions: occasionsView, hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
+const views: Record<View, () => string> = { hadith: hadithView, zakat: zakatView, eid: eidView, occasions: occasionsView, hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
 function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } if (view === 'eid') void cardPreview(); syncCompass(); showReciting(false); }
@@ -1587,7 +1602,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await navigate(d.view as View);
             break;
         case 'back':
-            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' || view === 'khatm' || view === 'hifz' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' || view === 'occasions' ? 'today' : view === 'eid' || view === 'zakat' ? 'occasions' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' || view === 'names' ? 'adhkar' : view === 'tasbih' || view === 'wake' ? 'prayer' : 'practice');
+            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' || view === 'khatm' || view === 'hifz' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' || view === 'occasions' ? 'today' : view === 'eid' || view === 'zakat' ? 'occasions' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' || view === 'names' || view === 'hadith' ? 'adhkar' : view === 'tasbih' || view === 'wake' ? 'prayer' : 'practice');
             break;
         case 'daily':
             await launch('mixed', 'daily');
@@ -1650,6 +1665,13 @@ async function handleAction(el: HTMLElement): Promise<void> {
             keepScroll();
             break;
         }
+        case 'hadith-open':
+            await openHadith();
+            break;
+        case 'hadith-col':
+            if (d.v === 'nawawi' || d.v === 'qudsi') hadithCol = d.v;
+            keepScroll();
+            break;
         case 'tasbih-theme':
             if (!(TASBIH_THEMES as readonly string[]).includes(d.v ?? '')) return;
             await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, tasbihTheme: d.v as TasbihTheme } } });
@@ -2611,7 +2633,7 @@ catch (error) {
 finally {
     if (busyToken === mine) busy = false;
 } });
-root.addEventListener('input', e => { const el = e.target as HTMLInputElement; if (el.id === 'zakat-wealth' || el.id === 'zakat-gold' || el.id === 'zakat-silver') { zakatIn[el.id.slice(6) as keyof typeof zakatIn] = el.value.slice(0, 20); const out = document.querySelector('#zakat-results'); if (out) out.innerHTML = zakatResults(); return; } if (el.id === 'surah-search') {
+root.addEventListener('input', e => { const el = e.target as HTMLInputElement; if (el.id === 'hadith-search') { hadithQuery = el.value.slice(0, 80); const out = document.querySelector('#hadith-list'); if (out) out.innerHTML = hadithList(); return; } if (el.id === 'zakat-wealth' || el.id === 'zakat-gold' || el.id === 'zakat-silver') { zakatIn[el.id.slice(6) as keyof typeof zakatIn] = el.value.slice(0, 20); const out = document.querySelector('#zakat-results'); if (out) out.innerHTML = zakatResults(); return; } if (el.id === 'surah-search') {
     libraryQuery = el.value;
     document.querySelector('#surah-list')!.innerHTML = surahRows();
 } });

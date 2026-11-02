@@ -91,3 +91,8 @@ Not bundled. Downloaded only when the user asks, behind the online-audio permiss
 - Changes: `scripts/build-tajweed.py` carries each span over to the app's Tanzil Uthmani 1.1 text by character alignment and
   keeps it only when every annotated character is identical (59,282 kept, 775 dropped). Rules are grouped into colours.
   The Quran text is unchanged. Machine-made annotations, not reviewed by a qualified teacher.
+
+## Hadith library texts (fawazahmed0/hadith-api)
+
+- Source: https://github.com/fawazahmed0/hadith-api, editions `ara-nawawi` and `ara-qudsi` (via cdn.jsdelivr.net, `@1`), sha256
+  recorded in `content/hadith/library.json`. Licence: The Unlicense (public domain dedication). Arabic text only, unchanged.
