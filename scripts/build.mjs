@@ -36,6 +36,9 @@ await writeFile('www/js/names-data.js', `/* Generated from content/names/names.j
 // Eid, Zakat al-Fitr and fast narrations: verbatim slices (scripts/build-eid.mjs); the full hadith text stays out of the bundle.
 { const r = JSON.parse(await readFile('content/eid/eid.json', 'utf8'));
   await writeFile('www/js/eid-data.js', `/* Generated from content/eid/eid.json — do not edit. */\nexport default ${JSON.stringify({ dataset: r.dataset, items: r.items.map(({ full, ...i }) => i) })};\n`); }
+// Tajweed colouring spans (scripts/build-tajweed.py from cpfair/quran-tajweed, CC BY 4.0); loaded only when switched on.
+{ const r = JSON.parse(await readFile('content/tajweed/tajweed.json', 'utf8'));
+  await writeFile('www/js/tajweed-data.js', `/* Generated from content/tajweed/tajweed.json — do not edit. ${r.credit}. */\nexport default ${JSON.stringify({ credit: r.credit, spans: r.spans })};\n`); }
 // Athan catalogue (names, credits, licences) for the recordings in public/sounds (scripts/prepare-athan.mjs).
 { const { reviewNotes, alertSeconds, recordings } = JSON.parse(await readFile('content/athan/sources.json', 'utf8'));
   await writeFile('www/js/athan-data.js', `/* Generated from content/athan/sources.json — do not edit. */\nexport default ${JSON.stringify({ reviewNotes, alertSeconds, recordings: recordings.map(({ download, sha256, ...r }) => r), online: JSON.parse(await readFile('content/athan/online.json', 'utf8')) })};\n`); }

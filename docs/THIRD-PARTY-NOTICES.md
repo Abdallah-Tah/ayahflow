@@ -78,3 +78,16 @@ A user may import their own athan recording; it stays on the device, is never ex
 Not bundled. Downloaded only when the user asks, behind the online-audio permission, checked against the pinned SHA-256, and kept on the device. Islamic Network's terms (2026-06-14) allow streaming and downloading its audio for personal use; copyright stays with the reciters, who may request removal. The terms do not name cdn.aladhan.com explicitly. Reciter names follow aladhan.com/download-adhans. a1 is the Fajr athan (as-salatu khayrun min an-nawm), so it is offered for Fajr only. Source and attribution: https://aladhan.com/download-adhans · Terms: https://alquran.cloud/terms-and-conditions.
 
 **Network.** These files are fetched only when the user taps **Download** (or **Listen**, which streams the same file), from `https://cdn.aladhan.com` only. The native download checks the host, size (≤ 12 MB) and SHA-256 before saving. Nothing about the user is sent beyond an ordinary HTTPS request.
+
+## Tajweed annotations (cpfair/quran-tajweed)
+
+- Source: https://github.com/cpfair/quran-tajweed, commit `496f71cd191da00fa2a37ded79dbbddb033bb0ad` (2021-10-12),
+  file `output/tajweed.hafs.uthmani-pause-sajdah.json`, sha256 `151d616ad37a4cc21a80f20d5e1104c5b408375107ddd4d71247dea4c05ebf67`.
+- Licence: Creative Commons Attribution 4.0 International (https://creativecommons.org/licenses/by/4.0/), as stated in the
+  repository README for the data file. Credit shown in the app: "Tajweed annotations: Collin Fair, cpfair/quran-tajweed, CC BY 4.0".
+- Text the offsets refer to: Tanzil Uthmani text of about April 2017, attached to that repository
+  (`quran-uthmani.txt`, sha256 `abe6447a5d29bb126383ba9120628060cf96dc9ef5b402a506fc251f6ed0b9a2`), used only at build time to
+  align the spans and not shipped.
+- Changes: `scripts/build-tajweed.py` carries each span over to the app's Tanzil Uthmani 1.1 text by character alignment and
+  keeps it only when every annotated character is identical (59,282 kept, 775 dropped). Rules are grouped into colours.
+  The Quran text is unchanged. Machine-made annotations, not reviewed by a qualified teacher.

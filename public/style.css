@@ -524,3 +524,4 @@ html[data-quran-font=amiri]{--quran-face:'AyahFlow Quran Amiri'}html[data-quran-
 .card-preview{display:block;width:100%;height:auto;border-radius:var(--r-md);border:1px solid var(--line);background:var(--panel)}#card-note{width:100%}
 .beads .thread{fill:none;stroke:var(--line-strong);stroke-width:1.2}.beads .imam{fill:var(--gold)}.beads.thread .bead{stroke:var(--line-strong);stroke-width:.8}
 .zakat-input{width:100%}
+.tj{font-style:normal}.tj-silent{color:#8f8f86}.tj-madd{color:#c8803a}.tj-maddLong{color:#c0503f}.tj-ghunnah{color:#4f9b5a}.tj-ikhfa{color:#5a8fc0}.tj-idgham{color:#8a6fc0}.tj-iqlab{color:#3fa3a0}.tj-qalqalah{color:#b0607e}.tj-legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin:8px 0;font-size:var(--fs-xs)}.tj-legend span{display:inline-flex;align-items:center;gap:5px}.tj-dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:currentColor}

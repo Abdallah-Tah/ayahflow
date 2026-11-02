@@ -2,6 +2,7 @@ import { SURAH_DATA, LESSONS, chapter, verse, audioUrl, ayahOfAudioUrl, juzOf, p
 import { COUNTERS, ROTATION, ROTATION_GROUPS, LIBRARY, LIBRARY_CATEGORIES, TASBIH_VARIANTS, counter, counterPosition, type DhikrCounter, type LibraryDhikr, MOMENTS, GENERAL_MOMENTS, PRAYER_SETS, entriesFor, quranPassages, sourceUrl, parseMomentUrl, currentMoment, momentUrl, type Moment, type AdhkarEntry, type HadithSource, type SmartEvent, type DayWindows } from './adhkar.js';
 import { nativeConfig, backgroundBlocked, timedReminders, windowsFor, sleepWindow, momentDone, momentPreview, mergeDetections, prayerPlace, nextPrayer, athanSchedule, widgetData, timesFor, prayerDayView, suggestedMethod, ayahOfDay, ayahRef, istighfarReminders, rotationReminders, rotationMax, beforeSchedule, athanHomeOnly, TEST_BEFORE_ID, TEST_ATHAN_ID, type TestNotification, type SmartStatus, type StepReading, type WidgetDaily, type AlarmStatus } from './smart.js';
 import { reportMailto } from './support.js';
+import { tajweedWords, TAJWEED_GROUPS } from './tajweed.js';
 import { eidText, eidSections, currentEid, type EidKind } from './eid.js';
 import { zakatFigures, parseAmount, GOLD_NISAB_G, SILVER_NISAB_G } from './zakat.js';
 import { drawCard, CARD_TEXTS, CARD_STYLES, NOTE_MAX as CARD_NOTE_MAX, type CardText, type CardStyle } from './cards.js';
@@ -139,7 +140,11 @@ function quranMore(): string {
 }
 function quranView(): string { return `<p class="eyebrow mt12">${t('quran')}</p><h1 class="page-title">${t('readerTitle')}</h1><p class="page-sub">${t('readerSub')}</p><button class="feature-wide row mb16" data-action="read-last"><span class="gold">${ic('bookmark', 23)}</span><span class="grow"><span class="tiny muted">${t('lastRead')}</span><h3>${escapeHtml(chapter(state.readPosition.surah).name)} · ${num(state.readPosition.ayah)}</h3></span>${ic('chevron', 16)}</button>${khatmEntry()}${hifzEntry()}${reviewEntry()}<label class="search-box">${ic('search', 18)}<input id="surah-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${escapeHtml(libraryQuery)}"></label><div class="segment"><button data-action="library-filter" data-filter="all" class="${libraryFilter === 'all' ? 'active' : ''}">${t('all')}</button><button data-action="library-filter" data-filter="bookmarks" class="${libraryFilter === 'bookmarks' ? 'active' : ''}">${t('bookmarks')} · ${num(state.bookmarks.length)}</button></div><label class="select-row">${ic('layers', 17)}<select id="juz-filter" aria-label="${t('juz')}"><option value="0">${t('allJuz')}</option>${Array.from({ length: 30 }, (_, i) => `<option value="${i + 1}" ${libraryJuz === i + 1 ? 'selected' : ''}>${t('juz')} ${num(i + 1)}</option>`).join('')}</select></label><div id="surah-list">${surahRows()}</div>${quranMore()}<p class="gentle">${t('offline')} · <a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`; }
 /** Word spans for highlighting. Joined with single spaces they reproduce the source string exactly. */
-const wordSpans = (text: string) => ayahWords(text).map((w, i) => `<span class="w" data-w="${i}">${escapeHtml(w)}</span>`).join(' ');
+/** Tajweed spans by "surah:ayah", loaded the first time the colours are switched on (about 0.7 MB, bundled). */
+let tajweedSpans: Record<string, [number, number, number][]> | null = null;
+async function loadTajweed(): Promise<void> { if (!tajweedSpans) tajweedSpans = (await import('./tajweed-data.js')).default.spans; }
+/** The ayah's words in reader spans; with Tajweed colours on, each word coloured inside (the text is unchanged). */
+const wordSpans = (text: string, key?: string) => { const tj = key && state.tajweedColours && tajweedSpans ? tajweedWords(text, tajweedSpans[key] ?? []) : null; return ayahWords(text).map((w, i) => `<span class="w" data-w="${i}">${tj ? tj[i] : escapeHtml(w)}</span>`).join(' '); };
 function followWhere(): string {
     if (follow.status === 'loading') return t('followNote');
     if (follow.surah && follow.ayah) return `${t('following')}: ${escapeHtml(chapter(follow.surah).name)} · ${ref(follow.surah, follow.ayah)}`;
@@ -312,6 +317,11 @@ function sheetActions(d: HTMLDialogElement, reopen: () => void, stay: string[]):
     };
     d.oncancel = e => { e.preventDefault(); d.close(); };
 }
+/** Tajweed colours switch, legend and notes (Cards and Easy reading; the Mushaf page keeps its plain lines). */
+function tajweedSwitch(page: boolean): string {
+    const legend = state.tajweedColours ? `<div class="tj-legend" lang="${state.locale}">${Object.keys(TAJWEED_GROUPS).map(g => `<span><i class="tj-dot tj-${g}"></i>${t(`tj_${g}`)}</span>`).join('')}</div><p class="vs-fine">${t('tajweedNote')}</p><p class="vs-fine">${t('tajweedCredit')}</p>` : '';
+    return `<label class="r-switch"><span>${t('tajweedColours')}<small>${t(page ? 'tajweedPageNote' : 'tajweedOnlyColour')}</small></span><input type="checkbox" data-action="toggle-tajweed" ${state.tajweedColours ? 'checked' : ''}></label>${legend}`;
+}
 /** Reading settings: layout, theme, text size, translation, and the way to the reading-style chooser. */
 function openReaderSettings(): void {
     const d = sheetDialog('reader-settings'), layout = state.readingLayout, page = layout === 'page';
@@ -323,10 +333,10 @@ function openReaderSettings(): void {
     d.innerHTML = `<div class="vs-grab" aria-hidden="true"></div><div class="vs-head"><div class="grow"><h2>${t('readingSettings')}</h2></div><button class="r-btn" data-action="sheet-close" aria-label="${t('close')}">${ic('close', 18)}</button></div>
 <p class="vs-label">${t('readingMode')}</p>${seg('layout', 'layout', [['page', t('modeMushaf')], ['flow', t('modeEasy')], ['cards', t('modeCards')]], layout)}
 <p class="vs-label">${t('readingThemeLabel')}</p>${seg('reader-theme', 'theme', [['auto', t('themeAuto')], ['classic', t('themeClassic')], ['night', t('themeNight')]], state.readingTheme)}
-<p class="vs-label">${t('textSize')}</p>${size}${tr}
+<p class="vs-label">${t('textSize')}</p>${size}${tr}${tajweedSwitch(page)}
 <div class="vs-list mt12"><button class="vs-row" data-action="mushaf-open">${ic('book', 18)}<span class="grow">${t('readingStylesLink')}</span>${ic('chevron', 15)}</button>${practice}</div>
 <p class="vs-fine center"><a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`;
-    sheetActions(d, openReaderSettings, ['layout', 'reader-theme', 'reader-size', 'toggle-translation']);
+    sheetActions(d, openReaderSettings, ['layout', 'reader-theme', 'reader-size', 'toggle-translation', 'toggle-tajweed']);
     if (!d.open) d.showModal();
 }
 /** Go to: a page number, a juz', or a surah. */
@@ -357,7 +367,7 @@ function readerView(): string {
         // Mushaf order: the next page is on the left, whatever the interface language.
         return shell('r-page', `${bar}<div class="r-surface${turnCls}" aria-label="${t('pageN').replace('{n}', num(readerPage))}">${pageBody(state, readerPage, menuVerse)}</div><footer class="r-foot" dir="ltr">${turn(readerPage + 1, 'nextPage', 'prev')}<div class="r-pageno"><span>${num(readerPage)}</span><span class="r-progress" role="progressbar" aria-label="${t('pageN').replace('{n}', num(readerPage))}" aria-valuemin="1" aria-valuemax="${PAGE_COUNT}" aria-valuenow="${readerPage}"><i style="width:${(readerPage / PAGE_COUNT * 100).toFixed(2)}%"></i></span></div>${turn(readerPage - 1, 'prevPage', 'next')}</footer>`);
     }
-    const body = layout === 'flow' ? easyBody(state, s.id, menuVerse, state.worship.prefs.translation, wordSpans) : `<div class="r-cards">${s.verses.map((text, i) => { const a = i + 1, k = `${s.id}:${a}`, saved = state.bookmarks.includes(k); return `<article class="ayah-card" id="ayah-${a}"><div class="row between"><span class="ayah-meta">${ref(s.id, a)}</span><div class="ayah-tools"><button class="icon-button" data-action="play-verse" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('play')} ${s.id}:${a}">${ic('play')}</button><button class="icon-button ${saved ? 'active' : ''}" data-action="bookmark" data-surah="${s.id}" data-ayah="${a}" aria-label="${t(saved ? 'removeBookmark' : 'bookmark')} ${s.id}:${a}" aria-pressed="${saved}">${ic('bookmark')}</button><button class="icon-button" data-action="record-ayah" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('recite')} ${s.id}:${a}">${ic('mic')}</button><button class="icon-button" data-action="report" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('reportIssue')} ${s.id}:${a}">${ic('flag')}</button><button class="icon-button" data-action="verse-menu" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('verseMenu')} ${s.id}:${a}">${ic('more')}</button></div></div><p class="arabic ayah-text" lang="ar" dir="rtl"><span class="ayah-src${hlClass(s.id, a)}">${wordSpans(text)}</span> ${marker(a)}</p><a class="text-link" href="https://quran.com/${s.id}/${a}" target="_blank" rel="noopener noreferrer">${t('translation')} ${ic('arrow', 12)}</a></article>`; }).join('')}</div>`;
+    const body = layout === 'flow' ? easyBody(state, s.id, menuVerse, state.worship.prefs.translation, wordSpans) : `<div class="r-cards">${s.verses.map((text, i) => { const a = i + 1, k = `${s.id}:${a}`, saved = state.bookmarks.includes(k); return `<article class="ayah-card" id="ayah-${a}"><div class="row between"><span class="ayah-meta">${ref(s.id, a)}</span><div class="ayah-tools"><button class="icon-button" data-action="play-verse" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('play')} ${s.id}:${a}">${ic('play')}</button><button class="icon-button ${saved ? 'active' : ''}" data-action="bookmark" data-surah="${s.id}" data-ayah="${a}" aria-label="${t(saved ? 'removeBookmark' : 'bookmark')} ${s.id}:${a}" aria-pressed="${saved}">${ic('bookmark')}</button><button class="icon-button" data-action="record-ayah" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('recite')} ${s.id}:${a}">${ic('mic')}</button><button class="icon-button" data-action="report" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('reportIssue')} ${s.id}:${a}">${ic('flag')}</button><button class="icon-button" data-action="verse-menu" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('verseMenu')} ${s.id}:${a}">${ic('more')}</button></div></div><p class="arabic ayah-text" lang="ar" dir="rtl"><span class="ayah-src${hlClass(s.id, a)}">${wordSpans(text, k)}</span> ${marker(a)}</p><a class="text-link" href="https://quran.com/${s.id}/${a}" target="_blank" rel="noopener noreferrer">${t('translation')} ${ic('arrow', 12)}</a></article>`; }).join('')}</div>`;
     const surahTurn = (to: number, key: string, icon: string) => to >= 1 && to <= 114 ? `<button class="r-btn" data-action="read-surah" data-surah="${to}" aria-label="${t(key)}">${ic(icon, 18)}</button>` : '<span class="r-btn-space"></span>';
     return shell(`r-${layout}`, `${bar}<div class="r-surface">${body}</div><footer class="r-foot" dir="ltr">${surahTurn(s.id + 1, 'nextSurah', 'prev')}<div class="r-pageno"><span>${num(s.id)} / ${num(114)}</span><span class="r-progress"><i style="width:${(s.id / 114 * 100).toFixed(2)}%"></i></span></div>${surahTurn(s.id - 1, 'prevSurah', 'next')}</footer>`);
 }
@@ -2226,6 +2236,12 @@ async function handleAction(el: HTMLElement): Promise<void> {
             ayahBrowse = null; ayahPin = null;
             { const y = window.scrollY; render(); window.scrollTo(0, y); }
             break;
+        case 'toggle-tajweed':
+            pinAyah();
+            if (!state.tajweedColours) await loadTajweed();
+            await commit({ ...state, tajweedColours: !state.tajweedColours });
+            { const y = window.scrollY; render(); window.scrollTo(0, y); }
+            break;
         case 'toggle-translation':
             pinAyah();
             await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, translation: !state.worship.prefs.translation } } });
@@ -2798,6 +2814,7 @@ window.addEventListener('popstate', () => { const target = location.hash.slice(1
 async function boot(): Promise<void> { try {
     await initializeBridge();
     state = await loadState();
+    if (state.tajweedColours) await loadTajweed().catch(() => undefined);
     readerSurah = state.readPosition.surah;
     try {
         savedClips = await listRecordings();

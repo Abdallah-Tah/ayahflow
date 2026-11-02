@@ -29,8 +29,9 @@ export const READER_SCALE = [0.85, 0.95, 1.05, 1.2, 1.35, 1.55, 1.8] as const;
  * v21 → v22 added the Quran font choice (`quranFont`, DigitalKhatt Madina, the font earlier builds already showed);
  * v22 → v23 added the Islamic-occasion reminders (`calendar.occasions`, all off);
  * v23 → v24 added the tasbih look (`worship.prefs.tasbihTheme`, the bead ring earlier builds showed);
- * v24 → v25 added the Hijri date correction (`hijriOffset`, 0: the Umm al-Qura date as before). */
-export const STATE_VERSION = 25;
+ * v24 → v25 added the Hijri date correction (`hijriOffset`, 0: the Umm al-Qura date as before);
+ * v25 → v26 added Tajweed colouring in the reader (`tajweedColours`, off). */
+export const STATE_VERSION = 26;
 /** Days added to the Umm al-Qura date to match local moon sighting. */
 export const HIJRI_OFFSETS = [-1, 0, 1] as const;
 import ATHAN_DATA from './athan-data.js';
@@ -269,7 +270,8 @@ export const PAGE_TOTAL = 604;
 export interface HighlightReview { key: string; day: string; result: 'remembered' | 'revisit' }
 export const HIGHLIGHT_REVIEW_MAX = 1000;
 export interface AppState {
-    version: 25;
+    version: 26;
+    tajweedColours: boolean;
     hijriOffset: typeof HIJRI_OFFSETS[number];
     khatm: Khatm | null;
     fajrAlarm: FajrAlarm;
@@ -325,7 +327,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 25, hijriOffset: 0, quranFont: 'madina', khatm: null, fajrAlarm: defaultFajrAlarm(), calendar: defaultCalendar(), highlightReviews: [], readingTheme: 'auto', readerSize: 2, highlights: [], notes: [], worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 26, tajweedColours: false, hijriOffset: 0, quranFont: 'madina', khatm: null, fajrAlarm: defaultFajrAlarm(), calendar: defaultCalendar(), highlightReviews: [], readingTheme: 'auto', readerSize: 2, highlights: [], notes: [], worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -453,12 +455,14 @@ export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
     const s = raw as Omit<AppState, 'quranFont' | 'khatm' | 'fajrAlarm' | 'calendar' | 'highlightReviews' | 'readingTheme' | 'readerSize' | 'highlights' | 'notes' | 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; quranFont?: QuranFont; khatm?: Khatm | null; fajrAlarm?: FajrAlarm; calendar?: CalendarReminders; highlightReviews?: HighlightReview[]; readingTheme?: ReadingTheme; readerSize?: number; highlights?: Highlight[]; notes?: VerseNote[]; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
     if (s.version >= 3 && (!['s', 'm', 'l', 'xl'].includes(s.arabicSize!) || !(s.version >= 16 ? ['cards', 'flow', 'page'] : ['cards', 'flow']).includes(s.readingLayout!)))
         throw new Error('Invalid reading settings');
+    if (s.version >= 26 && typeof (s as { tajweedColours?: unknown }).tajweedColours !== 'boolean')
+        throw new Error('Invalid Tajweed setting');
     if (s.version >= 25 && !(HIJRI_OFFSETS as readonly number[]).includes((s as { hijriOffset?: number }).hijriOffset as number))
         throw new Error('Invalid Hijri correction');
     if (s.version >= 22 && !(QURAN_FONT_IDS as readonly string[]).includes(s.quranFont!))
@@ -584,7 +588,7 @@ export function validateState(raw: unknown): AppState {
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone({ ...s, version: 25, hijriOffset: s.version < 25 ? 0 : (s as { hijriOffset?: AppState['hijriOffset'] }).hijriOffset!, quranFont: s.version < 22 ? 'madina' : s.quranFont!, khatm: s.version < 20 ? null : s.khatm!, fajrAlarm: s.version < 19 ? defaultFajrAlarm() : s.fajrAlarm!, calendar: s.version < 18 ? defaultCalendar() : s.version < 21 ? { ...s.calendar!, suhoor: false, iftar: false, occasions: defaultOccasions() } : s.version < 23 ? { ...s.calendar!, occasions: defaultOccasions() } : s.calendar!, highlightReviews: s.version < 18 ? [] : s.highlightReviews!, readingTheme: s.version < 17 ? 'auto' : s.readingTheme!, readerSize: s.version < 17 ? 2 : s.readerSize!, highlights: s.version < 16 ? [] : s.highlights!, notes: s.version < 16 ? [] : s.notes!, worship: s.version < 13 ? defaultWorship() : s.version < 24 ? { ...s.worship!, prefs: { ...s.worship!.prefs, tasbihTheme: 'ring' } } : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    return structuredClone({ ...s, version: 26, tajweedColours: s.version < 26 ? false : (s as { tajweedColours?: boolean }).tajweedColours!, hijriOffset: s.version < 25 ? 0 : (s as { hijriOffset?: AppState['hijriOffset'] }).hijriOffset!, quranFont: s.version < 22 ? 'madina' : s.quranFont!, khatm: s.version < 20 ? null : s.khatm!, fajrAlarm: s.version < 19 ? defaultFajrAlarm() : s.fajrAlarm!, calendar: s.version < 18 ? defaultCalendar() : s.version < 21 ? { ...s.calendar!, suhoor: false, iftar: false, occasions: defaultOccasions() } : s.version < 23 ? { ...s.calendar!, occasions: defaultOccasions() } : s.calendar!, highlightReviews: s.version < 18 ? [] : s.highlightReviews!, readingTheme: s.version < 17 ? 'auto' : s.readingTheme!, readerSize: s.version < 17 ? 2 : s.readerSize!, highlights: s.version < 16 ? [] : s.highlights!, notes: s.version < 16 ? [] : s.notes!, worship: s.version < 13 ? defaultWorship() : s.version < 24 ? { ...s.worship!, prefs: { ...s.worship!.prefs, tasbihTheme: 'ring' } } : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */

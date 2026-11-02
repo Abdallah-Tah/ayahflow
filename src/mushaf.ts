@@ -156,9 +156,9 @@ export function pageBody(state: AppState, page: number, selected: string | null 
 }
 /** Easy reading: the whole surah at the chosen size; with translation, verse by verse with Pickthall under each.
  * `words` renders a verse's text (the app passes its word spans so voice following can mark words). */
-export function easyBody(state: AppState, surah: number, selected: string | null, showTranslation: boolean, words: (text: string) => string = esc): string {
+export function easyBody(state: AppState, surah: number, selected: string | null, showTranslation: boolean, words: (text: string, key?: string) => string = esc): string {
     const c = chapter(surah);
-    const verses = c.verses.map((text, i) => verseSpan(state, surah, i + 1, selected, words(text), `ayah-${i + 1}`));
+    const verses = c.verses.map((text, i) => verseSpan(state, surah, i + 1, selected, words(text, `${surah}:${i + 1}`), `ayah-${i + 1}`));
     const body = showTranslation
         ? verses.map((v, i) => `<div class="e-verse"><p class="q-text e-ar" lang="ar" dir="rtl">${v}</p><p class="e-tr" lang="en" dir="ltr"><span class="e-n">${i + 1}</span>${esc(translation(surah, i + 1))}</p></div>`).join('') + `<p class="e-credit">${esc(TRANSLATION_SOURCE.name)}</p>`
         : `<p class="q-text e-flow" lang="ar" dir="rtl">${verses.join(' ')}</p>`;
