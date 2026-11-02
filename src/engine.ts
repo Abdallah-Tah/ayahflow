@@ -413,6 +413,25 @@ export function applyAnswer(state: AppState, item: QueueItem, correct: boolean, 
     return { ...state, cards: { ...state.cards, [item.key]: card }, xp: state.xp + (correct ? 10 : 2), recallSelfChecks: state.recallSelfChecks + (item.mode === 'recall' ? 1 : 0), attempts: [...state.attempts, { id: eventId, cardKey: item.key, at, day: today, correct, mode: item.mode }].slice(-5000), days: { ...state.days, [today]: (state.days[today] ?? 0) + 1 } };
 }
 export function retention(card: ReviewCard): 'new' | 'learning' | 'retained' { return card.attempts === 0 ? 'new' : card.successDays.length >= 3 && calendarDistance(card.successDays.at(-1)!, card.successDays[0]!) >= 7 ? 'retained' : 'learning'; }
+/** Review stage of a card, derived only from its scheduling: Learning (fewer than three successful review days in a row,
+ * interval under 4 days), Familiar (interval 4 days or more), Strong (also "retained": three successful days spanning a
+ * week), Mastered (retained with an interval of 20 days or more, i.e. five successful review days in a row). A missed
+ * review resets the interval, so the card goes back to Learning. It measures spaced-review recall, not Tajweed. */
+export type ReviewStage = 'learning' | 'familiar' | 'strong' | 'mastered';
+export const REVIEW_STAGES: readonly ReviewStage[] = ['learning', 'familiar', 'strong', 'mastered'];
+export const FAMILIAR_DAYS = 4, MASTERED_DAYS = 20;
+export function reviewStage(card: ReviewCard): ReviewStage | null {
+    if (card.attempts === 0) return null;
+    const kept = retention(card) === 'retained';
+    return kept && card.intervalDays >= MASTERED_DAYS ? 'mastered' : kept ? 'strong' : card.intervalDays >= FAMILIAR_DAYS ? 'familiar' : 'learning';
+}
+/** Cards per stage, quiz evidence and self-assessed recall counted apart. */
+export function stageCounts(state: AppState): Record<'quiz' | 'self-assessed', Record<ReviewStage, number>> {
+    const zero = () => ({ learning: 0, familiar: 0, strong: 0, mastered: 0 });
+    const out = { quiz: zero(), 'self-assessed': zero() };
+    for (const c of Object.values(state.cards)) { const st = reviewStage(c); if (st) out[c.evidence][st]++; }
+    return out;
+}
 export function dueItems(state: AppState, now = Date.now()): ReviewCard[] { return Object.values(state.cards).filter(c => c.dueAt <= now && state.selectedSurahs.includes(c.surah)); }
 export function weakItems(state: AppState): ReviewCard[] { return Object.values(state.cards).filter(c => c.lapses > 0 && retention(c) !== 'retained').sort((a, b) => b.lapses - a.lapses || a.lastAt - b.lastAt).slice(0, 6); }
 export function completedAccuracy(state: AppState): number | null { const a = state.attempts.filter(v => v.mode !== 'recall'); return a.length ? Math.round(a.filter(v => v.correct).length / a.length * 100) : null; }
