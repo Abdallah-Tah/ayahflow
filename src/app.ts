@@ -10,7 +10,7 @@ import { initializeBridge, loadState, saveState, listRecordings, putRecording, d
 import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, type Clip } from './audio.js';
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { placeCard, setPlaceRadius } from './places.js';
-import { calendarReminders, upcomingFasts, upcomingDays, type FastReason } from './calendar.js';
+import { calendarReminders, upcomingFasts, upcomingDays, islamicOccasions, calendarSpan, type FastReason, type Occasion } from './calendar.js';
 import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
 import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES } from './alarm.js';
 import { hifzRange, hifzQueue, hiddenWord, HIFZ_REPEATS, HIFZ_LEVELS, HIFZ_MAX_AYAHS } from './hifz.js';
@@ -20,7 +20,7 @@ import { khatmToday, startKhatm, endKhatm, setKhatmPage, turnedPage, KHATM_DAYS 
 import { pageBody, easyBody, readerTitle, readingStyles, quranFontChooser, pageFor, clampPage, toEndOfJuz } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
-type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review' | 'wake' | 'khatm' | 'names' | 'hifz';
+type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review' | 'wake' | 'khatm' | 'names' | 'hifz' | 'occasions';
 let state: AppState = initialState();
 let view: View = 'today';
 let selectedOption: string | null = null;
@@ -113,13 +113,13 @@ catch (e) {
     throw e;
 } }
 function wave(): string { return `<span class="wave" aria-hidden="true">${[8, 13, 20, 12, 26, 32, 20, 37, 24, 16, 29, 19, 12, 7].map((h, i) => `<i style="--h:${h}px;--delay:${i * .067}s"></i>`).join('')}</span>`; }
-function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review', 'khatm', 'hifz'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' || view === 'names' ? 'adhkar' : view === 'prayer' || view === 'tasbih' || view === 'wake' ? 'prayer' : view === 'steps' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
+function nav(): string { const active = ['reader', 'practice', 'lesson', 'tajweed', 'recite', 'verses', 'recitations', 'result', 'review', 'khatm', 'hifz'].includes(view) ? 'quran' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' || view === 'names' ? 'adhkar' : view === 'prayer' || view === 'tasbih' || view === 'wake' ? 'prayer' : view === 'steps' || view === 'occasions' ? 'today' : view; return `<nav class="bottom-nav" aria-label="Main">${[['today', 'home', 'home'], ['adhkar', 'tasbih', 'adhkar'], ['quran', 'book', 'quran'], ['prayer', 'mosque', 'prayers'], ['progress', 'chart', 'progress']].map(([v, i, l]) => `<button class="nav-item ${active === v ? 'selected' : ''}" data-action="nav" data-view="${v}" ${active === v ? 'aria-current="page"' : ''}>${ic(i!)}<span>${t(l!)}</span></button>`).join('')}</nav>`; }
 function header(): string {
     if (view === 'session' && state.session) {
         const s = state.session;
         return `<header class="app-header">${actionButton('pause', ic('close'), 'icon-button', `aria-label="${t('pause')}"`)}<span class="header-detail">${t('question')} ${num(s.index + 1)} ${t('of')} ${num(s.queue.length)}</span><span class="top-meta">${ic('leaf', 16)} ${num(state.xp)}</span></header>`;
     }
-    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake', 'khatm', 'names', 'hifz'].includes(view))
+    if (['reader', 'lesson', 'recite', 'tajweed', 'practice', 'settings', 'moment', 'reminders', 'counter', 'steps', 'rotation', 'tasbih', 'verses', 'recitations', 'review', 'wake', 'khatm', 'names', 'hifz', 'occasions'].includes(view))
         return `<header class="app-header">${backButton()}<span class="header-wordmark">Ayah<span class="gold">Flow</span></span><span style="width:44px"></span></header>`;
     return `<header class="app-header"><button class="brand" data-action="nav" data-view="today" aria-label="AyahFlow ${t('today')}"><img src="./assets/icon.svg" alt=""><span>Ayah<span>Flow</span></span></button><div class="row gap8"><span class="top-meta" title="${t('fullDays')}" aria-label="${t('fullDays')}: ${num(salahStreak(state))}">${ic('leaf', 15)} ${num(salahStreak(state))}</span><button class="icon-button" data-action="nav" data-view="settings" aria-label="${t('settings')}">${ic('gear', 21)}</button></div></header>`;
 }
@@ -642,7 +642,7 @@ function hijri(date = new Date()): string {
 }
 function dateLine(): string {
     const now = new Date();
-    return `<p class="date-line"><span>${escapeHtml(now.toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span class="date-dot" aria-hidden="true"></span><span class="gold" title="${t('hijriNote')}">${escapeHtml(hijri(now))}</span></p>`;
+    return `<p class="date-line"><span>${escapeHtml(now.toLocaleDateString(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span class="date-dot" aria-hidden="true"></span><button class="link-button gold" data-action="nav" data-view="occasions" title="${t('hijriNote')}" aria-label="${escapeHtml(hijri(now))}: ${t('occasionsTitle')}">${escapeHtml(hijri(now))}</button></p>`;
 }
 function bannerTitle(): string { return audioState === 'loading' ? t('loadingAudio') : previewing ? t('athan') : t(ownAudio ? 'yourRecording' : 'reference'); }
 function bannerSub(): string { return previewing ? reciterName(previewing) : ownAudio ? t('privateRecording') : queueLabel ? `${queueLabel} · ${t('audioProvider')}` : t('audioProvider'); }
@@ -1104,6 +1104,30 @@ function setHifzRange(): void {
     hifz = { ...h, ...hifzRange(surah, from, to) };
     keepScroll();
 }
+// ---- Islamic calendar ---------------------------------------------------------------------------------
+const OCCASION_SUB: Partial<Record<Occasion['kind'], string>> = { 'last-ten': 'occSub_lastTen', 'ramadan-end': 'occSub_ramadanEnd', 'dhul-hijjah-ten': 'occSub_tenDays' };
+const gDate = (at: number, opts: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'long' }) => new Date(at).toLocaleDateString(state.locale, opts);
+function inDays(o: Occasion, now = Date.now()): string {
+    const today = dayKey(now), span = calendarSpan(o);
+    if (span.includes(today)) return t('occToday');
+    const n = Math.round((new Date(o.at).setHours(12) - new Date(now).setHours(12, 0, 0, 0)) / 86400000);
+    return n === 1 ? t('occTomorrow') : t('occInDays').replace('{n}', num(n));
+}
+function occasionRow(o: Occasion): string {
+    const end = o.days > 1 ? ` – ${escapeHtml(gDate(new Date(o.at).setDate(new Date(o.at).getDate() + o.days - 1), { day: 'numeric', month: 'long' }))}` : '';
+    const sub = OCCASION_SUB[o.kind];
+    return `<li class="occasion occ-${o.kind}"><div class="grow"><h3>${t(`occ_${o.kind}`)}</h3><p class="tiny muted">${escapeHtml(gDate(o.at))}${end} · <span class="gold">${escapeHtml(hijri(new Date(o.at)))}</span></p>${sub ? `<p class="tiny muted">${t(sub)}</p>` : ''}</div><span class="pill">${inDays(o)}</span></li>`;
+}
+function occasionsView(): string {
+    const list = islamicOccasions();
+    return `<p class="eyebrow mt12">${t('hijriCalendar')}</p><h1 class="page-title">${t('occasionsTitle')}</h1><div class="notice mb16">${ic('moon', 18)}<p>${t('occasionsNote')}</p></div><ol class="occasions">${list.map(occasionRow).join('')}</ol><p class="tiny muted mt20">${t('mawlidNote')}</p>`;
+}
+/** The next occasion within two weeks (or today's), on Today. */
+function occasionCard(): string {
+    const o = islamicOccasions(Date.now(), 14).find(x => x.kind !== 'ramadan-start' || !ramadanToday(state));
+    if (!o) return '';
+    return `<button class="feature-wide row mb16" data-action="nav" data-view="occasions"><span class="gold">${ic('moon', 22)}</span><span class="grow"><h3>${t(`occ_${o.kind}`)}</h3><p>${escapeHtml(gDate(o.at))} · ${inDays(o)} · ${t('occSighting')}</p></span>${chevronEnd()}</button>`;
+}
 // ---- Ramadan ----------------------------------------------------------------------------------------
 const narration = (id: 'qadr-nights' | 'qadr-dua') => { const x = RAMADAN_TEXT.find(r => r.id === id)!; return `<p class="arabic ramadan-text" lang="ar" dir="rtl">${escapeHtml(x.text)}</p><p class="tiny muted"><a dir="ltr" href="${sourceUrl(x.source)}" target="_blank" rel="noopener noreferrer">${escapeHtml(x.source.collection)} ${x.source.number}${ic('link', 11)}</a>${x.source.grades.length ? ` · <bdi dir="ltr">${x.source.grades.map(g => `${escapeHtml(g.by)}: ${escapeHtml(g.grade)}`).join('; ')}</bdi>` : ''}</p>`; };
 function ramadanCard(): string {
@@ -1268,7 +1292,7 @@ async function syncCalendar(): Promise<void> {
     await bridge.scheduleCalendar(calendarReminders(state, { jumuah: { title: t('jumuahTitle'), body: t('jumuahBody') }, fast: r => ({ title: t('fastTitle').replace('{why}', fastWhy(r)), body: t('fastBody') }), suhoor: f => ({ title: t('suhoorTitle'), body: t('suhoorBody').replace('{time}', clock(f)) }), iftar: m => ({ title: t('iftarTitle'), body: t('iftarBody').replace('{time}', clock(m)) }) }));
 }
 function homeView(): string {
-    return `${dateLine()}${watchCard()}${fridayCard()}${ramadanCard()}${khatmCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
+    return `${dateLine()}${watchCard()}${fridayCard()}${ramadanCard()}${khatmCard()}${occasionCard()}${nextPrayerWidget()}${trackerWidget()}${quickDhikrWidget()}${ayahWidget()}
 <div class="tile-row"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('dailyVerseSub')}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>
 ${qiblaTile()}${nowCard()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
 }
@@ -1418,7 +1442,7 @@ function currentPrayer(now = Date.now()): PrayerName {
     return [...PRAYERS].reverse().find(p => times[p] <= now) ?? 'isha';
 }
 
-const views: Record<View, () => string> = { hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
+const views: Record<View, () => string> = { occasions: occasionsView, hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
 function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } syncCompass(); showReciting(false); }
@@ -1481,7 +1505,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             await navigate(d.view as View);
             break;
         case 'back':
-            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' || view === 'khatm' || view === 'hifz' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' || view === 'names' ? 'adhkar' : view === 'tasbih' || view === 'wake' ? 'prayer' : 'practice');
+            await navigate(view === 'reader' || view === 'verses' || view === 'recitations' || view === 'practice' || view === 'review' || view === 'khatm' || view === 'hifz' ? 'quran' : view === 'lesson' ? 'tajweed' : view === 'settings' || view === 'steps' || view === 'occasions' ? 'today' : view === 'moment' || view === 'reminders' || view === 'counter' || view === 'rotation' || view === 'names' ? 'adhkar' : view === 'tasbih' || view === 'wake' ? 'prayer' : 'practice');
             break;
         case 'daily':
             await launch('mixed', 'daily');

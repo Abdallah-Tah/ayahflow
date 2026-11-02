@@ -118,3 +118,32 @@ export function upcomingDays(copy: { jumuah: string; jumuahSub: string; fast: st
     }
     return out.slice(0, max);
 }
+
+/** Occasions of the Hijri year on Umm al-Qura dates (local sighting may differ by a day; Ramadan may have 29 or 30
+ * days). The Prophet's birthday (12 Rabi' al-Awwal) is not listed: whether to mark it is disputed among scholars, and
+ * a date in this list would read as a recommendation; the calendar view says so. */
+export type OccasionKind = 'new-year' | 'tasua' | 'ashura' | 'ramadan-start' | 'last-ten' | 'ramadan-end' | 'eid-fitr' | 'dhul-hijjah-ten' | 'arafah' | 'eid-adha' | 'tashreeq';
+export interface Occasion { kind: OccasionKind; day: string; at: number; days: number; hijri: HijriDate }
+const FIXED: readonly [OccasionKind, number, number, number][] = [
+    ['new-year', 1, 1, 1], ['tasua', 1, 9, 1], ['ashura', 1, 10, 1], ['ramadan-start', 9, 1, 1], ['last-ten', 9, 20, 1],
+    ['eid-fitr', 10, 1, 1], ['dhul-hijjah-ten', 12, 1, 10], ['arafah', 12, 9, 1], ['eid-adha', 12, 10, 1], ['tashreeq', 12, 11, 3],
+];
+/** Occasions that have not ended, from today through the next `days` days, soonest first. `last-ten` is the 20th of
+ * Ramadan: the first of the last ten nights begins at its Maghrib. `ramadan-end` is the last day before 1 Shawwal. */
+export function islamicOccasions(now = Date.now(), days = 384): Occasion[] {
+    const out: Occasion[] = [], dateAt = (i: number) => { const d = new Date(now); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + i); return d; };
+    for (let i = -12; i <= days; i++) {
+        const d = dateAt(i), h = hijriDate(d);
+        if (!h) continue;
+        const add = (kind: OccasionKind, span: number) => { if (i + span - 1 >= 0) { const s = new Date(d); s.setHours(0, 0, 0, 0); out.push({ kind, day: dayKey(d.getTime()), at: s.getTime(), days: span, hijri: h }); } };
+        for (const [kind, m, day, span] of FIXED) if (h.month === m && h.day === day) add(kind, span);
+        if (h.month === 9 && hijriDate(dateAt(i + 1))?.month === 10) add('ramadan-end', 1);
+    }
+    return out;
+}
+/** The occasion covering a local day, if any (for the Eid view and the Today card). */
+export function occasionOn(date: Date, kinds?: readonly OccasionKind[]): Occasion | null {
+    const today = dayKey(date.getTime());
+    return islamicOccasions(date.getTime(), 0).find(o => (!kinds || kinds.includes(o.kind)) && calendarSpan(o).includes(today)) ?? null;
+}
+export function calendarSpan(o: Occasion): string[] { return Array.from({ length: o.days }, (_, i) => { const d = new Date(o.at); d.setHours(12); d.setDate(d.getDate() + i); return dayKey(d.getTime()); }); }
