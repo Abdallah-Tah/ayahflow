@@ -99,9 +99,9 @@ const W: Record<string, [string, string, string]> = {
     mushaf: ['Mushaf pages', 'Pages du Mushaf', 'صفحات المصحف'],
     mushafSub: ['One Madani page at a time, sized to fit your screen.', 'Une page de Médine à la fois, ajustée à votre écran.', 'صفحة مدنية واحدة في كل مرة، بحجم يناسب شاشتك.'],
     easy: ['Easy reading', 'Lecture facile', 'القراءة الميسّرة'],
-    easySub: ['Continuous text at the size you choose, with optional translation.', 'Texte continu à la taille choisie, traduction en option.', 'نص متصل بالحجم الذي تختاره، مع ترجمة اختيارية.'],
+    easySub: ['One continuous text at the size you choose, like a page.', 'Un texte continu à la taille choisie, comme une page.', 'نص واحد متصل بالحجم الذي تختاره، كالصفحة.'],
     cards: ['Verse by verse', 'Verset par verset', 'آية آية'],
-    cardsSub: ['Each verse with listen, record and practice tools.', 'Chaque verset avec écoute, enregistrement et entraînement.', 'كل آية مع أدوات الاستماع والتسجيل والتدريب.'],
+    cardsSub: ['Each verse with its translation and listen, record and practice tools.', 'Chaque verset avec sa traduction et les outils d’écoute, d’enregistrement et d’entraînement.', 'كل آية مع ترجمتها وأدوات الاستماع والتسجيل والتدريب.'],
     f604: ['604 Madani page boundaries', 'Les 604 pages de Médine', 'حدود صفحات المصحف المدني الـ٦٠٤'],
     fLines: ['Lines set for your screen, not the printed 15-line layout', 'Lignes adaptées à l’écran, pas la mise en page imprimée de 15 lignes', 'أسطر تناسب شاشتك، لا تخطيط الأسطر الخمسة عشر المطبوع'],
     fOffline: ['Works offline', 'Fonctionne hors ligne', 'يعمل دون اتصال'],
@@ -141,7 +141,9 @@ function verseSpan(state: AppState, s: number, a: number, selected: string | nul
     const key = sameKey(s, a), hl = state.highlights.find(h => h.key === key)?.color, note = state.notes.some(n => n.key === key);
     const t = (k: string) => tr(k, state.locale), num = (n: number) => formatNumber(n, state.locale);
     // The last word and the medallion never break apart: a marker alone on a line looks like a missing verse end.
-    const cut = inner.lastIndexOf(' <span class="w"') >= 0 ? inner.lastIndexOf(' <span class="w"') : inner.lastIndexOf(' ');
+    // Word spans: cut before the last one; plain text: at the last space. Never at a space inside a tag (a one-word ayah
+    // such as 7:1 الٓمٓصٓ has no space between words, and its tag's own spaces must not be taken for one).
+    const cut = inner.includes('<') ? inner.lastIndexOf(' <span class="w"') : inner.lastIndexOf(' ');
     const head = cut >= 0 ? inner.slice(0, cut + 1) : '', tail = cut >= 0 ? inner.slice(cut + 1) : inner;
     return `<span class="q-v${hl ? ` hl hl-${hl}` : ''}${selected === key ? ' selected' : ''}" id="${id}" data-action="verse-menu" data-surah="${s}" data-ayah="${a}" role="button" tabindex="0" aria-label="${esc(chapter(s).name)} ${s}:${a}${hl ? ` · ${t('highlighted')}` : ''}${note ? ` · ${t('hasNote')}` : ''}">${head}<span class="q-tail">${tail}${note ? '<span class="note-dot" aria-hidden="true"></span>' : ''}\u00a0${ayahMarker(`${t('ayah')} ${num(a)}`, arabicDigits.format(a))}</span></span>`;
 }
@@ -154,15 +156,11 @@ export function pageBody(state: AppState, page: number, selected: string | null 
     const opening = page <= 2 ? ' q-opening' : '';
     return `<div class="q-page${opening}" data-page="${page}">${blocks}</div>`;
 }
-/** Easy reading: the whole surah at the chosen size; with translation, verse by verse with Pickthall under each.
- * `words` renders a verse's text (the app passes its word spans so voice following can mark words). */
-export function easyBody(state: AppState, surah: number, selected: string | null, showTranslation: boolean, words: (text: string, key?: string) => string = esc): string {
-    const c = chapter(surah);
-    const verses = c.verses.map((text, i) => verseSpan(state, surah, i + 1, selected, words(text, `${surah}:${i + 1}`), `ayah-${i + 1}`));
-    const body = showTranslation
-        ? verses.map((v, i) => `<div class="e-verse"><p class="q-text e-ar" lang="ar" dir="rtl">${v}</p><p class="e-tr" lang="en" dir="ltr"><span class="e-n">${i + 1}</span>${esc(translation(surah, i + 1))}</p></div>`).join('') + `<p class="e-credit">${esc(TRANSLATION_SOURCE.name)}</p>`
-        : `<p class="q-text e-flow" lang="ar" dir="rtl">${verses.join(' ')}</p>`;
-    return `<article class="e-surah">${surahHead(surah, state.locale)}${body}</article>`;
+/** Easy reading: the whole surah as one continuous text at the chosen size, like a page (the translation is in the
+ * Verses layout). `words` renders a verse's text (the app passes its word spans so voice following can mark words). */
+export function easyBody(state: AppState, surah: number, selected: string | null, words: (text: string, key?: string) => string = esc): string {
+    const verses = chapter(surah).verses.map((text, i) => verseSpan(state, surah, i + 1, selected, words(text, `${surah}:${i + 1}`), `ayah-${i + 1}`));
+    return `<article class="e-surah">${surahHead(surah, state.locale)}<p class="q-text e-flow" lang="ar" dir="rtl">${verses.join(' ')}</p></article>`;
 }
 /** A small live preview from the shipped text (never a picture of a printed page). */
 function preview(state: AppState, kind: 'page' | 'easy' | 'cards'): string {
@@ -182,7 +180,7 @@ export function readingStyles(state: AppState): string {
     const theme = (id: 'auto' | 'classic' | 'night') => { const on = state.readingTheme === id; return `<button class="t-card t-${id}${on ? ' on' : ''}" data-action="reader-theme" data-theme="${id}" aria-pressed="${on}"><span class="t-swatch" aria-hidden="true"><span lang="ar">رَبَّنَا</span></span><span class="t-name">${x(id)}</span><span class="t-sub">${x(id + 'Sub')}</span></button>`; };
     const others = MUSHAF_EDITIONS.filter(e => !e.available).map(e => `<li><strong>${esc(e.name[L(l)])}</strong><span>${esc(e.note[L(l)])}</span></li>`).join('');
     return `<section class="styles"><h2 class="s-title">${x('styleTitle')}</h2><p class="s-lead">${x('styleSub')}</p>
-<div class="s-list">${style('page', 'mushaf', 'page', ['f604', 'fLines', 'fOffline'])}${style('flow', 'easy', 'easy', ['fSize', 'fTr', 'fOffline'])}${style('cards', 'cards', 'cards', ['fTools', 'fSize'])}</div>
+<div class="s-list">${style('page', 'mushaf', 'page', ['f604', 'fLines', 'fOffline'])}${style('flow', 'easy', 'easy', ['fSize', 'fOffline'])}${style('cards', 'cards', 'cards', ['fTr', 'fTools', 'fSize'])}</div>
 <h3 class="s-sec">${x('theme')}</h3><div class="t-list">${theme('auto')}${theme('classic')}${theme('night')}</div>
 <h3 class="s-sec">${x('font')}</h3><p class="s-note">${x('fontSub')}</p>${quranFontChooser(state)}
 <h3 class="s-sec">${x('edition')}</h3><p class="s-note">${x('editionBody')}</p>

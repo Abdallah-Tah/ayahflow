@@ -111,14 +111,19 @@ test('Reader title: page and juz’ for pages, juz’ range for a surah, in the 
     assert.match(readerTitle(initialState(), 'flow', 1, 7).sub, /Juz’ 8–9 · 206 ayahs/);
 });
 
-test('Easy reading: whole surah verbatim, optional Pickthall under each verse, ids for voice following', () => {
-    const plain = easyBody(initialState(), 112, null, false);
+test('Easy reading: the whole surah as one continuous text, verbatim, no translation, ids for voice following', () => {
+    const plain = easyBody(initialState(), 112, '112:2');
     for (let a = 1; a <= 4; a++) assert.equal(textOf(plain, `ayah-${a}`), esc(verse(112, a)));
-    assert.ok(!plain.includes('e-tr'));
-    const withTr = easyBody(initialState(), 112, '112:2', true);
-    assert.ok(withTr.includes(esc(translation(112, 1))) && withTr.includes('Pickthall'));
-    assert.match(withTr, /class="q-v selected" id="ayah-2"/);
-    assert.match(easyBody(initialState(), 1, null, false, t => `<w>${t}</w>`), /<w>/, 'the app’s word spans are used');
+    assert.ok(!plain.includes('e-tr') && !plain.includes('Pickthall'), 'the translation is in the Verses layout');
+    assert.equal((plain.match(/class="q-text e-flow"/g) ?? []).length, 1, 'one continuous block');
+    assert.match(plain, /class="q-v selected" id="ayah-2"/);
+    assert.match(easyBody(initialState(), 1, null, t => `<w>${t}</w>`), /<w>/, 'the app’s word spans are used');
+});
+
+test('A one-word ayah keeps its word whole with the marker (7:1 once showed raw markup)', () => {
+    const html = easyBody(initialState(), 7, null, (t, k) => `<span class="w" data-w="0">${esc(t)}</span>`);
+    assert.equal(textOf(html, 'ayah-1'), esc(verse(7, 1)), 'no tag text leaks into the reading');
+    assert.ok(html.includes(`<span class="q-tail"><span class="w" data-w="0">${esc(verse(7, 1))}</span>`), 'the tag is whole');
 });
 
 test('Reading styles: three real layouts with live previews, honest features, themes; editions not in the app are secondary', () => {
