@@ -17,7 +17,7 @@ import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES,
 import { placeCard, setPlaceRadius } from './places.js';
 import { calendarReminders, upcomingFasts, upcomingDays, upcomingOccasions, ramadanSpan, setHijriOffset, hijriBase, islamicOccasions, calendarSpan, type FastReason, type Occasion, type UpcomingItem } from './calendar.js';
 import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
-import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES } from './alarm.js';
+import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES, alarmSound } from './alarm.js';
 import { hifzRange, hifzQueue, hiddenWord, HIFZ_REPEATS, HIFZ_LEVELS, HIFZ_MAX_AYAHS } from './hifz.js';
 import { RAMADAN_TEXT, ramadanToday, daysToRamadan } from './ramadan.js';
 import { NAMES, NAMES_LIST, NAMES_ABOUT, NAMES_QURAN, nameOfDay } from './names.js';
@@ -1329,14 +1329,14 @@ function fajrAlarmSection(times: { fajr: number; sunrise: number }): string {
     const denied = f.enabled && alarmInfo?.available && alarmInfo.authorization === 'denied' ? `<div class="notice warning mt12">${ic('info', 18)}<p>${t('alarmDenied')}</p></div>${actionButton('open-settings', `${ic('gear', 15)} ${t('openSettings')}`, 'button subtle mt12')}` : '';
     const fallback = f.enabled && alarmInfo && !alarmInfo.available ? `<div class="notice mt12">${ic('info', 18)}<p>${t('alarmFallback')}</p></div>` : '';
     const nextLine = f.enabled && next ? `<div class="diag mt12"><div class="diag-row"><span>${t('alarmNext')}</span><span class="ok">${escapeHtml(new Date(next.at).toLocaleDateString(state.locale, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${clock(next.at)}</span></div>${next.at < next.fajr + f.offset * 60000 ? `<p class="tiny muted mt8">${t('alarmClamped')}</p>` : ''}</div>` : '';
-    const settings = f.enabled ? `<h3 class="small gold mt20 mb8">${t('alarmWhen')}</h3>${seg('alarm-offset', FAJR_OFFSETS, f.offset, offsetLabel)}<p class="tiny muted mt8">${t('p_fajr')} ${clock(times.fajr)} · ${t('p_sunrise')} ${clock(times.sunrise)}</p><h3 class="small gold mt20 mb8">${t('alarmSnoozes')}</h3>${seg('alarm-snoozes', FAJR_SNOOZES, f.snoozes, n => n === 0 ? t('alarmNoSnooze') : num(n))}${f.snoozes ? `<h3 class="small gold mt20 mb8">${t('alarmSnoozeLength')}</h3>${seg('alarm-snooze-min', FAJR_SNOOZE_MINUTES, f.snoozeMinutes, n => t('minutesShort').replace('{n}', num(n)))}` : ''}<label class="setting-row mt20"><span><strong>${t('alarmCheck')}</strong><p>${t('alarmCheckNote').replace('{n}', num(ALARM_CHECK_MINUTES))}</p></span><input type="checkbox" id="fajr-check" ${f.check ? 'checked' : ''} aria-label="${t('alarmCheck')}"></label>` : '';
+    const settings = f.enabled ? `<h3 class="small gold mt20 mb8">${t('alarmWhen')}</h3>${seg('alarm-offset', FAJR_OFFSETS, f.offset, offsetLabel)}<p class="tiny muted mt8">${t('p_fajr')} ${clock(times.fajr)} · ${t('p_sunrise')} ${clock(times.sunrise)}</p><h3 class="small gold mt20 mb8">${t('alarmSnoozes')}</h3>${seg('alarm-snoozes', FAJR_SNOOZES, f.snoozes, n => n === 0 ? t('alarmNoSnooze') : num(n))}${f.snoozes ? `<h3 class="small gold mt20 mb8">${t('alarmSnoozeLength')}</h3>${seg('alarm-snooze-min', FAJR_SNOOZE_MINUTES, f.snoozeMinutes, n => t('minutesShort').replace('{n}', num(n)))}` : ''}<label class="setting-row mt20"><span><strong>${t('alarmCheck')}</strong><p>${t('alarmCheckNote').replace('{n}', num(ALARM_CHECK_MINUTES))}</p></span><input type="checkbox" id="fajr-check" ${f.check ? 'checked' : ''} aria-label="${t('alarmCheck')}"></label><h3 class="small gold mt20 mb8">${t('alarmSound')}</h3><p class="tiny muted">${t('alarmSoundNote').replace('{reciter}', escapeHtml(reciterName(state.athan.fajrReciter)))}</p>${alarmInfo?.available ? actionButton('alarm-test', `${ic('bell', 15)} ${t('alarmTest')}`, 'button secondary full mt12') : ''}` : '';
     return `<section class="settings-section" id="fajr-alarm"><h2>${ic('sun', 18)} ${t('alarmSection')}</h2><label class="setting-row"><span><strong>${t('alarmToggle')}</strong><p>${t('alarmToggleNote')}</p></span><input type="checkbox" id="fajr-alarm-on" ${f.enabled ? 'checked' : ''} aria-label="${t('alarmToggle')}"></label>${denied}${fallback}${nextLine}${settings}</section>`;
 }
 async function syncFajrAlarm(): Promise<void> {
     const bridge = smartBridge();
     if (!bridge) return;
     const plan = fajrAlarmPlan(state), f = state.fajrAlarm;
-    await bridge.scheduleAlarm({ alarms: plan.map(p => ({ uuid: p.uuid, at: p.at })), snoozes: f.snoozes, snoozeMinutes: f.snoozeMinutes, check: f.check, checkMinutes: ALARM_CHECK_MINUTES, title: t('alarmTitle'), checkTitle: t('alarmCheckTitle'), stop: t('alarmStop'), snooze: t('alarmSnooze') },
+    await bridge.scheduleAlarm({ alarms: plan.map(p => ({ uuid: p.uuid, at: p.at })), snoozes: f.snoozes, snoozeMinutes: f.snoozeMinutes, check: f.check, checkMinutes: ALARM_CHECK_MINUTES, title: t('alarmTitle'), checkTitle: t('alarmCheckTitle'), stop: t('alarmStop'), snooze: t('alarmSnooze'), sound: alarmSound(state.athan.fajrReciter) },
         fallbackPlan(plan).map(p => ({ id: p.id, at: p.at, title: t('alarmTitle'), body: t('alarmBody') })));
     alarmInfo = await bridge.alarmStatus();
 }
@@ -1672,6 +1672,13 @@ async function handleAction(el: HTMLElement): Promise<void> {
             if (d.v === 'nawawi' || d.v === 'qudsi') hadithCol = d.v;
             keepScroll();
             break;
+        case 'alarm-test': {
+            const bridge = smartBridge();
+            if (!bridge) break;
+            await syncFajrAlarm().catch(() => undefined);
+            toast(t(await bridge.alarmTest(60) ? 'alarmTestSet' : 'alarmTestFailed'));
+            break;
+        }
         case 'tasbih-theme':
             if (!(TASBIH_THEMES as readonly string[]).includes(d.v ?? '')) return;
             await commit({ ...state, worship: { ...state.worship, prefs: { ...state.worship.prefs, tasbihTheme: d.v as TasbihTheme } } });

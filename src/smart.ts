@@ -50,13 +50,15 @@ export interface SmartBridge {
     alarmRequest(): Promise<AlarmAuthorization | 'unavailable'>;
     /** Replaces the planned Fajr alarms: AlarmKit when available, otherwise `fallback` as notifications. Resolves which. */
     scheduleAlarm(plan: AlarmPlan, fallback: { id: number; at: number; title: string; body: string }[]): Promise<'alarm' | 'notification'>;
+    /** Rings the Fajr alarm once, `seconds` from now, with the saved plan's sound and wording (AlarmKit only). */
+    alarmTest(seconds: number): Promise<boolean>;
     /** The user confirmed being awake: the wake-check ring is cancelled. */
     alarmAwake(): Promise<void>;
 }
 export type AlarmAuthorization = 'authorized' | 'denied' | 'notDetermined';
 export interface AlarmStatus { available: boolean; authorization?: AlarmAuthorization; pending?: { id: string; at: number; kind: 'fajr' | 'snooze' | 'check' }[]; checkWaiting?: boolean }
 /** Read by ios/App/App/FajrAlarm.swift (FajrAlarmPlan). */
-export interface AlarmPlan { alarms: { uuid: string; at: number }[]; snoozes: number; snoozeMinutes: number; check: boolean; checkMinutes: number; title: string; checkTitle: string; stop: string; snooze: string }
+export interface AlarmPlan { alarms: { uuid: string; at: number }[]; snoozes: number; snoozeMinutes: number; check: boolean; checkMinutes: number; title: string; checkTitle: string; stop: string; snooze: string; sound: string }
 export interface TestNotification { id: number; kind: 'before' | 'athan'; title: string; body: string; reciter: string | null; customVersion: number | null; homeOnly?: boolean }
 type Setting = 'on' | 'off' | 'unsupported';
 export interface NotificationCheck { authorization?: 'granted' | 'provisional' | 'ephemeral' | 'denied' | 'prompt'; alert?: Setting; sound?: Setting; lockScreen?: Setting; files?: Record<string, 'library' | 'bundle' | 'missing'> }

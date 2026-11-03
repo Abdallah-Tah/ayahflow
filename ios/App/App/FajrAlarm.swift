@@ -25,6 +25,8 @@ struct FajrAlarmPlan: Codable {
     let checkTitle: String
     let stop: String
     let snooze: String
+    /// File name in Library/Sounds (the user's Fajr athan); plans saved before it existed have none.
+    let sound: String?
 }
 
 @available(iOS 26.0, *)
@@ -101,6 +103,16 @@ final class FajrAlarms: FajrAlarmScheduling {
 
     func checkWaiting() -> Bool { defaults.string(forKey: checkKey) != nil }
 
+    func test(after seconds: Double, _ done: @escaping (Bool) -> Void) {
+        guard let plan else { done(false); return }
+        let id = UUID()
+        record(id, kind: "test", origin: id.uuidString)
+        Task {
+            let ok = (try? await ring(id: id, at: Date().addingTimeInterval(seconds), title: plan.title, plan: plan, snoozeLeft: 0)) != nil
+            await MainActor.run { done(ok) }
+        }
+    }
+
     func confirmAwake() {
         if let id = defaults.string(forKey: checkKey).flatMap(UUID.init(uuidString:)) { try? manager.cancel(id: id) }
         defaults.removeObject(forKey: checkKey)
@@ -110,7 +122,7 @@ final class FajrAlarms: FajrAlarmScheduling {
     /// Stop: if the wake check is on and this was not already the check, ring once more in a few minutes.
     func stopped(_ id: UUID) {
         try? manager.stop(id: id)
-        guard let plan, plan.check, extras[id.uuidString]?["kind"] != "check" else { return }
+        guard let plan, plan.check, !["check", "test"].contains(extras[id.uuidString]?["kind"] ?? "") else { return }
         let check = UUID()
         record(check, kind: "check", origin: origin(of: id))
         defaults.set(check.uuidString, forKey: checkKey)
@@ -145,6 +157,13 @@ final class FajrAlarms: FajrAlarmScheduling {
         extras = e; snoozed = s
     }
 
+    /// The user's Fajr athan when its file is in Library/Sounds (installed at launch), else the system alert sound.
+    static func sound(_ name: String?) -> AlertConfiguration.AlertSound {
+        guard let name, let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first,
+              FileManager.default.fileExists(atPath: library.appendingPathComponent("Sounds/\(name)").path) else { return .default }
+        return .named(name)
+    }
+
     private func ring(id: UUID, at date: Date, title: String, plan: FajrAlarmPlan, snoozeLeft: Int) async throws {
         let stop = AlarmButton(text: LocalizedStringResource(stringLiteral: plan.stop), textColor: .white, systemImageName: "sun.horizon")
         let snooze = AlarmButton(text: LocalizedStringResource(stringLiteral: plan.snooze), textColor: .black, systemImageName: "zzz")
@@ -156,7 +175,7 @@ final class FajrAlarms: FajrAlarmScheduling {
             schedule: .fixed(date), attributes: attributes,
             stopIntent: StopFajrAlarm(alarmID: id.uuidString),
             secondaryIntent: snoozeLeft > 0 ? SnoozeFajrAlarm(alarmID: id.uuidString) : nil,
-            sound: .default)
+            sound: Self.sound(plan.sound))
         _ = try await manager.schedule(id: id, configuration: configuration)
     }
 }

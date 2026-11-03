@@ -74,7 +74,7 @@ test('Native wiring: AlarmKit in the app target, limited snooze, wake check, per
     assert.match(swift, /import AlarmKit/);
     assert.match(swift, /guard used <= plan\.snoozes else \{ return \}/, 'snoozes are limited per morning');
     assert.match(swift, /secondaryIntent: snoozeLeft > 0 \? SnoozeFajrAlarm/, 'no snooze button once none are left');
-    assert.match(swift, /extras\[id\.uuidString\]\?\["kind"\] != "check"/, 'the wake check rings once, not forever');
+    assert.match(swift, /!\["check", "test"\]\.contains\(extras\[id\.uuidString\]\?\["kind"\] \?\? ""\)/, 'the wake check rings once, not forever (and a test ring starts none)');
     assert.match(swift, /alarm\.state != \.alerting/, 'a ringing alarm is never cancelled by a sync');
     assert.match(read('ios/App/App/AppDelegate.swift'), /if #available\(iOS 26\.0, \*\) \{ FajrAlarmHook\.scheduler = FajrAlarms\.shared \}/);
     assert.match(read('ios/App/App.xcodeproj/project.pbxproj'), /FajrAlarm\.swift in Sources/);
@@ -88,4 +88,24 @@ test('Native wiring: AlarmKit in the app target, limited snooze, wake check, per
     assert.match(app, /if \(\/\^ayahflow:\\\/\\\/wake\\\/\?\$\/\.test\(url\)\) \{ void navigate\('wake'\)/);
     for (const k of ['alarmSection', 'alarmToggle', 'alarmToggleNote', 'alarmWhen', 'alarmAtFajr', 'alarmBefore', 'alarmAfter', 'alarmSnoozes', 'alarmNoSnooze', 'alarmSnoozeLength', 'minutesShort', 'alarmCheck', 'alarmCheckNote', 'alarmNext', 'alarmClamped', 'alarmDenied', 'alarmFallback', 'alarmOn', 'alarmSyncFailed', 'alarmTitle', 'alarmCheckTitle', 'alarmStop', 'alarmSnooze', 'alarmBody', 'wakeTitle', 'wakeSub', 'wakeHold', 'wakeHoldNote', 'wakeDone'])
         for (const l of ['en', 'fr', 'ar']) assert.ok(tr(k, l) !== k && tr(k, l).length > 0, `${k} ${l}`);
+});
+
+test('The alarm rings the chosen Fajr athan, by the name it is installed under, with a test ring and a volume note', async () => {
+    const { alarmSound } = await import('../www/js/alarm.js');
+    assert.equal(alarmSound('madinah'), 'ayahflow-athan-madinah.caf');
+    assert.equal(alarmSound('custom'), 'ayahflow-athan-custom.wav');
+    assert.equal(alarmSound('online-x1'), 'ayahflow-athan-online-x1.wav');
+    const { readFileSync } = await import('node:fs');
+    const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+    const swift = read('ios/App/App/FajrAlarm.swift');
+    assert.match(swift, /let sound: String\?/, 'older saved plans still decode');
+    assert.match(swift, /sound: Self\.sound\(plan\.sound\)/);
+    assert.match(swift, /fileExists\(atPath: library\.appendingPathComponent\("Sounds\/\\\(name\)"\)\.path\)[\s\S]*?return \.named\(name\)/, 'falls back to the system sound only when the file is missing');
+    assert.doesNotMatch(swift, /sound: \.default\)/);
+    assert.match(swift, /!\["check", "test"\]\.contains/, 'stopping a test ring starts no wake check');
+    const app = read('src/app.ts');
+    assert.match(app, /sound: alarmSound\(state\.athan\.fajrReciter\)/);
+    assert.match(app, /case 'alarm-test':[\s\S]*?bridge\.alarmTest\(60\)/);
+    assert.match(read('native/bridge.mjs'), /async alarmTest\(seconds\)/);
+    assert.match(read('plugins/smart-reminders/ios/Sources/SmartRemindersPlugin/SmartRemindersPlugin.swift'), /CAPPluginMethod\(name: "alarmTest"/);
 });

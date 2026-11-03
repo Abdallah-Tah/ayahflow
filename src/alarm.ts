@@ -35,3 +35,9 @@ export function fajrAlarmPlan(state: AppState, now = Date.now(), days = ALARM_DA
 }
 /** Without AlarmKit only the next ALARM_FALLBACK_DAYS go out as notifications (iOS keeps 64 pending in all). */
 export const fallbackPlan = (plan: FajrAlarmTime[]) => plan.slice(0, ALARM_FALLBACK_DAYS);
+/** The alarm's sound: the Fajr athan the user chose, by the name the app installs it under in Library/Sounds (bundled
+ * recordings as 28 s .caf alerts; an imported or downloaded one as .wav), so AlarmKit rings a full recording instead of
+ * the quiet system default. The same names the notification athan uses (native/bridge.mjs athanSoundName). */
+export function alarmSound(fajrReciter: string): string {
+    return fajrReciter === 'custom' ? 'ayahflow-athan-custom.wav' : fajrReciter.startsWith('online-') ? `ayahflow-athan-${fajrReciter}.wav` : `ayahflow-athan-${fajrReciter}.caf`;
+}

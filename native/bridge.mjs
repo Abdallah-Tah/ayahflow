@@ -100,6 +100,7 @@ export const bridge = {
         /** Fajr alarm: AlarmKit through the plugin on iOS 26+; Android and older iPhones get a notification instead. */
         async alarmStatus() { if (ANDROID) return { available: false }; try { return await Smart.alarmStatus(); } catch { return { available: false }; } },
         async alarmRequest() { if (ANDROID) return 'unavailable'; return (await Smart.alarmRequest()).authorization; },
+        async alarmTest(seconds) { if (ANDROID) return false; try { await Smart.alarmTest({ seconds }); return true; } catch { return false; } },
         async scheduleAlarm(plan, fallback) {
             const pending = (await LocalNotifications.getPending()).notifications.filter(n => ALARM(Number(n.id)));
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });

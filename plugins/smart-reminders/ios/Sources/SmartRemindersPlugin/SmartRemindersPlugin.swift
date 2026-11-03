@@ -31,6 +31,7 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "alarmStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "alarmRequest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "alarmSchedule", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmTest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "alarmAwake", returnType: CAPPluginReturnPromise)
     ]
     private var engine: SmartReminders { SmartReminders.shared }
@@ -92,6 +93,10 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
         alarms.schedule(data) { result in
             switch result { case .success(let n): call.resolve(["scheduled": n]); case .failure(let e): call.reject(e.localizedDescription) }
         }
+    }
+    @objc func alarmTest(_ call: CAPPluginCall) {
+        guard let alarms = FajrAlarmHook.scheduler else { call.reject("unavailable"); return }
+        alarms.test(after: max(10, call.getDouble("seconds") ?? 60)) { ok in ok ? call.resolve() : call.reject("not scheduled") }
     }
     @objc func alarmAwake(_ call: CAPPluginCall) { FajrAlarmHook.scheduler?.confirmAwake(); call.resolve() }
 

@@ -14,6 +14,8 @@ public protocol FajrAlarmScheduling: AnyObject {
     func checkWaiting() -> Bool
     /// The user confirmed in the app that they are awake: the follow-up ring is cancelled.
     func confirmAwake()
+    /// Rings once, `seconds` from now, with the saved plan's sound and wording, leaving the planned mornings alone.
+    func test(after seconds: Double, _ done: @escaping (Bool) -> Void)
 }
 
 public enum FajrAlarmHook {
