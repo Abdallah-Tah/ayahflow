@@ -13,6 +13,9 @@ export interface AdhkarEntry {
     source: HadithSource;
     also: HadithSource[];
     note?: 'muallaq' | 'ridingSequence' | 'travelTakbir' | 'travelReturn';
+    /** Kept at the user's choice although every grader recorded calls the narration weak (Da'if); the grade is shown
+     * on the card and in the reminder. */
+    weak?: true;
     /** The dua quotes these Quran ayahs (shown as a reference; the wording is the narration's). */
     quranRef?: string;
 }

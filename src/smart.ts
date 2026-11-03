@@ -291,7 +291,7 @@ function displayText(e: AdhkarEntry): string {
 }
 const sourceLine = (e: AdhkarEntry) => {
     const p = e.kind === 'quran' ? quranPassages(e)[0]! : null;
-    return p ? `Quran ${p.surah}:${p.ayahs[0]!.n}${p.ayahs.length > 1 ? `–${p.ayahs.at(-1)!.n}` : ''}` : `${e.source.collection} ${e.source.number}`;
+    return p ? `Quran ${p.surah}:${p.ayahs[0]!.n}${p.ayahs.length > 1 ? `–${p.ayahs.at(-1)!.n}` : ''}` : `${e.source.collection} ${e.source.number}${e.weak ? ' · Da\'if' : ''}`;
 };
 /** Notification text for a moment: its adhkar in order, each complete and verbatim with its count and source, while they
  * fit PREVIEW_LETTERS (the first always does), then `more(n)` for the n left to read in the app, which the tap opens.

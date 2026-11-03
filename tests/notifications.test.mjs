@@ -23,11 +23,11 @@ test('Leaving home: the complete du\'a and its source', () => {
     assert.deepEqual(body('leave_home'), [text('leave-home'), 'Sunan Abi Dawud 5095']);
 });
 
-test('Entering home: the complete hadith, verbatim from Sahih Muslim, not a supplication made up for it', () => {
+test('Entering home: the du\'a of Abu Dawud 5096, verbatim, with its weak grade in the reminder', () => {
     const [t, ref] = body('enter_home');
-    assert.equal(ref, 'Sahih Muslim 5262');
-    assert.ok(nfc(t).startsWith(nfc('إِذَا دَخَلَ الرَّجُلُ بَيْتَهُ')) && nfc(t).endsWith(nfc('أَدْرَكْتُمُ الْمَبِيتَ وَالْعَشَاءَ')), 'all three sentences of the Prophet\'s words');
-    assert.equal(entriesFor('enter_home')[0].kind, 'guidance');
+    assert.equal(ref, "Sunan Abi Dawud 5096 · Da'if");
+    assert.ok(nfc(t).startsWith(nfc('اللَّهُمَّ إِنِّي أَسْأَلُكَ خَيْرَ الْمَوْلِجِ')) && nfc(t).endsWith(nfc('وَعَلَى اللَّهِ رَبِّنَا تَوَكَّلْنَا')), t);
+    assert.equal(entriesFor('enter_home')[0].kind, 'dua');
 });
 
 test('Riding a vehicle: the verse and the istighfar, both whole, no asterisk, one source line', () => {

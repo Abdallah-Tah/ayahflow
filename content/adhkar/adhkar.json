@@ -69,53 +69,39 @@
    "moments": [
     "enter_home"
    ],
-   "kind": "guidance",
+   "kind": "dua",
    "repeat": 1,
    "title": {
-    "en": "Entering home: remember Allah",
-    "fr": "En entrant chez soi : invoquer Allah",
-    "ar": "ذكر الله عند دخول المنزل"
+    "en": "Entering home",
+    "fr": "En entrant chez soi",
+    "ar": "دعاء دخول المنزل"
    },
    "source": {
-    "ref": "muslim:5262",
-    "collection": "Sahih Muslim",
-    "number": "5262",
+    "ref": "abudawud:5096",
+    "collection": "Sunan Abi Dawud",
+    "number": "5096",
     "inBook": {
-     "book": 36,
-     "hadith": 136
+     "book": 43,
+     "hadith": 324
     },
-    "grades": []
-   },
-   "also": [
-    {
-     "ref": "abudawud:3765",
-     "collection": "Sunan Abi Dawud",
-     "number": "3765",
-     "inBook": {
-      "book": 28,
-      "hadith": 30
+    "grades": [
+     {
+      "by": "Al-Albani",
+      "grade": "Daif"
      },
-     "grades": [
-      {
-       "by": "Al-Albani",
-       "grade": "Sahih"
-      },
-      {
-       "by": "Muhammad Muhyi Al-Din Abdul Hamid",
-       "grade": "Sahih"
-      },
-      {
-       "by": "Shuaib Al Arnaut",
-       "grade": "Sahih"
-      },
-      {
-       "by": "Zubair Ali Zai",
-       "grade": "Sahih Muslim (2018)"
-      }
-     ]
-    }
-   ],
-   "text": "إِذَا دَخَلَ الرَّجُلُ بَيْتَهُ فَذَكَرَ اللَّهَ عِنْدَ دُخُولِهِ وَعِنْدَ طَعَامِهِ، قَالَ الشَّيْطَانُ لَا مَبِيتَ لَكُمْ وَلَا عَشَاءَ، وَإِذَا دَخَلَ فَلَمْ يَذْكُرِ اللَّهَ عِنْدَ دُخُولِهِ قَالَ الشَّيْطَانُ أَدْرَكْتُمُ الْمَبِيتَ، وَإِذَا لَمْ يَذْكُرِ اللَّهَ عِنْدَ طَعَامِهِ قَالَ أَدْرَكْتُمُ الْمَبِيتَ وَالْعَشَاءَ"
+     {
+      "by": "Muhammad Muhyi Al-Din Abdul Hamid",
+      "grade": "Daif"
+     },
+     {
+      "by": "Zubair Ali Zai",
+      "grade": "Daif"
+     }
+    ]
+   },
+   "also": [],
+   "weak": true,
+   "text": "اللَّهُمَّ إِنِّي أَسْأَلُكَ خَيْرَ الْمَوْلِجِ وَخَيْرَ الْمَخْرَجِ، بِسْمِ اللَّهِ وَلَجْنَا، وَبِسْمِ اللَّهِ خَرَجْنَا، وَعَلَى اللَّهِ رَبِّنَا تَوَكَّلْنَا"
   },
   {
    "id": "riding",

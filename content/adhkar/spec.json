@@ -29,22 +29,22 @@
       "moments": [
         "enter_home"
       ],
-      "kind": "guidance",
+      "kind": "dua",
       "repeat": 1,
-      "source": "muslim:5262",
-      "start": "اذا دخل الرجل بيته",
-      "end": "ادركتم المبيت والعشاء",
-      "also": [
-        "abudawud:3765"
-      ],
+      "source": "abudawud:5096",
+      "start": "اللهم اني اسالك خير المولج",
+      "end": "ربنا توكلنا",
       "title": {
-        "en": "Entering home: remember Allah",
-        "fr": "En entrant chez soi : invoquer Allah",
-        "ar": "ذكر الله عند دخول المنزل"
+        "en": "Entering home",
+        "fr": "En entrant chez soi",
+        "ar": "دعاء دخول المنزل"
       },
       "pauses": [
-        "وعند طعامه"
-      ]
+        "وخير المخرج",
+        "بسم الله ولجنا",
+        "وبسم الله خرجنا"
+      ],
+      "weak": true
     },
     {
       "id": "riding",

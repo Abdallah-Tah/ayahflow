@@ -30,11 +30,14 @@ test('Quran-based adhkar read real ayahs from the corpus', () => {
     assert.deepEqual(quls.map(q => [q.surah, q.ayahs.length]), [[112, 4], [113, 5], [114, 6]]);
     const riding = ADHKAR_ENTRIES.find(e => e.id === 'riding'); assert.equal(riding.kind, 'dua'); assert.equal(riding.quranRef, '43:13-14'); verse(43, 13); verse(43, 14); assert(inSource(sources['abudawud:2602'].text, riding.text));
 });
-test('No dhikr relies on a hadith graded weak by every grader recorded', () => {
+test('No dhikr relies on a hadith graded weak by every grader recorded, except the one the user chose, marked weak', () => {
+    // Entering home: the user chose the du'a of Abu Dawud 5096 (graded Da'if by every grader recorded) over the
+    // authentic Muslim 5262 guidance, which has no fixed wording. It is marked, and the grade is shown wherever it is.
     for (const e of ADHKAR_ENTRIES) {
-        const g = e.source.grades.map(x => x.grade.toLowerCase());
-        assert(!(g.length && g.every(x => x.includes('daif'))), `${e.id} is graded weak`);
+        const g = e.source.grades.map(x => x.grade.toLowerCase()), weak = g.length > 0 && g.every(x => x.includes('daif'));
+        assert.equal(!!e.weak, weak, `${e.id}: weak flag matches the grades`);
     }
+    assert.deepEqual(ADHKAR_ENTRIES.filter(e => e.weak).map(e => e.id), ['enter-home']);
 });
 test('Sources keep collection, number and a sunnah.com in-book link; mu‘allaq narrations are labelled', () => {
     for (const e of ADHKAR_ENTRIES) { assert(e.source.collection && e.source.number, e.id); assert.match(sourceUrl(e.source), /^https:\/\/sunnah\.com\/[a-z]+\/\d+\/\d+$/); }
