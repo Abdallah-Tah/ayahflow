@@ -5,7 +5,7 @@
  * MUSHAF_EDITIONS and docs/CONTENT-PROVENANCE.md), so nothing here claims to be the printed page. */
 import { tr, formatNumber } from './i18n.js';
 import { ayahMarker, surahBanner } from './icons.js';
-import { chapter, verse, juzOf, pageOf, pageAyahs, translation, JUZ_STARTS, PAGE_COUNT, TRANSLATION_SOURCE } from './data.js';
+import { chapter, verse, juzOf, hizbOf, pageOf, pageAyahs, translation, JUZ_STARTS, PAGE_COUNT, TRANSLATION_SOURCE } from './data.js';
 import type { AppState, Locale, ReadingLayout } from './engine.js';
 
 const esc = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -156,6 +156,15 @@ export function pageBody(state: AppState, page: number, selected: string | null 
     const opening = page <= 2 ? ' q-opening' : '';
     return `<div class="q-page${opening}" data-page="${page}">${blocks}</div>`;
 }
+/** The page's running header, as in a printed Mushaf: Juz' and Hizb on one side, the surah (English and Arabic) on the
+ * other, both from the page's first ayah. */
+export function pageRunHead(state: AppState, page: number): string {
+    const [s, a] = pageAyahs(page)[0]!, num = (n: number) => formatNumber(n, state.locale), c = chapter(s);
+    const where = tr('pageJuzHizb', state.locale).replace('{j}', num(juzOf(s, a))).replace('{h}', num(hizbOf(s, a)));
+    return `<div class="r-run" dir="ltr"><span>${esc(where)}</span><span>${esc(c.name)} <span class="r-run-ar" lang="ar" dir="rtl">${esc(c.ar)}</span></span></div>`;
+}
+/** The page number under the page, as in a printed Mushaf. */
+export const pageRunFoot = (state: AppState, page: number) => `<div class="r-run-no" aria-hidden="true">${formatNumber(page, state.locale)}</div>`;
 /** Easy reading: the whole surah as one continuous text at the chosen size, like a page (the translation is in the
  * Verses layout). `words` renders a verse's text (the app passes its word spans so voice following can mark words). */
 export function easyBody(state: AppState, surah: number, selected: string | null, words: (text: string, key?: string) => string = esc): string {

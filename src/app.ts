@@ -22,7 +22,7 @@ import { hifzRange, hifzQueue, hiddenWord, HIFZ_REPEATS, HIFZ_LEVELS, HIFZ_MAX_A
 import { RAMADAN_TEXT, ramadanToday, daysToRamadan } from './ramadan.js';
 import { NAMES, NAMES_LIST, NAMES_ABOUT, NAMES_QURAN, nameOfDay } from './names.js';
 import { khatmToday, startKhatm, endKhatm, setKhatmPage, turnedPage, KHATM_DAYS } from './khatm.js';
-import { pageBody, easyBody, readerTitle, readingStyles, quranFontChooser, pageFor, clampPage, toEndOfJuz } from './mushaf.js';
+import { pageBody, easyBody, readerTitle, readingStyles, quranFontChooser, pageFor, clampPage, toEndOfJuz, pageRunHead, pageRunFoot } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
 type View = 'today' | 'practice' | 'quran' | 'reader' | 'session' | 'result' | 'tajweed' | 'lesson' | 'recite' | 'progress' | 'settings' | 'adhkar' | 'moment' | 'reminders' | 'prayer' | 'counter' | 'steps' | 'rotation' | 'tasbih' | 'verses' | 'recitations' | 'review' | 'wake' | 'khatm' | 'names' | 'hifz' | 'occasions' | 'eid' | 'zakat' | 'hadith';
@@ -197,7 +197,10 @@ function onFollow(e: FollowEvent): void {
 const hlClass = (s: number, a: number) => { const h = state.highlights.find(x => x.key === `${s}:${a}`); return h ? ` hl hl-${h.color}` : ''; };
 /** Reader chrome (top bar and page footer) can be hidden with one tap on the page; the space stays reserved, so the
  * text never moves or sits under a control. `pageTurn` animates the next render of a page. */
-let chromeHidden = false, pageTurn: 'next' | 'prev' | null = null;
+/** The reader's bar and footer: hidden on Mushaf pages until a tap on the page (the page carries its own header and
+ * number), shown in the other layouts; null until the user toggles them, reset when the layout changes. */
+let chromeHidden: boolean | null = null, pageTurn: 'next' | 'prev' | null = null;
+const chromeOff = () => chromeHidden ?? state.readingLayout === 'page';
 /** The page to show: the one holding the saved place in the open surah, else the surah's first page. */
 function currentPage(): number { return pageFor(state, readerSurah, readerPage); }
 /** Turns to a page and keeps the place (the page's first ayah), so the reader reopens there. */
@@ -226,7 +229,9 @@ function fitPage(): void {
     if (!surface || !page) return;
     const cs = getComputedStyle(surface), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     // Leave room for marks below the last line (kasra, tanween) so nothing is clipped.
-    const room = surface.clientHeight - pad - 6, width = surface.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    // The running header and the page number sit inside the surface too.
+    const runs = [...surface.querySelectorAll<HTMLElement>('.r-run, .r-run-no')].reduce((n, el) => n + el.offsetHeight, 0);
+    const room = surface.clientHeight - pad - 6 - runs, width = surface.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     let lo = 11, hi = Math.min(34, Math.max(18, width / 13));
     for (let i = 0; i < 9; i++) { const mid = (lo + hi) / 2; page.style.setProperty('--q-size', `${mid}px`); if (page.scrollHeight <= room - mid * 0.25) lo = mid; else hi = mid; }
     page.style.setProperty('--q-size', `${lo}px`);
@@ -358,14 +363,14 @@ function readerView(): string {
     const markKey = layout === 'page' ? pageAyahs(readerPage)[0]!.join(':') : `${state.readPosition.surah === s.id ? state.readPosition.surah : s.id}:${state.readPosition.surah === s.id ? state.readPosition.ayah : 1}`;
     const marked = layout === 'page' ? pageAyahs(readerPage).some(([x, y]) => state.bookmarks.includes(`${x}:${y}`)) : state.bookmarks.includes(markKey);
     const bar = `<header class="r-bar">${mushafOpen ? `<button class="r-btn" data-action="mushaf-open" aria-label="${t('backToPage')}">${ic('back', 20)}</button>` : `<button class="r-btn" data-action="back" aria-label="${t('back')}">${ic('back', 20)}</button>`}<button class="r-title" data-action="reader-jump" aria-label="${t('jumpTo')}: ${escapeHtml(meta.title)}, ${escapeHtml(meta.sub)}"><strong dir="auto">${escapeHtml(mushafOpen ? t('readingStylesLink') : meta.title)}</strong>${mushafOpen ? '' : `<span dir="auto">${escapeHtml(meta.sub)}</span>`}</button><span class="r-tools">${mushafOpen ? '<span class="r-btn-space"></span>' : `<button class="r-btn" data-action="reader-jump" aria-label="${t('jumpTo')}">${ic('search', 19)}</button><button class="r-btn${marked ? ' on' : ''}" data-action="reader-bookmark" data-key="${markKey}" aria-pressed="${marked}" aria-label="${t(layout === 'page' ? 'bookmarkPage' : 'bookmark')}">${ic(marked ? 'bookmarkFill' : 'bookmark', 19)}</button><button class="r-btn" data-action="reader-settings" aria-label="${t('readingSettings')}">${ic('type', 19)}</button>`}</span></header>`;
-    const shell = (cls: string, inner: string) => `<div class="reader ${cls}${chromeHidden ? ' chrome-off' : ''}" data-reading-theme="${readingThemeResolved()}" style="--r-scale:${READER_SCALE[state.readerSize] ?? 1}">${inner}</div>`;
+    const shell = (cls: string, inner: string) => `<div class="reader ${cls}${chromeOff() ? ' chrome-off' : ''}" data-reading-theme="${readingThemeResolved()}" style="--r-scale:${READER_SCALE[state.readerSize] ?? 1}">${inner}</div>`;
     if (mushafOpen) return shell('r-styles', `${bar}<div class="r-surface">${readingStyles(state)}</div>`);
     if (layout === 'page') {
         const turn = (to: number, key: string, icon: string) => `<button class="r-btn" data-action="page-go" data-page="${to}" aria-label="${t(key)}" ${to < 1 || to > PAGE_COUNT ? 'disabled' : ''}>${ic(icon, 18)}</button>`;
         const turnCls = pageTurn && !state.reducedMotion ? ` turn-${pageTurn}` : '';
         pageTurn = null;
         // Mushaf order: the next page is on the left, whatever the interface language.
-        return shell('r-page', `${bar}<div class="r-surface${turnCls}" aria-label="${t('pageN').replace('{n}', num(readerPage))}">${pageBody(state, readerPage, menuVerse)}</div><footer class="r-foot" dir="ltr">${turn(readerPage + 1, 'nextPage', 'prev')}<div class="r-pageno"><span>${num(readerPage)}</span><span class="r-progress" role="progressbar" aria-label="${t('pageN').replace('{n}', num(readerPage))}" aria-valuemin="1" aria-valuemax="${PAGE_COUNT}" aria-valuenow="${readerPage}"><i style="width:${(readerPage / PAGE_COUNT * 100).toFixed(2)}%"></i></span></div>${turn(readerPage - 1, 'prevPage', 'next')}</footer>`);
+        return shell('r-page', `${bar}<div class="r-surface${turnCls}" aria-label="${t('pageN').replace('{n}', num(readerPage))}">${pageRunHead(state, readerPage)}${pageBody(state, readerPage, menuVerse)}${pageRunFoot(state, readerPage)}</div><footer class="r-foot" dir="ltr">${turn(readerPage + 1, 'nextPage', 'prev')}<div class="r-pageno"><span>${num(readerPage)}</span><span class="r-progress" role="progressbar" aria-label="${t('pageN').replace('{n}', num(readerPage))}" aria-valuemin="1" aria-valuemax="${PAGE_COUNT}" aria-valuenow="${readerPage}"><i style="width:${(readerPage / PAGE_COUNT * 100).toFixed(2)}%"></i></span></div>${turn(readerPage - 1, 'prevPage', 'next')}</footer>`);
     }
     const body = layout === 'flow' ? easyBody(state, s.id, menuVerse, wordSpans) : `<div class="r-cards">${s.verses.map((text, i) => { const a = i + 1, k = `${s.id}:${a}`, saved = state.bookmarks.includes(k); return `<article class="ayah-card" id="ayah-${a}"><div class="row between"><span class="ayah-meta">${ref(s.id, a)}</span><div class="ayah-tools"><button class="icon-button" data-action="play-verse" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('play')} ${s.id}:${a}">${ic('play')}</button><button class="icon-button ${saved ? 'active' : ''}" data-action="bookmark" data-surah="${s.id}" data-ayah="${a}" aria-label="${t(saved ? 'removeBookmark' : 'bookmark')} ${s.id}:${a}" aria-pressed="${saved}">${ic('bookmark')}</button><button class="icon-button" data-action="record-ayah" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('recite')} ${s.id}:${a}">${ic('mic')}</button><button class="icon-button" data-action="report" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('reportIssue')} ${s.id}:${a}">${ic('flag')}</button><button class="icon-button" data-action="verse-menu" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('verseMenu')} ${s.id}:${a}">${ic('more')}</button></div></div><p class="arabic ayah-text" lang="ar" dir="rtl"><span class="ayah-src${hlClass(s.id, a)}">${wordSpans(text, k)}</span> ${marker(a)}</p>${state.worship.prefs.translation ? `<p class="e-tr" lang="en" dir="ltr"><span class="e-n">${a}</span>${escapeHtml(translation(s.id, a))}</p>` : ''}<a class="text-link" href="https://quran.com/${s.id}/${a}" target="_blank" rel="noopener noreferrer">${t('translation')} ${ic('arrow', 12)}</a></article>`; }).join('')}</div>`;
     const surahTurn = (to: number, key: string, icon: string) => to >= 1 && to <= 114 ? `<button class="r-btn" data-action="read-surah" data-surah="${to}" aria-label="${t(key)}">${ic(icon, 18)}</button>` : '<span class="r-btn-space"></span>';
@@ -2538,6 +2543,7 @@ async function handleAction(el: HTMLElement): Promise<void> {
             const next = (['cards', 'flow', 'page'] as const).find(x => x === d.layout) ?? 'page';
             if (next === state.readingLayout) { if (mushafOpen) { mushafOpen = false; render(); } break; }
             await commit({ ...state, readingLayout: next });
+            chromeHidden = null;
             mushafOpen = false;
             // Keep the place: the page holding the last-read verse, or that verse in its surah.
             readerSurah = state.readPosition.surah; readerPage = 0;
@@ -2622,7 +2628,7 @@ root.addEventListener('click', e => {
     if (view !== 'reader' || mushafOpen || el.closest('[data-action], a, button, input, select, textarea, summary')) return;
     const reader = el.closest('.reader');
     if (!reader || !el.closest('.r-surface')) return;
-    chromeHidden = !chromeHidden;
+    chromeHidden = !chromeOff();
     reader.classList.toggle('chrome-off', chromeHidden);
 });
 /** While an action runs, other taps wait (no double submits). Back and the tabs always work, and an action that never

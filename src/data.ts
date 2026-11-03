@@ -45,6 +45,8 @@ export function pageAyahs(page: number): [number, number][] {
     }
     return out;
 }
+/** Hizb (1–60) of an ayah: the quarter it falls in, four quarters to a hizb (Tanzil metadata). */
+export function hizbOf(surah: number, ayah: number): number { let q = 1; QURAN.quarters.forEach(([s, a], i) => { if (s < surah || (s === surah && a <= ayah)) q = i + 1; }); return Math.ceil(q / 4); }
 export function juzOf(surah: number, ayah: number): number { let j = 1; JUZ_STARTS.forEach(([s, a], i) => { if (s < surah || (s === surah && a <= ayah)) j = i + 1; }); return j; }
 let global = 1;
 export const SURAH_DATA: readonly Surah[] = QURAN.surahs.map(s => { const surah: Surah = { id: s.id, name: s.name, ar: s.ar, en: s.en, type: s.type, count: s.verses.length, juz: 0, firstGlobal: global, bismillah: s.bismillah, verses: s.verses, source: `https://tanzil.net/#${s.id}:1` }; global += s.verses.length; return surah; });

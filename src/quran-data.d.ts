@@ -6,6 +6,8 @@ declare const QURAN: {
     sha256: string;
     notice: string;
     juz: [number, number][];
+    /** First ayah of each of the 240 hizb quarters (Tanzil metadata), [surah, ayah]; four quarters make a hizb. */
+    quarters: [number, number][];
     /** First ayah of each of Tanzil's 556 ruku' sections, [surah, ayah]. */
     ruku: [number, number][];
     /** First ayah of each of the 604 Madani Mushaf pages (Tanzil metadata), [surah, ayah]. */

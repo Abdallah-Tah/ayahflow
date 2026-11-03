@@ -525,3 +525,10 @@ html[data-quran-font=amiri]{--quran-face:'AyahFlow Quran Amiri'}html[data-quran-
 .beads .thread{fill:none;stroke:var(--line-strong);stroke-width:1.2}.beads .imam{fill:var(--gold)}.beads.thread .bead{stroke:var(--line-strong);stroke-width:.8}
 .zakat-input{width:100%}
 .tj{font-style:normal}.tj-silent{color:#8f8f86}.tj-madd{color:#c8803a}.tj-maddLong{color:#c0503f}.tj-ghunnah{color:#4f9b5a}.tj-ikhfa{color:#5a8fc0}.tj-idgham{color:#8a6fc0}.tj-iqlab{color:#3fa3a0}.tj-qalqalah{color:#b0607e}.tj-legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin:8px 0;font-size:var(--fs-xs)}.tj-legend span{display:inline-flex;align-items:center;gap:5px}.tj-dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:currentColor}
+.r-run{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font:500 var(--fs-sm) var(--ui);color:var(--r-muted);padding:2px 2px 6px;flex:none}.r-run-ar{font-family:var(--arabic);font-size:var(--fs-base);color:var(--r-gold)}.r-run-no{flex:none;text-align:center;font:500 var(--fs-md) var(--ui);color:var(--r-muted);padding-top:6px}
+/* Mushaf page as in a printed copy: the page fills the screen (one colour), with its own running header and page number;
+ * the reader's bar and footer float over it and show on a tap. */
+.r-page{background:var(--r-paper)}
+.r-page .r-bar,.r-page .r-foot{position:absolute;left:0;right:0}
+.r-page .r-bar{top:0}.r-page .r-foot{bottom:0}
+.r-page .r-surface{margin:0;border-radius:0;box-shadow:none;padding-top:calc(4px + env(safe-area-inset-top,0px));padding-bottom:calc(2px + var(--safe-bottom))}

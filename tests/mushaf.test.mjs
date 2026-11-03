@@ -161,3 +161,16 @@ test('App wiring: the verse menu has every action and audio needs consent', () =
     assert.match(menu, /tafsirUnavailable/);
     assert.match(read('src/audio.ts'), /onEnded\?\.\(\)/);
 });
+
+test('Mushaf page as printed: running header (Juz’, Hizb, surah) and the page number; bar and footer on a tap', async () => {
+    const { hizbOf } = await import('../www/js/data.js');
+    const { pageRunHead, pageRunFoot } = await import('../www/js/mushaf.js');
+    assert.equal(hizbOf(1, 1), 1); assert.equal(hizbOf(2, 75), 2); assert.equal(hizbOf(7, 1), 16); assert.equal(hizbOf(114, 6), 60);
+    const head = pageRunHead(initialState(), 151);
+    assert.match(head, /Juz’ 8, Hizb 16/); assert.match(head, /Al-A'raaf|Al-A&#39;raaf/); assert.match(head, /الأعراف/);
+    assert.match(pageRunFoot(initialState(), 151), />151</);
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+    assert.match(app, /const chromeOff = \(\) => chromeHidden \?\? state\.readingLayout === 'page';/, 'page mode starts with the bar hidden');
+    assert.match(app, /\$\{pageRunHead\(state, readerPage\)\}\$\{pageBody\(state, readerPage, menuVerse\)\}\$\{pageRunFoot\(state, readerPage\)\}/);
+    assert.match(app, /querySelectorAll<HTMLElement>\('\.r-run, \.r-run-no'\)/, 'the page is sized with its header and number');
+});
