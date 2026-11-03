@@ -4,9 +4,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { SUPPORT_EMAIL, reportMailto } from '../www/js/support.js';
 
-test('No support address ships by default, so the button stays hidden', () => {
-    assert.equal(SUPPORT_EMAIL, '');
-    assert.equal(reportMailto('s', 'i', 'c', 'p'), null);
+test('The support address the owner chose is used; without a valid address the button stays hidden', () => {
+    assert.equal(SUPPORT_EMAIL, 'buildwithabdallah@gmail.com');
+    assert.match(reportMailto('s', 'i', 'c', 'p'), /^mailto:buildwithabdallah@gmail\.com\?/);
+    assert.equal(reportMailto('s', 'i', 'c', 'p', ''), null);
+    assert.ok(readFileSync(new URL('../site/support/index.html', import.meta.url), 'utf8').includes('mailto:buildwithabdallah@gmail.com'), 'the website says the same');
     assert.equal(reportMailto('s', 'i', 'c', 'p', 'not an address'), null);
 });
 

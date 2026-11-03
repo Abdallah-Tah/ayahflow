@@ -1,7 +1,7 @@
 /** "Report a problem" in Settings: opens a mail draft the user reviews and sends from their own mail app. No network
- * endpoint and nothing attached. The button stays hidden while SUPPORT_EMAIL is empty; set it only to an address the
- * project owner has chosen for support (never a personal address by default). */
-export const SUPPORT_EMAIL = '';
+ * endpoint and nothing attached. SUPPORT_EMAIL is the address the project owner chose for support (also on the website's
+ * support page); with it empty the button stays hidden. */
+export const SUPPORT_EMAIL = 'buildwithabdallah@gmail.com';
 export const APP_VERSION = '0.1.0';
 /** The mailto link, or null when no support address is configured. The body names only the app version, content
  * version and platform; the user adds the rest. */

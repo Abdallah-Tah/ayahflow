@@ -3,7 +3,7 @@
 Static pages for the App Store listing: home (`/`), privacy policy (`/privacy/`, the App Store "Privacy Policy URL")
 and support (`/support/`, the "Support URL"). No scripts, trackers or external requests.
 
-Before publishing, replace `SUPPORT_EMAIL` in `support/index.html` (two places) with the address you will read.
+Support address: buildwithabdallah@gmail.com (in `support/index.html` and `src/support.ts`).
 `privacy/index.html` is the same text as the app's `public/privacy.html`; change both together.
 
 ## Publish with GitHub Pages (free)
