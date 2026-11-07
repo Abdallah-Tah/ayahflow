@@ -1,0 +1,48 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Requested at runtime only after the user turns on location or vehicle reminders. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <application>
+        <receiver android:name="app.ayahflow.smart.SmartReceiver" android:exported="false" />
+        <receiver android:name="app.ayahflow.smart.PrayerWidgetProvider" android:exported="false" android:label="AyahFlow · Next prayer">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_info" />
+        </receiver>
+        <receiver android:name="app.ayahflow.smart.DuaWidgetProvider" android:exported="false" android:label="AyahFlow · Du'a of the day">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_dua_info" />
+        </receiver>
+        <receiver android:name="app.ayahflow.smart.DhikrWidgetProvider" android:exported="false" android:label="AyahFlow · Istighfar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_dhikr_info" />
+        </receiver>
+        <receiver android:name="app.ayahflow.smart.StepsWidgetProvider" android:exported="false" android:label="AyahFlow · Steps">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_steps_info" />
+        </receiver>
+        <receiver android:name="app.ayahflow.smart.UpcomingWidgetProvider" android:exported="false" android:label="AyahFlow · Jumu'ah and fasts">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ayahflow_widget_upcoming_info" />
+        </receiver>
+        <receiver android:name="app.ayahflow.smart.BootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

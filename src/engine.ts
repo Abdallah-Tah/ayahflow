@@ -1,6 +1,218 @@
 import { SURAH_DATA, chapter, verse } from './data.js';
-export type Mode = 'next' | 'previous' | 'listen' | 'recall';
+import { MOMENTS, ADHKAR_ENTRIES, COUNTERS, ROTATION, LIBRARY, TASBIH_VARIANTS, type Moment, type SmartEvent } from './adhkar.js';
+export type Mode = 'next' | 'previous' | 'listen' | 'recall' | 'locate';
+export const MODES: readonly Mode[] = ['next', 'previous', 'listen', 'recall', 'locate'];
 export type Locale = 'en' | 'fr' | 'ar';
+export type Theme = 'system' | 'light' | 'dark';
+export type ArabicSize = 's' | 'm' | 'l' | 'xl';
+/** The font the Quran's Arabic is drawn in (src/mushaf.ts QURAN_FONTS); the text is the same in every one. */
+export const QURAN_FONT_IDS = ['madina', 'amiri', 'me-quran'] as const;
+export type QuranFont = typeof QURAN_FONT_IDS[number];
+export type ReadingLayout = 'cards' | 'flow' | 'page';
+/** Reader surface: Classic (warm paper), Night (charcoal green) or Auto (follows the app theme). */
+export type ReadingTheme = 'auto' | 'classic' | 'night';
+/** Easy Reading and verse-by-verse text size steps (Mushaf pages size the text to fit the page). */
+export const READER_SCALE = [0.85, 0.95, 1.05, 1.2, 1.35, 1.55, 1.8] as const;
+/** Current save schema. v1 → v2 added theme; v2 → v3 added arabicSize and readingLayout; v3 → v4 added voiceFollowConsent;
+ * v4 → v5 added places, smart reminder settings, adhkar completions and the detection log; v5 → v6 added athan settings;
+ * v6 → v7 added the athan reciter (and a separate Fajr reciter) and an imported recording;
+ * v7 → v8 added athan recordings downloaded on request (AlAdhan); v8 → v9 added dhikr counts and the step-tracker setting;
+ * v9 → v10 added the user's own counters; v10 → v11 added istighfar reminders (off by default);
+ * v11 → v12 added dhikr rotation reminders (off by default); v12 → v13 added worship tracking (`worship`: prayers the
+ * user confirmed, post-prayer tasbih, favourites, personal targets, lifetime totals and Quran reading days);
+ * v13 → v14 added the reminder before each prayer (`athan.before`, off by default); v14 → v15 added the soft beep away
+ * from Home (`athan.awayChime`, off); v15 → v16 added the page layout, verse highlights and the user's verse notes;
+ * v16 → v17 added the reading theme (`readingTheme`, auto) and the reader text size (`readerSize`, step 3 of 7);
+ * v17 → v18 added the Jumu'ah and voluntary-fast reminders (`calendar`, both off) and highlight reviews (`highlightReviews`);
+ * v18 → v19 added the Fajr wake-up alarm (`fajrAlarm`, off); v19 → v20 added the Quran completion plan (`khatm`, none);
+ * v20 → v21 added the Ramadan suhoor and iftar reminders (`calendar.suhoor`, `calendar.iftar`, both off);
+ * v21 → v22 added the Quran font choice (`quranFont`, DigitalKhatt Madina, the font earlier builds already showed);
+ * v22 → v23 added the Islamic-occasion reminders (`calendar.occasions`, all off);
+ * v23 → v24 added the tasbih look (`worship.prefs.tasbihTheme`, the bead ring earlier builds showed);
+ * v24 → v25 added the Hijri date correction (`hijriOffset`, 0: the Umm al-Qura date as before);
+ * v25 → v26 added Tajweed colouring in the reader (`tajweedColours`, off);
+ * v26 → v27 added the Night beads look: a fourth tasbih look and its choices (`worship.prefs.nightBeads`), with the look a save already had left unchanged. */
+export const STATE_VERSION = 27;
+/** Days added to the Umm al-Qura date to match local moon sighting. */
+export const HIJRI_OFFSETS = [-1, 0, 1] as const;
+import ATHAN_DATA from './athan-data.js';
+/** Bundled athan recordings (content/athan/sources.json) plus the user's own imported file. */
+export const ATHAN_RECITERS: readonly string[] = ATHAN_DATA.recordings.map(r => r.id);
+/** Online recordings, selectable once downloaded, as 'online-<id>'. */
+export const ONLINE_ATHAN: readonly string[] = ATHAN_DATA.online.recordings.map(r => r.id);
+export const FAJR_ONLY: readonly string[] = ATHAN_DATA.online.recordings.filter(r => r.fajrOnly).map(r => `online-${r.id}`);
+export const isReciter = (id: unknown): id is string => id === 'custom' || ATHAN_RECITERS.includes(id as string) || (typeof id === 'string' && id.startsWith('online-') && ONLINE_ATHAN.includes(id.slice(7)));
+export const PRAYERS = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'] as const;
+export type PrayerName = typeof PRAYERS[number];
+/** Athan alerts at prayer times (off until the user turns them on). */
+/** An athan file the user imported; stored on this device only (never exported). `version` changes on every import. */
+export interface CustomAthan { name: string; ext: string; version: number }
+/** Minutes ahead the reminder before a prayer can be set to. */
+export const BEFORE_MINUTES = [5, 10, 15, 30] as const;
+export type BeforeMinutes = typeof BEFORE_MINUTES[number];
+/** A gentle notification shortly before each chosen prayer (never the athan itself). Off until the user turns it on. */
+export interface BeforePrayer { enabled: boolean; minutes: BeforeMinutes }
+export const defaultBefore = (): BeforePrayer => ({ enabled: false, minutes: 15 });
+/** `awayChime`: with the athan sound chosen, alerts play the athan only while the phone is inside the saved Home area and a
+ * soft chime anywhere else (or when the location is unknown). Off until the user turns it on. */
+export interface AthanSettings { enabled: boolean; prayers: Record<PrayerName, boolean>; sound: 'athan' | 'chime'; reciter: string; fajrReciter: string; custom: CustomAthan | null; downloads: string[]; before: BeforePrayer; awayChime: boolean }
+export const defaultAthan = (): AthanSettings => ({ enabled: false, prayers: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true }, sound: 'athan', reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore(), awayChime: false });
+export const PRAYER_METHODS = ['MuslimWorldLeague', 'Egyptian', 'Karachi', 'UmmAlQura', 'Dubai', 'MoonsightingCommittee', 'NorthAmerica', 'Kuwait', 'Qatar', 'Singapore', 'Tehran', 'Turkey'] as const;
+export type PrayerMethod = typeof PRAYER_METHODS[number];
+/** A saved place. Stored on this device only and excluded from progress exports. */
+export interface Place { lat: number; lng: number; radius: number }
+export type PlaceKind = 'home' | 'work' | 'mosque';
+export interface SmartSettings {
+    /** Geofence reminders (needs "Always" location). */
+    location: boolean;
+    /** Vehicle reminders (needs motion / activity recognition). */
+    vehicle: boolean;
+    /** Morning, evening and sleep reminders by time. */
+    timed: boolean;
+    method: PrayerMethod;
+    hanafi: boolean;
+    span: 'narrow' | 'broad';
+    sleepTime: string | null;
+    moments: Moment[];
+}
+/** Explicit evidence: the user said they recited this dhikr. Reminders never create these. */
+export interface AdhkarCompletion { id: string; entry: string; moment: Moment; at: number; day: string }
+/** What the device detected, without coordinates. */
+/** `moments`: what the reminder for this event carried (absent when none was sent, and in records saved by earlier builds). */
+export interface Detection { event: SmartEvent | 'WAKE' | 'LEFT_CHECK' | 'TRIP_START' | 'TRIP_END' | 'WATCH_OFF' | 'WATCH_ON'; at: number; detail?: string; moments?: Moment[] }
+export const defaultSmart = (): SmartSettings => ({ location: false, vehicle: false, timed: false, method: 'MuslimWorldLeague', hanafi: false, span: 'broad', sleepTime: null, moments: [...MOMENTS] });
+/** A dhikr count the user tapped on one local day (self-reported, like a tasbih). Steps are never stored: they are read
+ * live from the device pedometer. */
+export interface CounterCount { id: string; day: string; n: number }
+export interface HealthSettings { steps: boolean; stepGoal: number }
+export const defaultHealth = (): HealthSettings => ({ steps: false, stepGoal: 8000 });
+export const MAX_COUNT = 100000;
+/** Daily counts kept (older days are folded into Worship.archive). */
+export const MAX_COUNTS = 3000;
+/** A counter the user added: their own words and target. Shown as "added by you"; the app never checks or edits the text. */
+export interface CustomCounter { id: string; title: string; text: string; target: number }
+export const MAX_CUSTOM_COUNTERS = 30;
+/** Reminders through the waking hours, each showing the next chosen phrase in turn. */
+export interface DhikrRotation { enabled: boolean; every: 30 | 60 | 120 | 180; from: string; to: string; phrases: string[] }
+export const ROTATION_INTERVALS = [30, 60, 120, 180] as const;
+export const defaultRotation = (): DhikrRotation => ({ enabled: false, every: 60, from: '08:00', to: '22:00', phrases: ROTATION.map(r => r.id) });
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+export function validCustomCounter(c: unknown): c is CustomCounter {
+    const x = c as CustomCounter;
+    return !!x && typeof x === 'object' && typeof x.id === 'string' && /^my-[a-z0-9]{1,24}$/.test(x.id) && typeof x.title === 'string' && x.title.length <= 60
+        && typeof x.text === 'string' && x.text.trim().length > 0 && x.text.length <= 300 && Number.isSafeInteger(x.target) && x.target >= 1 && x.target <= 10000;
+}
+const counterIds = (state: { myCounters?: CustomCounter[] }) => new Set([...COUNTERS.map(c => c.id), ...LIBRARY.map(c => c.id), ...(state.myCounters ?? []).map(c => c.id)]);
+// ---- Worship tracking (v13) ---------------------------------------------------------------------------
+/** What the user said about one prayer on one day. A prayer with no record is simply not confirmed: the app never
+ * marks a prayer missed by itself, and a record is the user's own note, not a judgement of the prayer's validity. */
+export type SalahStatus = 'done' | 'missed' | 'madeUp';
+export interface SalahRecord { day: string; prayer: PrayerName; status: SalahStatus; at: number; madeUpAt?: number }
+/** Post-prayer tasbih progress, kept per day, prayer and variant (variants are never mixed). */
+export interface TasbihCount { day: string; prayer: PrayerName; id: string; n: number }
+export interface WorshipPrefs { haptics: boolean; sounds: boolean; translation: boolean; checkIn: boolean; checkInAfter: 20 | 30 | 45 | 60; tasbihNudge: boolean; tasbihVariant: string; tasbihTheme: TasbihTheme; nightBeads: NightBeads }
+/** How the tasbih counter looks (nothing else changes): the bead ring, beads on a thread, or the ring alone. */
+export const TASBIH_THEMES = ['ring', 'thread', 'plain', 'night'] as const;
+export type TasbihTheme = typeof TASBIH_THEMES[number];
+/** Choices for the Night beads look. Drawing only: none of them touches a count. */
+export const NIGHT_DESIGNS = ['amber', 'crystal', 'smoky', 'rose', 'emerald', 'sapphire', 'pearl', 'turquoise', 'olive', 'ebony'] as const;
+export const NIGHT_SHAPES = ['round', 'olive', 'barrel', 'disc', 'faceted', 'ridged'] as const;
+export const NIGHT_SKIES = ['auto', 'fajr', 'day', 'sunset', 'night'] as const;
+export type NightDesign = typeof NIGHT_DESIGNS[number];
+export type NightShape = typeof NIGHT_SHAPES[number];
+export type NightSky = typeof NIGHT_SKIES[number];
+export interface NightBeads { design: NightDesign; shape: NightShape; sky: NightSky; phonetic: boolean }
+export const defaultNightBeads = (): NightBeads => ({ design: 'amber', shape: 'round', sky: 'auto', phonetic: true });
+function validNightBeads(n: unknown): n is NightBeads {
+    const x = n as NightBeads | null;
+    return !!x && (NIGHT_DESIGNS as readonly string[]).includes(x.design) && (NIGHT_SHAPES as readonly string[]).includes(x.shape) && (NIGHT_SKIES as readonly string[]).includes(x.sky) && typeof x.phonetic === 'boolean';
+}
+export interface Worship {
+    salah: SalahRecord[];
+    tasbih: TasbihCount[];
+    favorites: string[];
+    /** Counters used most recently first. */
+    recent: string[];
+    /** The user's own goal for a built-in counter (the sourced count is still shown beside it). */
+    targets: Record<string, number>;
+    /** Totals of daily counts too old to keep, so lifetime totals do not shrink. */
+    archive: Record<string, number>;
+    /** Surahs opened in the reader per local day (opening, not a claim the surah was read). */
+    quran: Record<string, number[]>;
+    prefs: WorshipPrefs;
+}
+export const CHECK_IN_AFTER = [20, 30, 45, 60] as const;
+export const MAX_SALAH = 5 * 800, MAX_TASBIH = 5 * 3 * 90, MAX_QURAN_DAYS = 800;
+export const defaultWorship = (): Worship => ({ salah: [], tasbih: [], favorites: [], recent: [], targets: {}, archive: {}, quran: {}, prefs: { haptics: true, sounds: false, translation: true, checkIn: false, checkInAfter: 45, tasbihNudge: false, tasbihVariant: TASBIH_VARIANTS[0]!, tasbihTheme: 'ring', nightBeads: defaultNightBeads() } });
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+function validWorship(w: unknown, ids: Set<string>, version = STATE_VERSION): w is Worship {
+    const x = w as Worship;
+    if (!x || typeof x !== 'object') return false;
+    const p = x.prefs;
+    if (!p || ![p.haptics, p.sounds, p.translation, p.checkIn, p.tasbihNudge].every(v => typeof v === 'boolean') || !(CHECK_IN_AFTER as readonly number[]).includes(p.checkInAfter) || !TASBIH_VARIANTS.includes(p.tasbihVariant) || (version >= 24 && !(TASBIH_THEMES as readonly string[]).includes(p.tasbihTheme)) || (version >= 27 && !validNightBeads(p.nightBeads))) return false;
+    if (!Array.isArray(x.salah) || x.salah.length > MAX_SALAH || x.salah.some(r => !r || !DAY.test(r.day) || !(PRAYERS as readonly string[]).includes(r.prayer) || !['done', 'missed', 'madeUp'].includes(r.status) || !Number.isFinite(r.at) || !(r.madeUpAt === undefined || (Number.isFinite(r.madeUpAt) && r.status === 'madeUp'))) || new Set(x.salah.map(r => `${r.day}/${r.prayer}`)).size !== x.salah.length) return false;
+    if (!Array.isArray(x.tasbih) || x.tasbih.length > MAX_TASBIH || x.tasbih.some(r => !r || !DAY.test(r.day) || !(PRAYERS as readonly string[]).includes(r.prayer) || !TASBIH_VARIANTS.includes(r.id) || !Number.isSafeInteger(r.n) || r.n < 0 || r.n > MAX_COUNT) || new Set(x.tasbih.map(r => `${r.day}/${r.prayer}/${r.id}`)).size !== x.tasbih.length) return false;
+    const list = (a: unknown) => Array.isArray(a) && a.length <= 200 && a.every(v => typeof v === 'string' && ids.has(v)) && new Set(a).size === a.length;
+    if (!list(x.favorites) || !list(x.recent)) return false;
+    const record = (r: unknown, ok: (k: string, v: unknown) => boolean) => !!r && typeof r === 'object' && !Array.isArray(r) && Object.entries(r).every(([k, v]) => ok(k, v));
+    if (!record(x.targets, (k, v) => ids.has(k) && Number.isSafeInteger(v) && (v as number) >= 1 && (v as number) <= 10000)) return false;
+    if (!record(x.archive, (k, v) => ids.has(k) && Number.isSafeInteger(v) && (v as number) >= 0)) return false;
+    return record(x.quran, (k, v) => DAY.test(k) && Array.isArray(v) && v.length <= 114 && v.every(n => Number.isInteger(n) && n >= 1 && n <= 114)) && Object.keys(x.quran).length <= MAX_QURAN_DAYS;
+}
+/** Set (or with null clear) what the user says about one prayer. Idempotent: the same status twice changes nothing.
+ * 'madeUp' is only reachable from 'missed' (a prayer the user recorded as missed and later made up); clearing a
+ * made-up prayer goes back to 'missed'. Future days are rejected. */
+export function setSalah(state: AppState, day: string, prayer: PrayerName, status: SalahStatus | null, at: number): AppState {
+    if (!DAY.test(day) || !(PRAYERS as readonly string[]).includes(prayer) || !Number.isFinite(at) || day > dayKey(at)) throw new Error('Invalid prayer record');
+    const w = state.worship, old = w.salah.find(r => r.day === day && r.prayer === prayer);
+    if ((old?.status ?? null) === status) return state;
+    if (status === 'madeUp' && old?.status !== 'missed') throw new Error('Only a missed prayer can be made up');
+    let next: SalahRecord | null;
+    if (status === null) next = old?.status === 'madeUp' ? { day, prayer, status: 'missed', at: old.at } : null;
+    else if (status === 'madeUp') next = { day, prayer, status, at: old!.at, madeUpAt: at };
+    else next = { day, prayer, status, at };
+    const rest = w.salah.filter(r => r !== old);
+    const salah = (next ? [...rest, next] : rest).sort((a, b) => a.day.localeCompare(b.day) || PRAYERS.indexOf(a.prayer) - PRAYERS.indexOf(b.prayer)).slice(-MAX_SALAH);
+    return { ...state, worship: { ...w, salah } };
+}
+export function salahStatus(state: AppState, day: string, prayer: PrayerName): SalahStatus | null { return state.worship.salah.find(r => r.day === day && r.prayer === prayer)?.status ?? null; }
+/** Set (not add) the tasbih count of one prayer and variant. */
+export function setTasbih(state: AppState, day: string, prayer: PrayerName, id: string, n: number): AppState {
+    if (!DAY.test(day) || !(PRAYERS as readonly string[]).includes(prayer) || !TASBIH_VARIANTS.includes(id) || !Number.isSafeInteger(n) || n < 0 || n > MAX_COUNT) throw new Error('Invalid tasbih count');
+    const w = state.worship, old = w.tasbih.find(r => r.day === day && r.prayer === prayer && r.id === id);
+    if ((old?.n ?? 0) === n) return state;
+    const rest = w.tasbih.filter(r => r !== old);
+    return { ...state, worship: { ...w, tasbih: (n ? [...rest, { day, prayer, id, n }] : rest).sort((a, b) => a.day.localeCompare(b.day)).slice(-MAX_TASBIH) } };
+}
+export function tasbihOn(state: AppState, day: string, prayer: PrayerName, id: string): number { return state.worship.tasbih.find(r => r.day === day && r.prayer === prayer && r.id === id)?.n ?? 0; }
+export function toggleFavorite(state: AppState, id: string): AppState {
+    if (!counterIds(state).has(id)) throw new Error('Unknown counter');
+    const f = state.worship.favorites;
+    return { ...state, worship: { ...state.worship, favorites: f.includes(id) ? f.filter(x => x !== id) : [...f, id] } };
+}
+export function markRecent(state: AppState, id: string): AppState {
+    if (!counterIds(state).has(id)) throw new Error('Unknown counter');
+    if (state.worship.recent[0] === id) return state;
+    return { ...state, worship: { ...state.worship, recent: [id, ...state.worship.recent.filter(x => x !== id)].slice(0, 8) } };
+}
+/** The user's goal for a built-in counter; null resets it to the sourced or suggested number. */
+export function setTarget(state: AppState, id: string, n: number | null): AppState {
+    if (!counterIds(state).has(id) || state.myCounters.some(c => c.id === id) || !(n === null || (Number.isSafeInteger(n) && n >= 1 && n <= 10000))) throw new Error('Invalid target');
+    const targets = { ...state.worship.targets };
+    if (n === null) delete targets[id]; else targets[id] = n;
+    return { ...state, worship: { ...state.worship, targets } };
+}
+/** Record that a surah was opened in the reader today (once per surah per day). */
+export function noteQuranOpen(state: AppState, surah: number, at: number): AppState {
+    chapter(surah);
+    const day = dayKey(at), list = state.worship.quran[day] ?? [];
+    if (list.includes(surah)) return state;
+    const quran = { ...state.worship.quran, [day]: [...list, surah] };
+    for (const k of Object.keys(quran).sort().slice(0, Math.max(0, Object.keys(quran).length - MAX_QURAN_DAYS))) delete quran[k];
+    return { ...state, worship: { ...state.worship, quran } };
+}
+/** Lifetime total of a counter: kept daily counts plus the archived total of older days. */
+export function lifetimeCount(state: AppState, id: string): number { return (state.worship.archive[id] ?? 0) + state.counts.filter(c => c.id === id).reduce((n, c) => n + c.n, 0); }
 export interface ReviewCard {
     key: string;
     mode: Mode;
@@ -43,9 +255,64 @@ export interface Session {
     startedAt: number;
     kind: 'daily' | 'practice';
 }
+export const HIGHLIGHT_COLORS = ['gold', 'green', 'blue', 'rose', 'violet'] as const;
+export type HighlightColor = typeof HIGHLIGHT_COLORS[number];
+export interface Highlight { key: string; color: HighlightColor; at: number }
+export interface VerseNote { key: string; text: string; at: number }
+export const NOTE_MAX = 2000;
+/** Friday reminder (Surah Al-Kahf and salawat) and the evening-before reminder for voluntary fasts. Off until chosen. */
+/** Jumu'ah, voluntary fasts, and in Ramadan the end of suhoor and iftar (src/calendar.ts, src/ramadan.ts). */
+/** Optional reminders the evening before: the Arafah fast, Tasu'a and Ashura, the first ten days of Dhul Hijjah, each Eid. */
+export interface OccasionReminders { arafah: boolean; ashura: boolean; dhulHijjah: boolean; eidEve: boolean }
+export const OCCASION_REMINDERS = ['arafah', 'ashura', 'dhulHijjah', 'eidEve'] as const;
+export const defaultOccasions = (): OccasionReminders => ({ arafah: false, ashura: false, dhulHijjah: false, eidEve: false });
+export interface CalendarReminders { jumuah: boolean; fasting: boolean; suhoor: boolean; iftar: boolean; occasions: OccasionReminders }
+export const defaultCalendar = (): CalendarReminders => ({ jumuah: false, fasting: false, suhoor: false, iftar: false, occasions: defaultOccasions() });
+/** Fajr wake-up alarm. `offset`: minutes from Fajr (FAJR_OFFSETS); `snoozes`: how many times it may be snoozed;
+ * `check`: after Stop, it rings once more unless the user opens AyahFlow and confirms being awake. */
+export interface FajrAlarm { enabled: boolean; offset: number; snoozes: number; snoozeMinutes: number; check: boolean }
+export const FAJR_OFFSETS = [-30, -20, -10, 0, 10, 20, 30] as const, FAJR_SNOOZES = [0, 1, 2, 3] as const, FAJR_SNOOZE_MINUTES = [5, 10] as const;
+export const defaultFajrAlarm = (): FajrAlarm => ({ enabled: false, offset: 0, snoozes: 2, snoozeMinutes: 5, check: true });
+/** Quran completion plan (src/khatm.ts): pages `from`…PAGE_TOTAL over `days` days from `start`; `page` is the last page
+ * finished (from − 1 before the first). */
+export interface Khatm { start: string; days: number; from: number; page: number }
+export const KHATM_DAYS = [7, 10, 15, 20, 30, 40, 60] as const;
+/** Pages in the Madinah Mushaf (data.ts PAGE_COUNT; a test keeps the two equal). */
+export const PAGE_TOTAL = 604;
+/** Self-assessed recall of a highlighted verse on one local day: the user's own answer, never a score. One per verse and
+ * day (answering again replaces it). Kept apart from review cards, XP and attempts. */
+export interface HighlightReview { key: string; day: string; result: 'remembered' | 'revisit' }
+export const HIGHLIGHT_REVIEW_MAX = 1000;
 export interface AppState {
-    version: 1;
+    version: 27;
+    tajweedColours: boolean;
+    hijriOffset: typeof HIJRI_OFFSETS[number];
+    khatm: Khatm | null;
+    fajrAlarm: FajrAlarm;
+    calendar: CalendarReminders;
+    highlightReviews: HighlightReview[];
     locale: Locale;
+    theme: Theme;
+    arabicSize: ArabicSize;
+    quranFont: QuranFont;
+    readingLayout: ReadingLayout;
+    readingTheme: ReadingTheme;
+    /** Index into READER_SCALE. */
+    readerSize: number;
+    /** Explicit opt-in to on-device voice following. Consent only: no recognition output is ever stored. */
+    voiceFollowConsent: boolean;
+    places: Record<PlaceKind, Place | null>;
+    smart: SmartSettings;
+    adhkarLog: AdhkarCompletion[];
+    detections: Detection[];
+    athan: AthanSettings;
+    counts: CounterCount[];
+    health: HealthSettings;
+    myCounters: CustomCounter[];
+    worship: Worship;
+    /** A few istighfar reminders a day until the target is reached. */
+    istighfarReminder: boolean;
+    rotation: DhikrRotation;
     goal: 3 | 7 | 10;
     selectedSurahs: number[];
     cards: Record<string, ReviewCard>;
@@ -53,6 +320,10 @@ export interface AppState {
     days: Record<string, number>;
     xp: number;
     bookmarks: string[];
+    /** Verses the user coloured in the reader, by "surah:ayah". The user's own marks; exported and deleted with the rest. */
+    highlights: Highlight[];
+    /** The user's own notes on verses, by "surah:ayah" (plain text, never sent anywhere). */
+    notes: VerseNote[];
     readPosition: {
         surah: number;
         ayah: number;
@@ -70,7 +341,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 1, locale: 'en', goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 27, tajweedColours: false, hijriOffset: 0, quranFont: 'madina', khatm: null, fajrAlarm: defaultFajrAlarm(), calendar: defaultCalendar(), highlightReviews: [], readingTheme: 'auto', readerSize: 2, highlights: [], notes: [], worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -127,11 +398,31 @@ export function questionFor(item: QueueItem, seed: number): Question {
     if (item.mode === 'listen') {
         options = [{ id: correctId, text: s.name }, ...shuffle(SURAH_DATA.filter(v => v.id !== s.id), random).slice(0, 3).map(v => ({ id: String(v.id), text: v.name }))];
     }
+    else if (item.mode === 'locate') {
+        options = [];
+    }
     else {
-        const seen = new Set([comparable(answer)]);
-        const candidates = shuffle([...s.verses.map((text, i) => ({ id: `${s.id}:${i + 1}`, text })), ...SURAH_DATA.filter(v => v.id !== s.id).flatMap(v => v.verses.map((text, i) => ({ id: `${v.id}:${i + 1}`, text })))], random);
-        const wrong = candidates.filter(v => { const k = comparable(v.text); if (seen.has(k))
-            return false; seen.add(k); return true; }).slice(0, 3);
+        // Distractors come from the same surah first, then neighbouring surahs: real, nearby text that is hard to rule out.
+        const seen = new Set([ayahKey(s.id, target)]);
+        const wrong: { id: string; text: string }[] = [];
+        for (let d = 0; d < SURAH_DATA.length && wrong.length < 3; d++) {
+            for (const id of d === 0 ? [s.id] : [s.id - d, s.id + d]) {
+                const other = SURAH_DATA[id - 1];
+                if (!other)
+                    continue;
+                for (const a of shuffle(other.verses.map((_, i) => i + 1), random)) {
+                    const k = ayahKey(other.id, a);
+                    if (seen.has(k))
+                        continue;
+                    seen.add(k);
+                    wrong.push({ id: `${other.id}:${a}`, text: other.verses[a - 1]! });
+                    if (wrong.length === 3)
+                        break;
+                }
+                if (wrong.length === 3)
+                    break;
+            }
+        }
         options = [{ id: correctId, text: answer }, ...wrong];
     }
     return { item, text: verse(s.id, item.ayah), answerText: answer, options: shuffle(options, random), correctId, answerAyah: target, surahName: s.name };
@@ -151,6 +442,25 @@ export function applyAnswer(state: AppState, item: QueueItem, correct: boolean, 
     return { ...state, cards: { ...state.cards, [item.key]: card }, xp: state.xp + (correct ? 10 : 2), recallSelfChecks: state.recallSelfChecks + (item.mode === 'recall' ? 1 : 0), attempts: [...state.attempts, { id: eventId, cardKey: item.key, at, day: today, correct, mode: item.mode }].slice(-5000), days: { ...state.days, [today]: (state.days[today] ?? 0) + 1 } };
 }
 export function retention(card: ReviewCard): 'new' | 'learning' | 'retained' { return card.attempts === 0 ? 'new' : card.successDays.length >= 3 && calendarDistance(card.successDays.at(-1)!, card.successDays[0]!) >= 7 ? 'retained' : 'learning'; }
+/** Review stage of a card, derived only from its scheduling: Learning (fewer than three successful review days in a row,
+ * interval under 4 days), Familiar (interval 4 days or more), Strong (also "retained": three successful days spanning a
+ * week), Mastered (retained with an interval of 20 days or more, i.e. five successful review days in a row). A missed
+ * review resets the interval, so the card goes back to Learning. It measures spaced-review recall, not Tajweed. */
+export type ReviewStage = 'learning' | 'familiar' | 'strong' | 'mastered';
+export const REVIEW_STAGES: readonly ReviewStage[] = ['learning', 'familiar', 'strong', 'mastered'];
+export const FAMILIAR_DAYS = 4, MASTERED_DAYS = 20;
+export function reviewStage(card: ReviewCard): ReviewStage | null {
+    if (card.attempts === 0) return null;
+    const kept = retention(card) === 'retained';
+    return kept && card.intervalDays >= MASTERED_DAYS ? 'mastered' : kept ? 'strong' : card.intervalDays >= FAMILIAR_DAYS ? 'familiar' : 'learning';
+}
+/** Cards per stage, quiz evidence and self-assessed recall counted apart. */
+export function stageCounts(state: AppState): Record<'quiz' | 'self-assessed', Record<ReviewStage, number>> {
+    const zero = () => ({ learning: 0, familiar: 0, strong: 0, mastered: 0 });
+    const out = { quiz: zero(), 'self-assessed': zero() };
+    for (const c of Object.values(state.cards)) { const st = reviewStage(c); if (st) out[c.evidence][st]++; }
+    return out;
+}
 export function dueItems(state: AppState, now = Date.now()): ReviewCard[] { return Object.values(state.cards).filter(c => c.dueAt <= now && state.selectedSurahs.includes(c.surah)); }
 export function weakItems(state: AppState): ReviewCard[] { return Object.values(state.cards).filter(c => c.lapses > 0 && retention(c) !== 'retained').sort((a, b) => b.lapses - a.lapses || a.lastAt - b.lastAt).slice(0, 6); }
 export function completedAccuracy(state: AppState): number | null { const a = state.attempts.filter(v => v.mode !== 'recall'); return a.length ? Math.round(a.filter(v => v.correct).length / a.length * 100) : null; }
@@ -158,9 +468,77 @@ export function completedAccuracy(state: AppState): number | null { const a = st
 export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
-    const s = raw as AppState;
-    if (s.version !== 1 || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    const s = raw as Omit<AppState, 'quranFont' | 'khatm' | 'fajrAlarm' | 'calendar' | 'highlightReviews' | 'readingTheme' | 'readerSize' | 'highlights' | 'notes' | 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; quranFont?: QuranFont; khatm?: Khatm | null; fajrAlarm?: FajrAlarm; calendar?: CalendarReminders; highlightReviews?: HighlightReview[]; readingTheme?: ReadingTheme; readerSize?: number; highlights?: Highlight[]; notes?: VerseNote[]; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
+    if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
+        throw new Error('Invalid theme');
+    if (s.version >= 3 && (!['s', 'm', 'l', 'xl'].includes(s.arabicSize!) || !(s.version >= 16 ? ['cards', 'flow', 'page'] : ['cards', 'flow']).includes(s.readingLayout!)))
+        throw new Error('Invalid reading settings');
+    if (s.version >= 26 && typeof (s as { tajweedColours?: unknown }).tajweedColours !== 'boolean')
+        throw new Error('Invalid Tajweed setting');
+    if (s.version >= 25 && !(HIJRI_OFFSETS as readonly number[]).includes((s as { hijriOffset?: number }).hijriOffset as number))
+        throw new Error('Invalid Hijri correction');
+    if (s.version >= 22 && !(QURAN_FONT_IDS as readonly string[]).includes(s.quranFont!))
+        throw new Error('Invalid Quran font');
+    if (s.version >= 4 && typeof s.voiceFollowConsent !== 'boolean')
+        throw new Error('Invalid voice setting');
+    if (s.version >= 5) {
+        const p = s.places;
+        if (!p || typeof p !== 'object' || (['home', 'work', 'mosque'] as const).some(k => !(p[k] === null || validPlace(p[k]))) || Object.keys(p).length !== 3)
+            throw new Error('Invalid places');
+        const m = s.smart;
+        if (!m || ![m.location, m.vehicle, m.timed, m.hanafi].every(v => typeof v === 'boolean') || !PRAYER_METHODS.includes(m.method) || !['narrow', 'broad'].includes(m.span) || !(m.sleepTime === null || /^([01]\d|2[0-3]):[0-5]\d$/.test(m.sleepTime)) || !Array.isArray(m.moments) || m.moments.some(x => !(MOMENTS as readonly string[]).includes(x)))
+            throw new Error('Invalid smart reminder settings');
+        if (!Array.isArray(s.adhkarLog) || s.adhkarLog.length > 5000 || s.adhkarLog.some(c => !c || typeof c.id !== 'string' || !ADHKAR_ENTRIES.some(e => e.id === c.entry) || !(MOMENTS as readonly string[]).includes(c.moment) || !Number.isFinite(c.at) || !/^\d{4}-\d{2}-\d{2}$/.test(c.day)))
+            throw new Error('Invalid adhkar log');
+        if (!Array.isArray(s.detections) || s.detections.length > 50 || s.detections.some(d => !d || typeof d.event !== 'string' || !Number.isFinite(d.at) || !(d.detail === undefined || (typeof d.detail === 'string' && d.detail.length <= 160)) || !(d.moments === undefined || (Array.isArray(d.moments) && d.moments.length <= MOMENTS.length && d.moments.every(m => (MOMENTS as readonly string[]).includes(m))))))
+            throw new Error('Invalid detections');
+    }
+    if (s.version >= 6) {
+        const a = s.athan;
+        if (!a || typeof a.enabled !== 'boolean' || !['athan', 'chime'].includes(a.sound) || !a.prayers || Object.keys(a.prayers).length !== 5 || PRAYERS.some(p => typeof a.prayers[p] !== 'boolean'))
+            throw new Error('Invalid athan settings');
+    }
+    if (s.version >= 7) {
+        const a = s.athan!, c = a.custom;
+        if (!isReciter(a.reciter) || !isReciter(a.fajrReciter) || !(c === null || (c && typeof c.name === 'string' && c.name.length <= 120 && /^[a-z0-9]{1,5}$/.test(c.ext) && Number.isSafeInteger(c.version))) || ((a.reciter === 'custom' || a.fajrReciter === 'custom') && !c))
+            throw new Error('Invalid athan reciter');
+    }
+    if (s.version >= 8) {
+        const a = s.athan!, d = a.downloads;
+        const usable = (id: string) => !id.startsWith('online-') || d.includes(id.slice(7));
+        if (!Array.isArray(d) || d.some(x => !ONLINE_ATHAN.includes(x)) || new Set(d).size !== d.length || !usable(a.reciter) || !usable(a.fajrReciter) || FAJR_ONLY.includes(a.reciter))
+            throw new Error('Invalid athan downloads');
+    }
+    if (s.version >= 14) {
+        const b = s.athan!.before;
+        if (!b || typeof b !== 'object' || typeof b.enabled !== 'boolean' || !(BEFORE_MINUTES as readonly number[]).includes(b.minutes) || Object.keys(b).length !== 2)
+            throw new Error('Invalid reminder before prayer');
+    }
+    if (s.version >= 15 && typeof s.athan!.awayChime !== 'boolean') throw new Error('Invalid athan away setting');
+    if (s.version >= 12) {
+        const r = s.rotation, mine = new Set((s.myCounters ?? []).map(c => c.id));
+        if (!r || typeof r.enabled !== 'boolean' || !(ROTATION_INTERVALS as readonly number[]).includes(r.every) || !HHMM.test(r.from) || !HHMM.test(r.to) || r.from >= r.to
+            || !Array.isArray(r.phrases) || r.phrases.length > 100 || r.phrases.some(p => typeof p !== 'string' || !(ROTATION.some(x => x.id === p) || mine.has(p))) || new Set(r.phrases).size !== r.phrases.length)
+            throw new Error('Invalid dhikr rotation settings');
+    }
+    if (s.version >= 13 && !validWorship(s.worship, counterIds(s), s.version))
+        throw new Error('Invalid worship data');
+    if (s.version >= 11 && typeof s.istighfarReminder !== 'boolean')
+        throw new Error('Invalid istighfar reminder setting');
+    if (s.version >= 10) {
+        const m = s.myCounters;
+        if (!Array.isArray(m) || m.length > MAX_CUSTOM_COUNTERS || !m.every(validCustomCounter) || new Set(m.map(x => x.id)).size !== m.length)
+            throw new Error('Invalid custom counters');
+    }
+    if (s.version >= 9) {
+        const c = s.counts, h = s.health, ids = counterIds(s);
+        if (!Array.isArray(c) || c.length > MAX_COUNTS || c.some(x => !x || !ids.has(x.id) || !/^\d{4}-\d{2}-\d{2}$/.test(x.day) || !Number.isSafeInteger(x.n) || x.n < 0 || x.n > MAX_COUNT) || new Set(c.map(x => `${x.id}@${x.day}`)).size !== c.length)
+            throw new Error('Invalid dhikr counts');
+        if (!h || typeof h.steps !== 'boolean' || !Number.isSafeInteger(h.stepGoal) || h.stepGoal < 1000 || h.stepGoal > 50000)
+            throw new Error('Invalid step settings');
+    }
     if (!Array.isArray(s.selectedSurahs) || s.selectedSurahs.length === 0 || s.selectedSurahs.some(x => !SURAH_DATA.some(y => y.id === x)))
         throw new Error('Invalid practice range');
     if (!Number.isSafeInteger(s.xp) || s.xp < 0 || !Number.isSafeInteger(s.completedSessions) || s.completedSessions < 0 || !Number.isSafeInteger(s.recallSelfChecks) || s.recallSelfChecks < 0)
@@ -168,18 +546,46 @@ export function validateState(raw: unknown): AppState {
     if (!s.cards || typeof s.cards !== 'object' || Array.isArray(s.cards) || !s.days || typeof s.days !== 'object')
         throw new Error('Invalid review state');
     for (const [k, c] of Object.entries(s.cards)) {
-        if (!c || !['next', 'previous', 'listen', 'recall'].includes(c.mode) || !eligible(c.mode, c.surah, c.ayah) || k !== keyFor(c.mode, c.surah, c.ayah) || c.key !== k)
+        if (!c || !MODES.includes(c.mode) || !eligible(c.mode, c.surah, c.ayah) || k !== keyFor(c.mode, c.surah, c.ayah) || c.key !== k)
             throw new Error('Invalid review card');
         if (![c.attempts, c.successes, c.lapses, c.intervalDays, c.dueAt, c.lastAt, c.firstSuccessAt].every(x => Number.isFinite(x) && x >= 0) || !Array.isArray(c.successDays) || c.successDays.some(d => !/^\d{4}-\d{2}-\d{2}$/.test(d)))
             throw new Error('Invalid review metadata');
     }
-    if (!Array.isArray(s.attempts) || s.attempts.length > 5000 || s.attempts.some(a => !a || typeof a.id !== 'string' || !Number.isFinite(a.at) || typeof a.correct !== 'boolean' || !['next', 'previous', 'listen', 'recall'].includes(a.mode)))
+    if (!Array.isArray(s.attempts) || s.attempts.length > 5000 || s.attempts.some(a => !a || typeof a.id !== 'string' || !Number.isFinite(a.at) || typeof a.correct !== 'boolean' || !MODES.includes(a.mode)))
         throw new Error('Invalid evidence');
     if (Object.entries(s.days).some(([d, n]) => !/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isSafeInteger(n) || n < 0))
         throw new Error('Invalid activity');
     if (!Array.isArray(s.bookmarks) || s.bookmarks.some(k => typeof k !== 'string' || !/^\d+:\d+$/.test(k)))
         throw new Error('Invalid bookmarks');
     s.bookmarks.forEach(k => { const [a, b] = k.split(':').map(Number); verse(a!, b!); });
+    if (s.version >= 17 && (!['auto', 'classic', 'night'].includes(s.readingTheme!) || !Number.isInteger(s.readerSize) || s.readerSize! < 0 || s.readerSize! >= READER_SCALE.length))
+        throw new Error('Invalid reading settings');
+    if (s.version >= 18) {
+        const c = s.calendar;
+        const o = (c as { occasions?: Record<string, unknown> } | undefined)?.occasions;
+        if (!c || typeof c.jumuah !== 'boolean' || typeof c.fasting !== 'boolean' || (s.version >= 21 && (typeof c.suhoor !== 'boolean' || typeof c.iftar !== 'boolean')) || (s.version >= 23 && (!o || typeof o !== 'object' || Object.keys(o).length !== OCCASION_REMINDERS.length || OCCASION_REMINDERS.some(k => typeof o[k] !== 'boolean'))) || Object.keys(c).length !== (s.version >= 23 ? 5 : s.version >= 21 ? 4 : 2))
+            throw new Error('Invalid calendar reminders');
+        const r = s.highlightReviews;
+        if (!Array.isArray(r) || r.length > HIGHLIGHT_REVIEW_MAX || new Set(r.map(x => `${x?.key}@${x?.day}`)).size !== r.length || r.some(x => !x || typeof x.key !== 'string' || !/^\d+:\d+$/.test(x.key) || typeof x.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.day) || !['remembered', 'revisit'].includes(x.result) || Object.keys(x).length !== 3))
+            throw new Error('Invalid highlight reviews');
+    }
+    if (s.version >= 19) {
+        const f = s.fajrAlarm;
+        if (!f || typeof f.enabled !== 'boolean' || typeof f.check !== 'boolean' || !(FAJR_OFFSETS as readonly number[]).includes(f.offset) || !(FAJR_SNOOZES as readonly number[]).includes(f.snoozes) || !(FAJR_SNOOZE_MINUTES as readonly number[]).includes(f.snoozeMinutes) || Object.keys(f).length !== 5)
+            throw new Error('Invalid Fajr alarm');
+    }
+    if (s.version >= 20 && s.khatm !== null) {
+        const k = s.khatm;
+        if (!k || typeof k.start !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(k.start) || !(KHATM_DAYS as readonly number[]).includes(k.days) || !Number.isInteger(k.from) || k.from < 1 || k.from > PAGE_TOTAL || !Number.isInteger(k.page) || k.page < k.from - 1 || k.page > PAGE_TOTAL || Object.keys(k).length !== 4)
+            throw new Error('Invalid Quran plan');
+    }
+    if (s.version >= 16) {
+        const known = (k: unknown) => { if (typeof k !== 'string' || !/^\d+:\d+$/.test(k)) return false; const [a, b] = k.split(':').map(Number); try { verse(a!, b!); return true; } catch { return false; } };
+        if (!Array.isArray(s.highlights) || s.highlights.length > 6236 || new Set(s.highlights.map(h => h?.key)).size !== s.highlights.length || s.highlights.some(h => !h || !known(h.key) || !HIGHLIGHT_COLORS.includes(h.color) || !Number.isFinite(h.at) || Object.keys(h).length !== 3))
+            throw new Error('Invalid highlights');
+        if (!Array.isArray(s.notes) || s.notes.length > 6236 || new Set(s.notes.map(n => n?.key)).size !== s.notes.length || s.notes.some(n => !n || !known(n.key) || typeof n.text !== 'string' || !n.text.trim() || n.text.length > NOTE_MAX || !Number.isFinite(n.at) || Object.keys(n).length !== 3))
+            throw new Error('Invalid notes');
+    }
     if (!s.readPosition)
         throw new Error('Invalid reading position');
     verse(s.readPosition.surah, s.readPosition.ayah);
@@ -192,9 +598,143 @@ export function validateState(raw: unknown): AppState {
         if (!q || typeof q.id !== 'string' || !Number.isFinite(q.seed) || !Number.isFinite(q.startedAt) || !['daily', 'practice'].includes(q.kind) || !Number.isSafeInteger(q.correct) || q.correct < 0 || typeof q.answered !== 'boolean' || typeof q.lastCorrect !== 'boolean' || !(q.lastChoice === null || typeof q.lastChoice === 'string') || !Array.isArray(q.queue) || q.queue.length < 1 || q.queue.length > 15 || !Number.isInteger(q.index) || q.index < 0 || q.index >= q.queue.length)
             throw new Error('Invalid session');
         for (const i of q.queue) {
-            if (!i || !['next', 'previous', 'listen', 'recall'].includes(i.mode) || !eligible(i.mode, i.surah, i.ayah) || i.key !== keyFor(i.mode, i.surah, i.ayah) || !['due', 'new', 'practice'].includes(i.reason))
+            if (!i || !MODES.includes(i.mode) || !eligible(i.mode, i.surah, i.ayah) || i.key !== keyFor(i.mode, i.surah, i.ayah) || !['due', 'new', 'practice'].includes(i.reason))
                 throw new Error('Invalid session item');
         }
     }
-    return structuredClone(s);
+    return structuredClone({ ...s, version: 27, tajweedColours: s.version < 26 ? false : (s as { tajweedColours?: boolean }).tajweedColours!, hijriOffset: s.version < 25 ? 0 : (s as { hijriOffset?: AppState['hijriOffset'] }).hijriOffset!, quranFont: s.version < 22 ? 'madina' : s.quranFont!, khatm: s.version < 20 ? null : s.khatm!, fajrAlarm: s.version < 19 ? defaultFajrAlarm() : s.fajrAlarm!, calendar: s.version < 18 ? defaultCalendar() : s.version < 21 ? { ...s.calendar!, suhoor: false, iftar: false, occasions: defaultOccasions() } : s.version < 23 ? { ...s.calendar!, occasions: defaultOccasions() } : s.calendar!, highlightReviews: s.version < 18 ? [] : s.highlightReviews!, readingTheme: s.version < 17 ? 'auto' : s.readingTheme!, readerSize: s.version < 17 ? 2 : s.readerSize!, highlights: s.version < 16 ? [] : s.highlights!, notes: s.version < 16 ? [] : s.notes!, worship: s.version < 13 ? defaultWorship() : s.version < 27 ? { ...s.worship!, prefs: { ...s.worship!.prefs, tasbihTheme: s.version < 24 ? 'ring' : s.worship!.prefs.tasbihTheme, nightBeads: defaultNightBeads() } } : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+}
+
+/** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */
+let keyIndex: { keys: string[][]; byKey: Map<string, string[]> } | null = null;
+/** Comparison keys for every ayah, built once on first use. */
+function index(): NonNullable<typeof keyIndex> {
+    if (!keyIndex) {
+        const keys = SURAH_DATA.map(s => s.verses.map(comparable)), byKey = new Map<string, string[]>();
+        keys.forEach((ks, si) => ks.forEach((k, ai) => { const list = byKey.get(k); const ref = `${si + 1}:${ai + 1}`; if (list) list.push(ref); else byKey.set(k, [ref]); }));
+        keyIndex = { keys, byKey };
+    }
+    return keyIndex;
+}
+/** Comparison key of one ayah (cached). */
+export function ayahKey(surah: number, ayah: number): string { verse(surah, ayah); return index().keys[surah - 1]![ayah - 1]!; }
+export function identicalAyahs(surah: number, ayah: number): string[] { return [...index().byKey.get(ayahKey(surah, ayah))!]; }
+/** Grade a "where is this ayah?" guess. Any textually identical ayah is accepted. Distance is feedback only, within one surah. */
+export function locateGuess(item: QueueItem, surah: number, ayah: number): { correct: boolean; distance: number | null } {
+    if (item.mode !== 'locate' || !eligible('locate', item.surah, item.ayah))
+        throw new Error('Invalid locate question');
+    verse(surah, ayah);
+    const accepted = identicalAyahs(item.surah, item.ayah);
+    if (accepted.includes(`${surah}:${ayah}`))
+        return { correct: true, distance: 0 };
+    const sameSurah = accepted.filter(k => k.startsWith(`${surah}:`)).map(k => Number(k.split(':')[1]));
+    return { correct: false, distance: sameSurah.length ? Math.min(...sameSurah.map(a => Math.abs(a - ayah))) : null };
+}
+/** Display segments for progressive word reveal. Joining them with single spaces reproduces the source string exactly. */
+export function ayahWords(text: string): string[] { return text.split(' ').filter(w => w.length > 0); }
+/** Hidden-text recall of one whole surah, in order. Never crosses into another surah. */
+export function surahRecallQueue(state: AppState, surah: number, now = Date.now()): QueueItem[] {
+    return allItems('recall', [surah]).map(x => { const c = state.cards[x.key]; return { ...x, reason: !c ? 'new' as const : c.dueAt <= now ? 'due' as const : 'practice' as const }; });
+}
+/** The evidence recorded for one session, in answer order. Reads saved attempts; derives nothing new. */
+export function sessionRecap(state: AppState, sessionId: string): { key: string; mode: Mode; surah: number; ayah: number; correct: boolean }[] {
+    return state.attempts.filter(a => a.id.startsWith(`${sessionId}:`)).map(a => { const [mode, surah, ayah] = a.cardKey.split(':'); return { key: a.cardKey, mode: mode as Mode, surah: Number(surah), ayah: Number(ayah), correct: a.correct }; });
+}
+/** Indices into ayahWords(text) of recited words, skipping stand-alone pause marks (e.g. "ۚ" in 110:3).
+ * Voice following reports word positions over recited words; this maps them onto the displayed tokens. */
+export function recitedWordIndices(text: string): number[] { return ayahWords(text).flatMap((w, i) => /[ء-يٮ-ۓۺ-ۿ]/.test(w) ? [i] : []); }
+export function validPlace(p: unknown): p is Place { const q = p as Place; return !!q && typeof q === 'object' && Number.isFinite(q.lat) && Number.isFinite(q.lng) && Math.abs(q.lat) <= 90 && Math.abs(q.lng) <= 180 && Number.isFinite(q.radius) && q.radius >= 100 && q.radius <= 1000; }
+/** Record an explicit completion. Idempotent per event id (one tap = one record, even if saved twice). */
+export function completeDhikr(state: AppState, entryId: string, moment: Moment, at: number, eventId: string): AppState {
+    if (state.adhkarLog.some(c => c.id === eventId))
+        return state;
+    const e = ADHKAR_ENTRIES.find(x => x.id === entryId);
+    if (!e || !e.moments.includes(moment) || !Number.isFinite(at) || !eventId)
+        throw new Error('Invalid completion');
+    return { ...state, adhkarLog: [...state.adhkarLog, { id: eventId, entry: entryId, moment, at, day: dayKey(at) }].slice(-5000) };
+}
+/** Entries of a moment the user confirmed today. */
+export function completedToday(state: AppState, moment: Moment, at = Date.now()): Set<string> { const d = dayKey(at); return new Set(state.adhkarLog.filter(c => c.moment === moment && c.day === d).map(c => c.entry)); }
+/** A copy safe to export: saved place coordinates, detections and device-local audio files stay on the device. */
+/** A complete backup the user keeps: everything the app saved, places included, except references to files that live
+ * only on this device (a custom or downloaded athan), which fall back to a bundled reciter as in `exportable`. Voice
+ * recordings are separate files and are not in it. Restored through the same validation and migration as any save. */
+export function backup(state: AppState): AppState { return { ...exportable(state), places: structuredClone(state.places), detections: structuredClone(state.detections) }; }
+export function exportable(state: AppState): AppState { const a = state.athan, local = (id: string) => id === 'custom' || id.startsWith('online-'); return { ...state, places: { home: null, work: null, mosque: null }, detections: [], athan: { ...a, custom: null, downloads: [], reciter: local(a.reciter) ? ATHAN_RECITERS[0]! : a.reciter, fajrReciter: local(a.fajrReciter) ? ATHAN_RECITERS[0]! : a.fajrReciter } }; }
+/** Set (not add) today's count for a counter. Setting the same value twice is a no-op, so a repeated save cannot inflate it. */
+export function setCount(state: AppState, id: string, n: number, at: number): AppState {
+    if (!counterIds(state).has(id) || !Number.isSafeInteger(n) || n < 0 || n > MAX_COUNT || !Number.isFinite(at))
+        throw new Error('Invalid count');
+    const day = dayKey(at), old = state.counts.find(c => c.id === id && c.day === day);
+    if (old?.n === n || (!old && n === 0))
+        return state;
+    const rest = state.counts.filter(c => c !== old);
+    const counts = [...rest, ...(n ? [{ id, day, n }] : [])].sort((a, b) => a.day.localeCompare(b.day));
+    // Days beyond the limit leave the list, but their totals move to the archive so lifetime totals stay whole.
+    const dropped = counts.slice(0, Math.max(0, counts.length - MAX_COUNTS));
+    if (!dropped.length) return { ...state, counts };
+    const archive = { ...state.worship.archive };
+    for (const c of dropped) archive[c.id] = (archive[c.id] ?? 0) + c.n;
+    return { ...state, counts: counts.slice(dropped.length), worship: { ...state.worship, archive } };
+}
+/** The count the user tapped for a counter on a day (0 if none). */
+export function countOn(state: AppState, id: string, day = dayKey()): number { return state.counts.find(c => c.id === id && c.day === day)?.n ?? 0; }
+/** Add the user's own counter. Idempotent per id, so saving the same form twice adds it once. */
+export function addCounter(state: AppState, c: CustomCounter): AppState {
+    if (state.myCounters.some(x => x.id === c.id))
+        return state;
+    const counter = { id: c.id, title: c.title.trim(), text: c.text.trim(), target: c.target };
+    if (!validCustomCounter(counter) || state.myCounters.length >= MAX_CUSTOM_COUNTERS)
+        throw new Error('Invalid counter');
+    return { ...state, myCounters: [...state.myCounters, counter] };
+}
+/** Remove one of the user's counters together with its saved counts. Built-in counters cannot be removed. */
+export function removeCounter(state: AppState, id: string): AppState {
+    if (!state.myCounters.some(x => x.id === id))
+        return state;
+    const w = state.worship, archive = { ...w.archive };
+    delete archive[id];
+    return { ...state, myCounters: state.myCounters.filter(x => x.id !== id), counts: state.counts.filter(x => x.id !== id), rotation: { ...state.rotation, phrases: state.rotation.phrases.filter(p => p !== id) }, worship: { ...w, favorites: w.favorites.filter(x => x !== id), recent: w.recent.filter(x => x !== id), archive } };
+}
+/** Colours a verse, or clears it with null. Same colour again changes nothing, so a repeated tap is harmless. */
+export function setHighlight(state: AppState, surah: number, ayah: number, color: HighlightColor | null, at: number): AppState {
+    verse(surah, ayah);
+    if (color !== null && !HIGHLIGHT_COLORS.includes(color)) throw new Error('Invalid colour');
+    const key = `${surah}:${ayah}`, old = state.highlights.find(h => h.key === key);
+    if ((old?.color ?? null) === color) return state;
+    const rest = state.highlights.filter(h => h.key !== key);
+    return { ...state, highlights: color === null ? rest : [...rest, { key, color, at }] };
+}
+/** Records the user's own answer for a highlighted verse today. Answering again the same day replaces it, so a double
+ * tap never adds a second entry; the oldest days are dropped past HIGHLIGHT_REVIEW_MAX. */
+export function reviewHighlight(state: AppState, surah: number, ayah: number, result: HighlightReview['result'], day: string): AppState {
+    verse(surah, ayah);
+    if (!['remembered', 'revisit'].includes(result) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('Invalid review');
+    const key = `${surah}:${ayah}`, old = state.highlightReviews.find(r => r.key === key && r.day === day);
+    if (old?.result === result) return state;
+    const rest = state.highlightReviews.filter(r => !(r.key === key && r.day === day));
+    return { ...state, highlightReviews: [...rest, { key, day, result }].sort((a, b) => a.day.localeCompare(b.day)).slice(-HIGHLIGHT_REVIEW_MAX) };
+}
+/** Today's highlighted verses to review (`n`, plus any already answered today): never-reviewed ones first, then
+ * "revisit", then the longest since "remembered". Stable for the day, so each keeps its answer in place. */
+export function highlightReviewQueue(state: AppState, day: string, n = 3): { key: string; surah: number; ayah: number; today: HighlightReview['result'] | null }[] {
+    const last = new Map<string, HighlightReview>();
+    for (const r of state.highlightReviews) if (r.day < day) { const o = last.get(r.key); if (!o || o.day <= r.day) last.set(r.key, r); }
+    const today = new Map(state.highlightReviews.filter(r => r.day === day).map(r => [r.key, r.result] as const));
+    const rank = (k: string) => { const r = last.get(k); return !r ? [0, ''] as const : r.result === 'revisit' ? [1, r.day] as const : [2, r.day] as const; };
+    const order = (a: string, b: string) => { const x = rank(a), y = rank(b); return x[0] - y[0] || x[1].localeCompare(y[1]) || a.localeCompare(b, undefined, { numeric: true }); };
+    // Ranked on answers before today only, so answering never reorders today's list.
+    const ranked = state.highlights.map(h => h.key).sort(order), shown = ranked.slice(0, n);
+    for (const k of ranked.slice(n)) if (today.has(k)) shown.push(k);
+    return shown.map(key => { const [surah, ayah] = key.split(':').map(Number) as [number, number]; return { key, surah, ayah, today: today.get(key) ?? null }; });
+}
+/** Saves the user's note on a verse; blank text deletes it. The same text again changes nothing. */
+export function setNote(state: AppState, surah: number, ayah: number, text: string, at: number): AppState {
+    verse(surah, ayah);
+    const key = `${surah}:${ayah}`, clean = text.trim();
+    if (clean.length > NOTE_MAX) throw new Error('Note too long');
+    const old = state.notes.find(n => n.key === key);
+    if ((old?.text ?? '') === clean) return state;
+    const rest = state.notes.filter(n => n.key !== key);
+    return { ...state, notes: clean ? [...rest, { key, text: clean, at }] : rest };
 }

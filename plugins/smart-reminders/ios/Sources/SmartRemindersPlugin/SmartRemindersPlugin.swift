@@ -1,0 +1,224 @@
+import Foundation
+import Capacitor
+import CoreLocation
+import CoreMotion
+import CryptoKit
+import UserNotifications
+
+/// Web-layer API for SmartReminders. Location is requested only from these calls, i.e. after the user turns on a
+/// feature that needs it. Coordinates are kept on the device; nothing here uses the network.
+@objc(SmartRemindersPlugin)
+public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "SmartRemindersPlugin"
+    public let jsName = "AyahFlowSmart"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "currentPosition", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestAlways", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestMotion", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "configure", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "takeEvents", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "simulate", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "reset", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setWidgetData", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "downloadAthan", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "steps", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "notificationCheck", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "placeAthan", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "startHeading", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stopHeading", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmRequest", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmSchedule", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmTest", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alarmAwake", returnType: CAPPluginReturnPromise)
+    ]
+    private var engine: SmartReminders { SmartReminders.shared }
+    private let pedometer = CMPedometer()
+    private lazy var compass = HeadingWatch { [weak self] h in self?.notifyListeners("heading", data: h) }
+
+    override public func load() { DispatchQueue.main.async { self.engine.start() } }
+
+    @objc func status(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(self.engine.status()) } }
+
+    @objc func currentPosition(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.engine.currentPosition { location, error in
+                guard let location else { call.reject(error ?? "unavailable"); return }
+                call.resolve(["lat": location.coordinate.latitude, "lng": location.coordinate.longitude, "accuracy": location.horizontalAccuracy])
+            }
+        }
+    }
+
+    @objc func requestAlways(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { self.engine.requestAlways { _ in call.resolve(self.engine.status()) } }
+    }
+
+    @objc func requestMotion(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { self.engine.requestMotion { motion in var s = self.engine.status(); s["motion"] = motion; call.resolve(s) } }
+    }
+
+    @objc func configure(_ call: CAPPluginCall) {
+        guard let json = call.getString("config"), let data = json.data(using: .utf8) else { call.reject("config required"); return }
+        DispatchQueue.main.async {
+            do { try self.engine.configure(data); call.resolve(self.engine.status()) } catch { call.reject("invalid config: \(error.localizedDescription)") }
+        }
+    }
+
+    /// Re-sounds pending home-only athan alerts for the current Home state; resolves with how many changed.
+    @objc func placeAthan(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { self.engine.placeAthan { n in call.resolve(["changed": n, "home": self.engine.status()["home"] ?? "unknown"]) } }
+    }
+
+    /// Qibla screen: compass heading events until stopHeading. Its own location manager, so the reminder engine's
+    /// settings are untouched; nothing is saved.
+    @objc func startHeading(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(["available": self.compass.start()]) } }
+    @objc func stopHeading(_ call: CAPPluginCall) { DispatchQueue.main.async { self.compass.stop(); call.resolve() } }
+
+    /// Fajr alarm (FajrAlarmHook): `available` is false before iOS 26, where the web layer uses a notification instead.
+    @objc func alarmStatus(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let alarms = FajrAlarmHook.scheduler else { call.resolve(["available": false]); return }
+            call.resolve(["available": true, "authorization": alarms.authorization(), "pending": alarms.pending(), "checkWaiting": alarms.checkWaiting()])
+        }
+    }
+    @objc func alarmRequest(_ call: CAPPluginCall) {
+        guard let alarms = FajrAlarmHook.scheduler else { call.resolve(["authorization": "unavailable"]); return }
+        alarms.requestAuthorization { state in call.resolve(["authorization": state]) }
+    }
+    @objc func alarmSchedule(_ call: CAPPluginCall) {
+        guard let alarms = FajrAlarmHook.scheduler else { call.reject("unavailable"); return }
+        guard let json = call.getString("plan"), let data = json.data(using: .utf8) else { call.reject("plan required"); return }
+        alarms.schedule(data) { result in
+            switch result { case .success(let n): call.resolve(["scheduled": n]); case .failure(let e): call.reject(e.localizedDescription) }
+        }
+    }
+    @objc func alarmTest(_ call: CAPPluginCall) {
+        guard let alarms = FajrAlarmHook.scheduler else { call.reject("unavailable"); return }
+        alarms.test(after: max(10, call.getDouble("seconds") ?? 60)) { ok in ok ? call.resolve() : call.reject("not scheduled") }
+    }
+    @objc func alarmAwake(_ call: CAPPluginCall) { FajrAlarmHook.scheduler?.confirmAwake(); call.resolve() }
+
+    @objc func takeEvents(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(["events": self.engine.takeLog()]) } }
+
+    /// Runs the real decision and notification path for an event, so the user can check their setup.
+    @objc func simulate(_ call: CAPPluginCall) {
+        guard let event = call.getString("event") else { call.reject("event required"); return }
+        DispatchQueue.main.async { call.resolve(["moments": self.engine.handle([event])]) }
+    }
+
+    @objc func reset(_ call: CAPPluginCall) { DispatchQueue.main.async { self.engine.reset(); call.resolve() } }
+
+    /// Widget timeline JSON from src/smart.ts (prayer times and labels). Pass null to clear it.
+    @objc func setWidgetData(_ call: CAPPluginCall) {
+        let json = call.getString("data")
+        let data = (json == nil || json == "null") ? nil : json!.data(using: .utf8)
+        let status = SharedWidgetStore.save(data)
+        status == errSecSuccess ? call.resolve() : call.reject("widget store failed: OSStatus \(status) \(SharedWidgetStore.message(status))", String(status))
+    }
+
+    /// Downloads an athan recording the user asked for. Only HTTPS from cdn.aladhan.com, at most 12 MB, verified against the
+    /// pinned SHA-256, and written only under Documents/ayahflow/athan/online/ (Capacitor's Directory.Data on iOS).
+    @objc func downloadAthan(_ call: CAPPluginCall) {
+        guard let urlString = call.getString("url"), let url = URL(string: urlString), url.scheme == "https", url.host == "cdn.aladhan.com",
+              let sha = call.getString("sha256")?.lowercased(), sha.count == 64,
+              let path = call.getString("path"), path.range(of: "^ayahflow/athan/online/[a-z0-9-]+\\.mp3$", options: .regularExpression) != nil,
+              let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { call.reject("not allowed"); return }
+        URLSession.shared.downloadTask(with: url) { tmp, response, error in
+            guard let tmp, error == nil, (response as? HTTPURLResponse)?.statusCode == 200, let data = try? Data(contentsOf: tmp), data.count <= 12_000_000 else { call.reject("download failed"); return }
+            let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            guard hash == sha else { call.reject("checksum mismatch"); return }
+            let target = documents.appendingPathComponent(path)
+            do {
+                try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try data.write(to: target, options: .atomic)
+                call.resolve(["path": path, "bytes": data.count])
+            } catch { call.reject("could not save") }
+        }.resume()
+    }
+
+    /// Steps for each of the last `days` local days (at most 7, the history iOS keeps). Read from the system pedometer
+    /// under the Motion & Fitness permission; nothing is stored or sent anywhere.
+    @objc func steps(_ call: CAPPluginCall) {
+        guard CMPedometer.isStepCountingAvailable() else { call.resolve(["available": false, "permission": "unavailable", "approximate": false, "days": []]); return }
+        let count = max(1, min(call.getInt("days") ?? 7, 7))
+        let cal = Calendar.current, now = Date(), today = cal.startOfDay(for: now)
+        let format = DateFormatter()
+        format.calendar = Calendar(identifier: .gregorian); format.locale = Locale(identifier: "en_US_POSIX"); format.dateFormat = "yyyy-MM-dd"
+        let group = DispatchGroup(), lock = NSLock()
+        var days: [(Date, Int)] = [], denied = false
+        for i in 0..<count {
+            guard let start = cal.date(byAdding: .day, value: -i, to: today), let next = cal.date(byAdding: .day, value: 1, to: start) else { continue }
+            group.enter()
+            pedometer.queryPedometerData(from: start, to: min(next, now)) { data, error in
+                lock.lock()
+                if let error = error as NSError?, error.domain == CMErrorDomain, error.code == Int(CMErrorMotionActivityNotAuthorized.rawValue) { denied = true }
+                if let data { days.append((start, data.numberOfSteps.intValue)) }
+                lock.unlock(); group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            let status = CMPedometer.authorizationStatus()
+            let permission = denied || status == .denied || status == .restricted ? "denied" : status == .authorized ? "granted" : "prompt"
+            call.resolve(["available": true, "permission": permission, "approximate": false, "days": days.sorted { $0.0 < $1.0 }.map { ["day": format.string(from: $0.0), "steps": $0.1] }])
+        }
+    }
+
+    /// For the notification test in the prayer settings: the app's notification settings and, for each sound name, where
+    /// iOS will find it ("library" = Library/Sounds, "bundle" = the app bundle) or "missing" (iOS then plays its default).
+    /// Reads only; nothing is scheduled or changed.
+    @objc func notificationCheck(_ call: CAPPluginCall) {
+        AthanSound.install()
+        let names = (call.getArray("sounds") as? [String] ?? []).filter { !$0.isEmpty && !$0.contains("..") }
+        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?.appendingPathComponent("Sounds", isDirectory: true)
+        var files: [String: String] = [:]
+        for name in names {
+            if let library, FileManager.default.fileExists(atPath: library.appendingPathComponent(name).path) { files[name] = "library" }
+            else if let root = Bundle.main.resourceURL, FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path) { files[name] = "bundle" }
+            else { files[name] = "missing" }
+        }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let setting = { (s: UNNotificationSetting) in s == .enabled ? "on" : s == .disabled ? "off" : "unsupported" }
+            let auth: String
+            switch settings.authorizationStatus {
+            case .authorized: auth = "granted"
+            case .provisional: auth = "provisional"
+            case .ephemeral: auth = "ephemeral"
+            case .denied: auth = "denied"
+            default: auth = "prompt"
+            }
+            call.resolve(["authorization": auth, "alert": setting(settings.alertSetting), "sound": setting(settings.soundSetting), "lockScreen": setting(settings.lockScreenSetting), "files": files])
+        }
+    }
+
+    @objc func openSettings(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            call.resolve()
+        }
+    }
+}
+
+/// Compass heading for the Qibla screen. True north needs location access; without it iOS gives magnetic north only.
+final class HeadingWatch: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private let send: ([String: Any]) -> Void
+    init(_ send: @escaping ([String: Any]) -> Void) {
+        self.send = send
+        super.init()
+        manager.delegate = self
+        manager.headingFilter = 1
+    }
+    func start() -> Bool {
+        guard CLLocationManager.headingAvailable() else { return false }
+        manager.startUpdatingHeading()
+        return true
+    }
+    func stop() { manager.stopUpdatingHeading() }
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading h: CLHeading) {
+        let trueNorth = h.trueHeading >= 0
+        send(["heading": trueNorth ? h.trueHeading : h.magneticHeading, "trueNorth": trueNorth, "accuracy": h.headingAccuracy])
+    }
+    func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool { false }
+}

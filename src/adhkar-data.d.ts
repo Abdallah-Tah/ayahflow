@@ -1,0 +1,32 @@
+/** Type of www/js/adhkar-data.js, generated at build time from content/adhkar/adhkar.json (scripts/build-adhkar.mjs). */
+export interface HadithSource { ref: string; collection: string; number: string; inBook: { book: number; hadith: number } | null; grades: { by: string; grade: string }[] }
+export interface AdhkarEntry {
+    id: string;
+    moments: string[];
+    kind: 'dua' | 'guidance' | 'quran';
+    repeat: number;
+    title: { en: string; fr: string; ar: string };
+    /** Verbatim slice of the cited hadith (dua / guidance). */
+    text?: string;
+    /** Quran references; text is read from the Tanzil corpus. `to: null` means to the end of the surah. */
+    quran?: { surah: number; from: number; to: number | null }[];
+    source: HadithSource;
+    also: HadithSource[];
+    note?: 'muallaq' | 'ridingSequence' | 'travelTakbir' | 'travelReturn';
+    /** Kept at the user's choice although every grader recorded calls the narration weak (Da'if); the grade is shown
+     * on the card and in the reminder. */
+    weak?: true;
+    /** The dua quotes these Quran ayahs (shown as a reference; the wording is the narration's). */
+    quranRef?: string;
+}
+export interface PrayerSet { id: string; surahs: number[]; context: { en: string; fr: string; ar: string }; evidence: string[]; source: HadithSource; also: HadithSource[] }
+/** A counted dhikr. Each phrase is a verbatim slice of its own source; the counts are stated in `source` (`evidence`). */
+export interface DhikrCounter { id: string; title: { en: string; fr: string; ar: string }; steps: { text: string; count: number; source: HadithSource }[]; total: number; evidence: string[]; source: HadithSource; also: HadithSource[]; atLeast?: true; perPrayer?: true }
+/** A single phrase for interval reminders, sliced verbatim from its cited hadith. */
+export interface RotationPhrase { id: string; text: string; source: HadithSource }
+/** A counted dhikr in the library. `text` is a verbatim slice of `source`, except `wording: 'common'` (a widely used formula,
+ * shown as such; `virtue` is then the verbatim slice of the cited hadith). A 'sunnah' target is stated in the source
+ * (`evidence`); a 'personal' target is only a goal. */
+export interface LibraryDhikr { id: string; category: 'salawat' | 'tahlil' | 'tasbih' | 'istighfar' | 'quranic' | 'daily'; title: { en: string; fr: string; ar: string }; about: { en: string; fr: string; ar: string }; text: string; wording?: 'common'; virtue?: string; target: number; targetKind: 'sunnah' | 'personal'; evidence: string[]; source: HadithSource; also: HadithSource[]; quranRef?: string }
+declare const ADHKAR: { dataset: string; reviewStatus: 'awaiting-scholar-review'; adhkar: AdhkarEntry[]; prayer: PrayerSet[]; counters: DhikrCounter[]; rotation: RotationPhrase[]; library: LibraryDhikr[] };
+export default ADHKAR;

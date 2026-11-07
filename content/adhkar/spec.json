@@ -1,0 +1,1160 @@
+{
+  "dataset": "fawazahmed0/hadith-api@1 (Unlicense / public domain), Arabic editions",
+  "adhkar": [
+    {
+      "id": "leave-home",
+      "moments": [
+        "leave_home"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:5095",
+      "start": "بسم الله توكلت",
+      "end": "الا بالله",
+      "also": [
+        "tirmidhi:3426"
+      ],
+      "title": {
+        "en": "Leaving home",
+        "fr": "En sortant de chez soi",
+        "ar": "دعاء الخروج من المنزل"
+      },
+      "pauses": [
+        "بسم الله",
+        "توكلت على الله"
+      ]
+    },
+    {
+      "id": "enter-home",
+      "moments": [
+        "enter_home"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:5096",
+      "start": "اللهم اني اسالك خير المولج",
+      "end": "ربنا توكلنا",
+      "title": {
+        "en": "Entering home",
+        "fr": "En entrant chez soi",
+        "ar": "دعاء دخول المنزل"
+      },
+      "pauses": [
+        "وخير المخرج",
+        "بسم الله ولجنا",
+        "وبسم الله خرجنا"
+      ],
+      "weak": true
+    },
+    {
+      "id": "riding",
+      "moments": [
+        "vehicle"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:2602",
+      "title": {
+        "en": "Riding a vehicle",
+        "fr": "En montant dans un véhicule",
+        "ar": "دعاء الركوب"
+      },
+      "start": "سبحان الذي سخر لنا",
+      "end": "لمنقلبون",
+      "quranRef": "43:13-14",
+      "also": [
+        "tirmidhi:3446"
+      ],
+      "quote": [
+        "سبحان الذي سخر",
+        "لمنقلبون"
+      ],
+      "note": "ridingSequence"
+    },
+    {
+      "id": "riding-istighfar",
+      "moments": [
+        "vehicle"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:2602",
+      "start": "سبحانك اني ظلمت نفسي",
+      "end": "الذنوب الا انت",
+      "title": {
+        "en": "Riding: seeking forgiveness",
+        "fr": "En montant dans un véhicule : demander pardon",
+        "ar": "دعاء الركوب: الاستغفار"
+      },
+      "pauses": [
+        "ظلمت نفسي",
+        "فاغفر لي"
+      ]
+    },
+    {
+      "id": "travel",
+      "moments": [
+        "travel"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "muslim:3275",
+      "start": "سبحان الذي سخر لنا",
+      "end": "في المال والاهل",
+      "title": {
+        "en": "Setting out on a journey",
+        "fr": "En partant en voyage",
+        "ar": "دعاء السفر"
+      },
+      "pauses": [
+        "لمنقلبون",
+        "البر والتقوى",
+        "ما ترضى",
+        "بعده",
+        "الصاحب في السفر",
+        "الخليفة في الاهل",
+        "وعثاء السفر",
+        "وكابة المنظر"
+      ],
+      "quote": [
+        "سبحان الذي سخر",
+        "لمنقلبون"
+      ],
+      "note": "travelTakbir",
+      "quranRef": "43:13-14",
+      "ayahEnds": [
+        "مقرنين"
+      ]
+    },
+    {
+      "id": "travel-return",
+      "moments": [
+        "travel"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "muslim:3275",
+      "start": "آيبون تائبون",
+      "end": "لربنا حامدون",
+      "note": "travelReturn",
+      "title": {
+        "en": "Returning from a journey",
+        "fr": "Au retour de voyage",
+        "ar": "دعاء الرجوع من السفر"
+      }
+    },
+    {
+      "id": "mosque-enter",
+      "moments": [
+        "mosque_enter"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:465",
+      "start": "اللهم افتح لي",
+      "end": "ابواب رحمتك",
+      "title": {
+        "en": "Entering the mosque",
+        "fr": "En entrant à la mosquée",
+        "ar": "دعاء دخول المسجد"
+      }
+    },
+    {
+      "id": "mosque-leave",
+      "moments": [
+        "mosque_leave"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:465",
+      "start": "اللهم اني اسالك من فضلك",
+      "end": "من فضلك",
+      "title": {
+        "en": "Leaving the mosque",
+        "fr": "En quittant la mosquée",
+        "ar": "دعاء الخروج من المسجد"
+      }
+    },
+    {
+      "id": "work-arrive",
+      "moments": [
+        "work_arrive"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "muslim:6878",
+      "start": "اعوذ بكلمات الله التامات",
+      "end": "من شر ما خلق",
+      "title": {
+        "en": "Arriving at a place: seeking refuge",
+        "fr": "En s’arrêtant en un lieu : demande de protection",
+        "ar": "دعاء من نزل منزلًا"
+      }
+    },
+    {
+      "id": "work-leave",
+      "moments": [
+        "work_leave"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "tirmidhi:3433",
+      "start": "سبحانك اللهم وبحمدك",
+      "end": "واتوب اليك",
+      "also": [
+        "abudawud:4859"
+      ],
+      "title": {
+        "en": "Rising from a sitting (kaffarat al-majlis)",
+        "fr": "En se levant d’une assemblée (kaffârat al-majlis)",
+        "ar": "كفارة المجلس"
+      },
+      "pauses": [
+        "سبحانك اللهم وبحمدك",
+        "لا اله الا انت"
+      ]
+    },
+    {
+      "id": "morning-bika",
+      "moments": [
+        "morning"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:5068",
+      "start": "اللهم بك اصبحنا",
+      "end": "واليك النشور",
+      "title": {
+        "en": "Morning: by You we enter the morning",
+        "fr": "Matin : par Toi nous entrons dans le matin",
+        "ar": "أذكار الصباح: اللهم بك أصبحنا"
+      },
+      "pauses": [
+        "بك اصبحنا",
+        "وبك امسينا",
+        "وبك نحيا",
+        "وبك نموت"
+      ]
+    },
+    {
+      "id": "evening-bika",
+      "moments": [
+        "evening"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:5068",
+      "start": "اللهم بك امسينا",
+      "end": "واليك النشور",
+      "title": {
+        "en": "Evening: by You we enter the evening",
+        "fr": "Soir : par Toi nous entrons dans le soir",
+        "ar": "أذكار المساء: اللهم بك أمسينا"
+      },
+      "pauses": [
+        "بك امسينا",
+        "وبك نحيا",
+        "وبك نموت"
+      ]
+    },
+    {
+      "id": "la-yadurr",
+      "moments": [
+        "morning",
+        "evening"
+      ],
+      "kind": "dua",
+      "repeat": 3,
+      "source": "abudawud:5088",
+      "start": "بسم الله الذي لا يضر",
+      "end": "السميع العليم",
+      "also": [
+        "tirmidhi:3388"
+      ],
+      "title": {
+        "en": "In the name of Allah, with whose name nothing harms",
+        "fr": "Au nom d’Allah, avec le nom duquel rien ne nuit",
+        "ar": "بسم الله الذي لا يضر مع اسمه شيء"
+      },
+      "pauses": [
+        "ولا في السماء"
+      ]
+    },
+    {
+      "id": "sayyid-istighfar",
+      "moments": [
+        "morning",
+        "evening"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "bukhari:6306",
+      "start": "اللهم انت ربي",
+      "end": "لا يغفر الذنوب الا انت",
+      "title": {
+        "en": "The master supplication for forgiveness",
+        "fr": "La meilleure demande de pardon",
+        "ar": "سيد الاستغفار"
+      }
+    },
+    {
+      "id": "subhan-bihamdih",
+      "moments": [
+        "morning",
+        "evening"
+      ],
+      "kind": "dua",
+      "repeat": 100,
+      "source": "muslim:6843",
+      "start": "سبحان الله وبحمده",
+      "end": "سبحان الله وبحمده",
+      "title": {
+        "en": "Glory and praise to Allah",
+        "fr": "Gloire et louange à Allah",
+        "ar": "سبحان الله وبحمده"
+      }
+    },
+    {
+      "id": "three-quls",
+      "moments": [
+        "morning",
+        "evening"
+      ],
+      "kind": "quran",
+      "repeat": 3,
+      "quran": [
+        [
+          112
+        ],
+        [
+          113
+        ],
+        [
+          114
+        ]
+      ],
+      "source": "abudawud:5082",
+      "also": [
+        "tirmidhi:3575"
+      ],
+      "title": {
+        "en": "Al-Ikhlas, Al-Falaq and An-Nas",
+        "fr": "Al-Ikhlas, Al-Falaq et An-Nas",
+        "ar": "الإخلاص والمعوذتان"
+      }
+    },
+    {
+      "id": "sleep-aslamtu",
+      "moments": [
+        "sleep"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "bukhari:6311",
+      "start": "اللهم اسلمت وجهي",
+      "end": "الذي ارسلت",
+      "title": {
+        "en": "Before sleeping: I submit myself to You",
+        "fr": "Avant de dormir : je me soumets à Toi",
+        "ar": "دعاء النوم: اللهم أسلمت وجهي إليك"
+      }
+    },
+    {
+      "id": "sleep-bismika",
+      "moments": [
+        "sleep"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "bukhari:6312",
+      "start": "باسمك اموت",
+      "end": "واحيا",
+      "title": {
+        "en": "Before sleeping: in Your name",
+        "fr": "Avant de dormir : en Ton nom",
+        "ar": "باسمك أموت وأحيا"
+      }
+    },
+    {
+      "id": "sleep-kafani",
+      "moments": [
+        "sleep"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "abudawud:5058",
+      "start": "الحمد لله الذي كفاني",
+      "end": "اعوذ بك من النار",
+      "title": {
+        "en": "Before sleeping: praise for sufficiency and shelter",
+        "fr": "Avant de dormir : louange pour la suffisance et l’abri",
+        "ar": "الحمد لله الذي كفاني وآواني"
+      },
+      "pauses": [
+        "وسقاني",
+        "فافضل",
+        "فاجزل",
+        "على كل حال",
+        "ومليكه",
+        "واله كل شيء"
+      ]
+    },
+    {
+      "id": "ayat-al-kursi",
+      "moments": [
+        "sleep"
+      ],
+      "kind": "quran",
+      "repeat": 1,
+      "quran": [
+        2,
+        255,
+        255
+      ],
+      "source": "bukhari:2311",
+      "note": "muallaq",
+      "title": {
+        "en": "Ayat al-Kursi before sleeping",
+        "fr": "Ayat al-Kursi avant de dormir",
+        "ar": "آية الكرسي عند النوم"
+      }
+    },
+    {
+      "id": "baqarah-end",
+      "moments": [
+        "sleep"
+      ],
+      "kind": "quran",
+      "repeat": 1,
+      "quran": [
+        2,
+        285,
+        286
+      ],
+      "source": "bukhari:5009",
+      "title": {
+        "en": "Last two ayahs of Al-Baqarah at night",
+        "fr": "Les deux derniers versets d’Al-Baqara la nuit",
+        "ar": "آخر آيتين من سورة البقرة"
+      }
+    },
+    {
+      "id": "wake",
+      "moments": [
+        "wake"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "bukhari:6312",
+      "start": "الحمد لله الذي احيانا",
+      "end": "واليه النشور",
+      "title": {
+        "en": "On waking up",
+        "fr": "Au réveil",
+        "ar": "دعاء الاستيقاظ من النوم"
+      },
+      "pauses": [
+        "بعد ما اماتنا"
+      ]
+    },
+    {
+      "id": "after-prayer",
+      "moments": [
+        "after_prayer"
+      ],
+      "kind": "dua",
+      "repeat": 1,
+      "source": "muslim:1342",
+      "start": "لا اله الا الله وحده",
+      "end": "منك الجد",
+      "title": {
+        "en": "After the obligatory prayer",
+        "fr": "Après la prière obligatoire",
+        "ar": "الذكر بعد الصلاة"
+      },
+      "pauses": [
+        "لا شريك له",
+        "وله الحمد",
+        "قدير",
+        "لما اعطيت",
+        "لما منعت"
+      ]
+    }
+  ],
+  "prayer": [
+    {
+      "id": "jumuah-eid",
+      "surahs": [
+        87,
+        88
+      ],
+      "context": {
+        "en": "Recited in the Friday and Eid prayers",
+        "fr": "Récitées lors de la prière du vendredi et des Aïds",
+        "ar": "كان يقرأ بهما في الجمعة والعيدين"
+      },
+      "source": "muslim:2028",
+      "evidence": [
+        "سبح اسم ربك الاعلي",
+        "الغاشية"
+      ],
+      "also": [
+        "abudawud:1122"
+      ]
+    },
+    {
+      "id": "fajr-sunnah",
+      "surahs": [
+        109,
+        112
+      ],
+      "context": {
+        "en": "Recited in the two rak‘ahs before Fajr",
+        "fr": "Récitées dans les deux rak‘as avant Fajr",
+        "ar": "قرأ بهما في ركعتي الفجر"
+      },
+      "source": "muslim:1690",
+      "evidence": [
+        "قل يا ايها الكافرون",
+        "قل هو الله احد"
+      ],
+      "also": [
+        "abudawud:1256"
+      ]
+    },
+    {
+      "id": "isha-muadh",
+      "surahs": [
+        87,
+        91,
+        92
+      ],
+      "context": {
+        "en": "Advised for leading ‘Isha so as not to burden the people",
+        "fr": "Conseillées pour diriger ‘Isha sans alourdir la prière",
+        "ar": "أرشد إليها في صلاة العشاء تخفيفًا على الناس"
+      },
+      "source": "bukhari:705",
+      "evidence": [
+        "بسبح اسم ربك",
+        "والشمس وضحاها",
+        "والليل اذا يغشي"
+      ]
+    },
+    {
+      "id": "isha-tin",
+      "surahs": [
+        95
+      ],
+      "context": {
+        "en": "Heard recited in ‘Isha",
+        "fr": "Entendue lors de ‘Isha",
+        "ar": "سُمع يقرأ بها في العشاء"
+      },
+      "source": "bukhari:769",
+      "evidence": [
+        "والتين والزيتون",
+        "العشاء"
+      ]
+    },
+    {
+      "id": "fajr-zalzalah",
+      "surahs": [
+        99
+      ],
+      "context": {
+        "en": "Heard recited in both rak‘ahs of Fajr",
+        "fr": "Entendue dans les deux rak‘as de Fajr",
+        "ar": "سُمع يقرأ بها في ركعتي الصبح"
+      },
+      "source": "abudawud:816",
+      "evidence": [
+        "اذا زلزلت الارض",
+        "الصبح"
+      ]
+    }
+  ],
+  "counters": [
+    {
+      "id": "istighfar",
+      "title": {
+        "en": "Istighfar",
+        "fr": "Istighfar (demande de pardon)",
+        "ar": "الاستغفار"
+      },
+      "steps": [
+        {
+          "source": "muslim:6858",
+          "start": "استغفر الله",
+          "end": "الله",
+          "count": 100
+        }
+      ],
+      "countSource": "muslim:6858",
+      "evidence": [
+        "في اليوم مائة مرة"
+      ],
+      "also": [
+        "abudawud:1515"
+      ]
+    },
+    {
+      "id": "istighfar-tawbah",
+      "title": {
+        "en": "Istighfar and tawbah",
+        "fr": "Istighfar et repentir",
+        "ar": "الاستغفار والتوبة"
+      },
+      "steps": [
+        {
+          "source": "bukhari:6307",
+          "start": "استغفر الله واتوب اليه",
+          "end": "اليه",
+          "count": 70
+        }
+      ],
+      "countSource": "bukhari:6307",
+      "evidence": [
+        "اكثر من سبعين مرة"
+      ],
+      "atLeast": true
+    },
+    {
+      "id": "tasbih-prayer",
+      "title": {
+        "en": "Tasbih after prayer",
+        "fr": "Tasbih après la prière",
+        "ar": "التسبيح دبر الصلاة"
+      },
+      "steps": [
+        {
+          "source": "muslim:5601",
+          "start": "سبحان الله",
+          "end": "الله",
+          "count": 33
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الحمد لله",
+          "end": "لله",
+          "count": 33
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الله اكبر",
+          "end": "اكبر",
+          "count": 33
+        },
+        {
+          "source": "muslim:1352",
+          "start": "لا اله الا الله وحده",
+          "end": "قدير",
+          "count": 1,
+          "pauses": [
+            "لا شريك له",
+            "وله الحمد"
+          ]
+        }
+      ],
+      "countSource": "muslim:1352",
+      "evidence": [
+        "ثلاثا وثلاثين",
+        "تمام المائة"
+      ],
+      "perPrayer": true
+    },
+    {
+      "id": "tasbih-prayer-34",
+      "title": {
+        "en": "Tasbih after prayer (33·33·34)",
+        "fr": "Tasbih après la prière (33·33·34)",
+        "ar": "التسبيح دبر الصلاة (٣٣·٣٣·٣٤)"
+      },
+      "steps": [
+        {
+          "source": "muslim:5601",
+          "start": "سبحان الله",
+          "end": "الله",
+          "count": 33
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الحمد لله",
+          "end": "لله",
+          "count": 33
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الله اكبر",
+          "end": "اكبر",
+          "count": 34
+        }
+      ],
+      "countSource": "muslim:1349",
+      "evidence": [
+        "ثلاث وثلاثون تسبيحة",
+        "اربع وثلاثون تكبيرة"
+      ],
+      "also": [
+        "muslim:1350"
+      ],
+      "perPrayer": true
+    },
+    {
+      "id": "tasbih-prayer-10",
+      "title": {
+        "en": "Tasbih after prayer (10·10·10)",
+        "fr": "Tasbih après la prière (10·10·10)",
+        "ar": "التسبيح دبر الصلاة (١٠·١٠·١٠)"
+      },
+      "steps": [
+        {
+          "source": "muslim:5601",
+          "start": "سبحان الله",
+          "end": "الله",
+          "count": 10
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الحمد لله",
+          "end": "لله",
+          "count": 10
+        },
+        {
+          "source": "muslim:5601",
+          "start": "الله اكبر",
+          "end": "اكبر",
+          "count": 10
+        }
+      ],
+      "countSource": "bukhari:6329",
+      "evidence": [
+        "تسبحون في دبر كل صلاة عشرا"
+      ],
+      "perPrayer": true
+    }
+  ],
+  "rotation": [
+    {
+      "id": "tahlil-takbir",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله والله اكبر",
+      "end": "والله اكبر"
+    },
+    {
+      "id": "tahlil-wahdahu",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله وحده",
+      "end": "الله وحده"
+    },
+    {
+      "id": "tahlil-la-sharik",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله وحده لا شريك له",
+      "end": "لا شريك له"
+    },
+    {
+      "id": "tahlil-mulk",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله له الملك",
+      "end": "وله الحمد"
+    },
+    {
+      "id": "tahlil-hawqala",
+      "source": "tirmidhi:3430",
+      "start": "لا اله الا الله ولا حول",
+      "end": "الا بالله"
+    },
+    {
+      "id": "subhanallah",
+      "source": "muslim:5601",
+      "start": "سبحان الله",
+      "end": "سبحان الله"
+    },
+    {
+      "id": "alhamdulillah",
+      "source": "muslim:5601",
+      "start": "الحمد لله",
+      "end": "الحمد لله"
+    },
+    {
+      "id": "allahu-akbar",
+      "source": "muslim:5601",
+      "start": "الله اكبر",
+      "end": "الله اكبر"
+    },
+    {
+      "id": "la-ilaha-illallah",
+      "source": "muslim:5601",
+      "start": "لا اله الا الله",
+      "end": "الا الله"
+    },
+    {
+      "id": "subhanallah-wabihamdihi",
+      "source": "muslim:6843",
+      "start": "سبحان الله وبحمده",
+      "end": "سبحان الله وبحمده"
+    },
+    {
+      "id": "astaghfirullah",
+      "source": "muslim:6858",
+      "start": "استغفر الله",
+      "end": "الله"
+    },
+    {
+      "id": "astaghfirullah-tawbah",
+      "source": "bukhari:6307",
+      "start": "استغفر الله واتوب اليه",
+      "end": "اليه"
+    }
+  ],
+  "library": [
+    {
+      "id": "salawat-nabi",
+      "category": "salawat",
+      "title": {
+        "en": "Blessings on the Prophet ﷺ",
+        "fr": "Prière sur le Prophète ﷺ",
+        "ar": "الصلاة على النبي ﷺ"
+      },
+      "wording": "common",
+      "text": "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ",
+      "source": "muslim:912",
+      "virtue": {
+        "start": "من صلى علي واحدة",
+        "end": "عشرا"
+      },
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "A common short wording of salawat. The hadith cited is about the virtue of sending blessings in general, not this exact wording; the narrated wording is the Ibrahimiyya below.",
+        "fr": "Formule courante et brève. Le hadith cité porte sur le mérite de la prière sur le Prophète en général, pas sur cette formulation ; la formulation rapportée est l’Ibrahimiyya ci-dessous.",
+        "ar": "صيغة شائعة مختصرة. الحديث المذكور في فضل الصلاة على النبي عمومًا لا في هذا اللفظ بعينه، واللفظ المروي هو الصلاة الإبراهيمية أدناه."
+      }
+    },
+    {
+      "id": "salawat-ibrahimiyya",
+      "category": "salawat",
+      "title": {
+        "en": "The Ibrahimiyya",
+        "fr": "La prière abrahamique",
+        "ar": "الصلاة الإبراهيمية"
+      },
+      "source": "bukhari:3370",
+      "start": "اللهم صل على محمد",
+      "end": "كما باركت على ابراهيم وعلى ال ابراهيم انك حميد مجيد",
+      "target": 10,
+      "targetKind": "personal",
+      "about": {
+        "en": "The wording the Prophet ﷺ taught when asked how to send blessings on him (narrated by Ka‘b ibn ‘Ujrah).",
+        "fr": "La formulation enseignée par le Prophète ﷺ quand on lui demanda comment prier sur lui (rapportée par Ka‘b ibn ‘Ujrah).",
+        "ar": "اللفظ الذي علّمه النبي ﷺ لما سُئل عن كيفية الصلاة عليه (رواه كعب بن عجرة)."
+      }
+    },
+    {
+      "id": "tahlil-100",
+      "category": "tahlil",
+      "title": {
+        "en": "The complete tahlil",
+        "fr": "Le tahlil complet",
+        "ar": "التهليل الكامل"
+      },
+      "source": "bukhari:6403",
+      "start": "لا اله الا الله وحده",
+      "end": "على كل شيء قدير",
+      "target": 100,
+      "targetKind": "sunnah",
+      "evidence": [
+        "في يوم مائة مرة"
+      ],
+      "about": {
+        "en": "The hadith mentions saying it a hundred times in a day.",
+        "fr": "Le hadith mentionne de le dire cent fois dans la journée.",
+        "ar": "ذكر الحديث قولها مائة مرة في اليوم."
+      }
+    },
+    {
+      "id": "la-ilaha-illallah",
+      "category": "tahlil",
+      "title": {
+        "en": "The best remembrance",
+        "fr": "Le meilleur rappel",
+        "ar": "أفضل الذكر"
+      },
+      "source": "tirmidhi:3383",
+      "start": "لا اله الا الله",
+      "end": "لا اله الا الله",
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "The hadith calls it the best remembrance. No number is stated; 100 is a personal goal.",
+        "fr": "Le hadith le qualifie de meilleur rappel. Aucun nombre n’est fixé ; 100 est un objectif personnel.",
+        "ar": "وصفه الحديث بأنه أفضل الذكر، ولم يحدد عددًا؛ المائة هدف شخصي."
+      }
+    },
+    {
+      "id": "subhanallah-wabihamdihi",
+      "category": "tasbih",
+      "title": {
+        "en": "Glory and praise to Allah",
+        "fr": "Gloire et louange à Allah",
+        "ar": "سبحان الله وبحمده"
+      },
+      "source": "bukhari:6405",
+      "start": "سبحان الله وبحمده",
+      "end": "سبحان الله وبحمده",
+      "target": 100,
+      "targetKind": "sunnah",
+      "evidence": [
+        "في يوم مائة مرة"
+      ],
+      "about": {
+        "en": "The hadith mentions saying it a hundred times in a day.",
+        "fr": "Le hadith mentionne de le dire cent fois dans la journée.",
+        "ar": "ذكر الحديث قولها مائة مرة في اليوم."
+      }
+    },
+    {
+      "id": "kalimatan",
+      "category": "tasbih",
+      "title": {
+        "en": "Two words beloved to the Most Merciful",
+        "fr": "Deux paroles aimées du Tout Miséricordieux",
+        "ar": "كلمتان حبيبتان إلى الرحمن"
+      },
+      "source": "bukhari:6406",
+      "start": "سبحان الله العظيم",
+      "end": "سبحان الله وبحمده",
+      "also": [
+        "bukhari:6682"
+      ],
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "Described as light on the tongue, heavy in the scale and beloved to the Most Merciful. No number is stated; 100 is a personal goal. Other narrations give the two phrases in the reverse order.",
+        "fr": "Décrites comme légères sur la langue, lourdes dans la balance et aimées du Tout Miséricordieux. Aucun nombre n’est fixé. D’autres versions donnent l’ordre inverse.",
+        "ar": "وُصفتا بأنهما خفيفتان على اللسان ثقيلتان في الميزان حبيبتان إلى الرحمن، ولم يحدد عددًا. وفي روايات أخرى بالترتيب المعكوس."
+      }
+    },
+    {
+      "id": "istighfar-tawbah-100",
+      "category": "istighfar",
+      "title": {
+        "en": "Seeking forgiveness and repenting",
+        "fr": "Demander pardon et se repentir",
+        "ar": "الاستغفار والتوبة"
+      },
+      "source": "bukhari:6307",
+      "start": "استغفر الله واتوب اليه",
+      "end": "اليه",
+      "also": [
+        "muslim:6858"
+      ],
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "The Prophet ﷺ said he sought forgiveness and repented more than seventy times a day (al-Bukhari); another narration says a hundred times a day (Muslim). 100 is a personal goal.",
+        "fr": "Le Prophète ﷺ dit qu’il demandait pardon et se repentait plus de soixante-dix fois par jour (al-Bukhari) ; une autre version dit cent fois (Muslim). 100 est un objectif personnel.",
+        "ar": "قال النبي ﷺ إنه يستغفر الله ويتوب إليه في اليوم أكثر من سبعين مرة (البخاري)، وفي رواية مائة مرة (مسلم). المائة هدف شخصي."
+      }
+    },
+    {
+      "id": "four-words",
+      "category": "tasbih",
+      "title": {
+        "en": "The four great words",
+        "fr": "Les quatre grandes paroles",
+        "ar": "الكلمات الأربع"
+      },
+      "source": "muslim:6847",
+      "start": "سبحان الله والحمد لله",
+      "end": "والله اكبر",
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "The Prophet ﷺ said saying them is dearer to him than all the sun rises over. No number is stated; 100 is a personal goal.",
+        "fr": "Le Prophète ﷺ dit qu’elles lui sont plus chères que tout ce sur quoi le soleil se lève. Aucun nombre n’est fixé.",
+        "ar": "قال النبي ﷺ إن قولها أحب إليه مما طلعت عليه الشمس، ولم يحدد عددًا."
+      },
+      "pauses": [
+        "سبحان الله",
+        "والحمد لله",
+        "ولا اله الا الله"
+      ]
+    },
+    {
+      "id": "hawqala",
+      "category": "tasbih",
+      "title": {
+        "en": "A treasure of Paradise",
+        "fr": "Un trésor du Paradis",
+        "ar": "كنز من كنوز الجنة"
+      },
+      "source": "bukhari:6384",
+      "start": "لا حول ولا قوة الا بالله",
+      "end": "الا بالله",
+      "target": 100,
+      "targetKind": "personal",
+      "about": {
+        "en": "Called a treasure from the treasures of Paradise. No number is stated; 100 is a personal goal.",
+        "fr": "Appelée un trésor parmi les trésors du Paradis. Aucun nombre n’est fixé.",
+        "ar": "وُصفت بأنها كنز من كنوز الجنة، ولم يحدد عددًا."
+      }
+    },
+    {
+      "id": "sayyid-istighfar-lib",
+      "category": "istighfar",
+      "title": {
+        "en": "The master supplication for forgiveness",
+        "fr": "La meilleure demande de pardon",
+        "ar": "سيد الاستغفار"
+      },
+      "source": "bukhari:6306",
+      "start": "اللهم انت ربي",
+      "end": "لا يغفر الذنوب الا انت",
+      "target": 1,
+      "targetKind": "sunnah",
+      "evidence": [
+        "من قالها من النهار",
+        "من قالها من الليل"
+      ],
+      "about": {
+        "en": "The hadith speaks of saying it with conviction during the day and during the night: once in the morning and once in the evening.",
+        "fr": "Le hadith parle de la dire avec conviction le jour et la nuit : une fois le matin, une fois le soir.",
+        "ar": "ذكر الحديث قولها موقنًا بها من النهار ومن الليل: مرة في الصباح ومرة في المساء."
+      }
+    },
+    {
+      "id": "dua-yunus",
+      "category": "quranic",
+      "title": {
+        "en": "The supplication of Yunus (peace be upon him)",
+        "fr": "L’invocation de Yunus (paix sur lui)",
+        "ar": "دعاء يونس عليه السلام"
+      },
+      "source": "tirmidhi:3505",
+      "start": "لا اله الا انت سبحانك",
+      "end": "من الظالمين",
+      "quranRef": "21:87",
+      "target": 33,
+      "targetKind": "personal",
+      "about": {
+        "en": "The words of Yunus in the belly of the whale (Quran 21:87). The hadith says a Muslim who calls with them for anything is answered. No number is stated.",
+        "fr": "Les paroles de Yunus dans le ventre de la baleine (Coran 21:87). Aucun nombre n’est fixé.",
+        "ar": "دعوة ذي النون في بطن الحوت (الأنبياء ٨٧)، ولم يحدد الحديث عددًا."
+      }
+    },
+    {
+      "id": "hasbunallah",
+      "category": "quranic",
+      "title": {
+        "en": "Trust in Allah",
+        "fr": "La confiance en Allah",
+        "ar": "التوكل على الله"
+      },
+      "source": "bukhari:4563",
+      "start": "حسبنا الله ونعم الوكيل",
+      "end": "حسبنا الله ونعم الوكيل",
+      "quranRef": "3:173",
+      "target": 33,
+      "targetKind": "personal",
+      "about": {
+        "en": "Said by Ibrahim when thrown into the fire and by the Prophet ﷺ when told the people had gathered against them (Quran 3:173). No number is stated.",
+        "fr": "Dite par Ibrahim jeté dans le feu et par le Prophète ﷺ (Coran 3:173). Aucun nombre n’est fixé.",
+        "ar": "قالها إبراهيم حين أُلقي في النار وقالها محمد ﷺ (آل عمران ١٧٣)، ولم يحدد عدد."
+      }
+    },
+    {
+      "id": "rabbana-atina",
+      "category": "quranic",
+      "title": {
+        "en": "Good in this world and the next",
+        "fr": "Le bien ici-bas et dans l’au-delà",
+        "ar": "دعاء الخير في الدنيا والآخرة"
+      },
+      "source": "bukhari:6389",
+      "start": "ربنا اتنا في الدنيا",
+      "end": "عذاب النار",
+      "quranRef": "2:201",
+      "target": 1,
+      "targetKind": "personal",
+      "about": {
+        "en": "Anas said this was the supplication the Prophet ﷺ made most often (Quran 2:201).",
+        "fr": "Anas dit que c’était l’invocation la plus fréquente du Prophète ﷺ (Coran 2:201).",
+        "ar": "قال أنس إنه كان أكثر دعاء النبي ﷺ (البقرة ٢٠١)."
+      }
+    },
+    {
+      "id": "entering-toilet",
+      "category": "daily",
+      "title": {
+        "en": "Entering the toilet",
+        "fr": "En entrant aux toilettes",
+        "ar": "دعاء دخول الخلاء"
+      },
+      "source": "bukhari:6322",
+      "start": "اللهم اني اعوذ بك من الخبث",
+      "end": "والخبائث",
+      "also": [
+        "bukhari:142"
+      ],
+      "target": 1,
+      "targetKind": "sunnah",
+      "evidence": [
+        "اذا دخل الخلاء"
+      ],
+      "about": {
+        "en": "What the Prophet ﷺ said when he entered the toilet.",
+        "fr": "Ce que disait le Prophète ﷺ en entrant aux toilettes.",
+        "ar": "ما كان يقوله النبي ﷺ إذا دخل الخلاء."
+      }
+    },
+    {
+      "id": "after-eating",
+      "category": "daily",
+      "title": {
+        "en": "After eating",
+        "fr": "Après le repas",
+        "ar": "دعاء بعد الطعام"
+      },
+      "source": "bukhari:5458",
+      "start": "الحمد لله كثيرا طيبا",
+      "end": "ربنا",
+      "target": 1,
+      "targetKind": "sunnah",
+      "evidence": [
+        "اذا رفع مائدته"
+      ],
+      "about": {
+        "en": "What the Prophet ﷺ said when his meal was taken away.",
+        "fr": "Ce que disait le Prophète ﷺ quand on retirait son repas.",
+        "ar": "ما كان يقوله النبي ﷺ إذا رُفعت مائدته."
+      }
+    },
+    {
+      "id": "distress",
+      "category": "daily",
+      "title": {
+        "en": "In distress",
+        "fr": "Dans l’angoisse",
+        "ar": "دعاء الكرب"
+      },
+      "source": "bukhari:6346",
+      "start": "لا اله الا الله العظيم الحليم",
+      "end": "رب العرش الكريم",
+      "also": [
+        "bukhari:6345"
+      ],
+      "target": 1,
+      "targetKind": "sunnah",
+      "evidence": [
+        "عند الكرب"
+      ],
+      "about": {
+        "en": "What the Prophet ﷺ said in times of distress.",
+        "fr": "Ce que disait le Prophète ﷺ dans l’angoisse.",
+        "ar": "ما كان يقوله النبي ﷺ عند الكرب."
+      }
+    }
+  ]
+}

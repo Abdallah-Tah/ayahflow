@@ -1,4 +1,4 @@
-import { readFile, writeFile, copyFile, mkdir, access } from 'node:fs/promises';
+import { readFile, writeFile, copyFile, mkdir, access, readdir } from 'node:fs/promises';
 const exists = async (p) => { try {
     await access(p);
     return true;
@@ -10,9 +10,23 @@ const plist = 'ios/App/App/Info.plist';
 if (await exists(plist)) {
     let s = await readFile(plist, 'utf8');
     if (!s.includes('NSMicrophoneUsageDescription')) {
-        s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>NSMicrophoneUsageDescription</key><string>Record Quran practice on this device. AyahFlow does not upload your recordings.</string>\n</dict>\n</plist>');
+        s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>NSMicrophoneUsageDescription</key><string>AyahFlow uses the microphone to record your practice and, only when you turn on Follow my recitation, to follow your place in the text. Everything stays on this device; nothing is uploaded.</string>\n</dict>\n</plist>');
         await writeFile(plist, s);
     }
+    // Smart reminders: location/motion purpose strings and the ayahflow:// link scheme (added once; edits are preserved).
+    const keys = [
+        ['NSLocationWhenInUseUsageDescription', 'AyahFlow uses your location only to save places you choose, such as Home, Work or your mosque. They stay on this device.'],
+        ['NSLocationAlwaysAndWhenInUseUsageDescription', 'With “Always”, AyahFlow can remind you of the fitting dhikr when you leave or arrive at a saved place, even when the app is closed. Places and detections stay on this device.'],
+        // Fajr wake-up alarm (ios/App/App/FajrAlarm.swift, AlarmKit on iOS 26+).
+        ['NSAlarmKitUsageDescription', 'AyahFlow rings only the Fajr alarm you turn on, at the time you choose around Fajr.'],
+        ['NSMotionUsageDescription', 'AyahFlow checks recent motion to remind you of the riding dua when you travel by vehicle. Motion data stays on this device.'],
+    ];
+    for (const [key, text] of keys) if (!s.includes(`<key>${key}</key>`)) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, `<key>${key}</key><string>${text}</string>\n</dict>\n</plist>`);
+    // Background location: only used for a few minutes after leaving a saved place, to notice a car trip (SmartReminders.swift).
+    if (!s.includes('<key>UIBackgroundModes</key>')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>UIBackgroundModes</key><array><string>location</string></array>\n</dict>\n</plist>');
+    if (!s.includes('AyahFlowSharedKeychain')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>AyahFlowSharedKeychain</key><string>$(AppIdentifierPrefix)com.buildwithabdallah.ayahflow.shared</string>\n</dict>\n</plist>');
+    if (!s.includes('<string>ayahflow</string>')) s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>app.ayahflow.moment</string><key>CFBundleURLSchemes</key><array><string>ayahflow</string></array></dict></array>\n</dict>\n</plist>');
+    await writeFile(plist, s);
     const privacy = 'ios/App/App/PrivacyInfo.xcprivacy';
     if (!await exists(privacy))
         await copyFile('native/PrivacyInfo.xcprivacy', privacy);
@@ -21,10 +35,18 @@ if (await exists(plist)) {
 const manifest = 'android/app/src/main/AndroidManifest.xml';
 if (await exists(manifest)) {
     let s = await readFile(manifest, 'utf8');
+    if (!s.includes('android:scheme="ayahflow"'))
+        s = s.replace(/(<category android:name="android.intent.category.LAUNCHER" \/>\s*<\/intent-filter>)/, '$1\n            <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="ayahflow" android:host="moment" />\n            </intent-filter>');
     if (!s.includes('android.permission.RECORD_AUDIO'))
         s = s.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <application');
     await writeFile(manifest, s);
     await mkdir('android/app/src/main/res/drawable', { recursive: true });
+    // Athan recordings for the Android notification channels (see content/athan/sources.json); one channel per reciter.
+    await mkdir('android/app/src/main/res/raw', { recursive: true });
+    for (const f of await readdir('public/sounds')) { const m = /^athan-([a-z0-9]+)\.mp3$/.exec(f); if (m) await copyFile(`public/sounds/${f}`, `android/app/src/main/res/raw/ayahflow_athan_${m[1]}.mp3`); }
+    // An imported athan lives in files/ayahflow/athan/ and is shared with the notification system through the FileProvider.
+    const paths = 'android/app/src/main/res/xml/file_paths.xml';
+    if (await exists(paths)) { let x = await readFile(paths, 'utf8'); if (!x.includes('ayahflow_athan')) { x = x.replace('</paths>', '    <files-path name="ayahflow_athan" path="ayahflow/athan/" />\n</paths>'); await writeFile(paths, x); } }
     await writeFile('android/app/src/main/res/drawable/ic_stat_ayahflow.xml', '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFFFF" android:pathData="M3,3 L11,5 L11,22 L3,20 Z M13,5 L21,3 L21,20 L13,22 Z"/></vector>');
     console.log('Android: microphone declaration added. Test WebView permission prompts on a real device.');
 }

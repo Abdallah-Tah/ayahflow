@@ -6,6 +6,10 @@ Every observed learning difficulty should lead to a useful next exercise. The in
 
 The differentiator is the connected review loop and trustworthy feedback, not a claim that no competitor has similar features. Success should be measured by retained unassisted recall and learner usefulness, not simply points, screen time or an unvalidated model score.
 
+## Decision log
+
+- 2026-10-22 — At the owner's request the corpus moved past the eight-surah gate: the full Quran is imported from Tanzil (licensed, versioned, checksum-pinned, reproducible), and context-aware adhkar reminders were added. Teacher/scholar review and physical-device testing remain open release gates (see `RELEASE-CHECKLIST.md`).
+
 ## Gate 1 — installable, trustworthy starter
 
 Finish real-phone testing, durable storage, audio lifecycle, signed internal builds, teacher review and content provenance. Improve content/error reporting, accessibility and onboarding. Keep the eight-surah scope until these gates pass.

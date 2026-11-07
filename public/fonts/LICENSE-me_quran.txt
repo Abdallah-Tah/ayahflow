@@ -1,0 +1,9 @@
+me_quran, Version 1.003 (April 26, 2005), by Meor Ridzuan.
+Shipped unmodified as fonts/me_quran.ttf (SHA-256 83d56cab9933f9e3ac1361ac0e926324a1cc70f37c3bcc5b22f62f270160b4a0),
+downloaded from https://tanzil.net/res/font/org/me_quran.ttf on 2026-10-31.
+
+Licence notice embedded in the font (name table, copyright):
+"Typeface and data © 2005, Meor Ridzuan. Free for non commercial use. Other use, contact meory@yahoo.com"
+
+Tanzil's font page says the font is "available to download for personal and non-commercial use".
+AyahFlow is free and non-commercial; any commercial use of AyahFlow needs the author's permission for this font first.

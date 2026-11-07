@@ -20,16 +20,71 @@ if (result.status !== 0) {
     process.exit(result.status ?? 1);
 }
 await cp('public', 'www', { recursive: true });
+// Full Quran text: verbatim Tanzil import, checksum-pinned (scripts/import-quran.mjs).
+const { writeQuranModule } = await import('./import-quran.mjs');
+const quran = await writeQuranModule('www/js/quran-data.js');
+await cp('content/tanzil', 'www/content/tanzil', { recursive: true }); // Licence requires the notice to travel with the text.
+// English translation (Pickthall, via Tanzil): verbatim, checksum-pinned (scripts/import-translation.mjs).
+await (await import('./import-translation.mjs')).writeTranslationModule('www/js/translation-data.js');
+// Adhkar library: verified verbatim hadith slices + Quran references (scripts/build-adhkar.mjs), shipped as a module.
+await writeFile('www/js/adhkar-data.js', `/* Generated from content/adhkar/adhkar.json — do not edit. Source: ${JSON.parse(await readFile('content/adhkar/adhkar.json', 'utf8')).dataset}. */\nexport default ${await readFile('content/adhkar/adhkar.json', 'utf8')};\n`);
+// The 99 Names: verbatim from Jami' at-Tirmidhi 3507 (scripts/build-names.mjs), with 3506 for the authentic statement.
+await writeFile('www/js/names-data.js', `/* Generated from content/names/names.json — do not edit. */\nexport default ${await readFile('content/names/names.json', 'utf8')};\n`);
+// Ramadan narrations: verbatim slices (scripts/build-ramadan.mjs); the full hadith text stays out of the app bundle.
+{ const r = JSON.parse(await readFile('content/ramadan/ramadan.json', 'utf8'));
+  await writeFile('www/js/ramadan-data.js', `/* Generated from content/ramadan/ramadan.json — do not edit. */\nexport default ${JSON.stringify({ dataset: r.dataset, items: r.items.map(({ full, ...i }) => i) })};\n`); }
+// Eid, Zakat al-Fitr and fast narrations: verbatim slices (scripts/build-eid.mjs); the full hadith text stays out of the bundle.
+{ const r = JSON.parse(await readFile('content/eid/eid.json', 'utf8'));
+  await writeFile('www/js/eid-data.js', `/* Generated from content/eid/eid.json — do not edit. */\nexport default ${JSON.stringify({ dataset: r.dataset, items: r.items.map(({ full, ...i }) => i) })};\n`); }
+// Tajweed colouring spans (scripts/build-tajweed.py from cpfair/quran-tajweed, CC BY 4.0); loaded only when switched on.
+{ const r = JSON.parse(await readFile('content/tajweed/tajweed.json', 'utf8'));
+  await writeFile('www/js/tajweed-data.js', `/* Generated from content/tajweed/tajweed.json — do not edit. ${r.credit}. */\nexport default ${JSON.stringify({ credit: r.credit, spans: r.spans })};\n`); }
+// Hadith library: an-Nawawi's Forty and the Forty Hadith Qudsi, Arabic, verbatim (scripts/build-library.mjs); loaded on demand.
+{ const r = JSON.parse(await readFile('content/hadith/library.json', 'utf8'));
+  await writeFile('www/js/hadith-data.js', `/* Generated from content/hadith/library.json — do not edit. */\nexport default ${JSON.stringify({ collections: r.collections.map(({ id, name, url, items }) => ({ id, name, url, items })) })};\n`); }
+// Athan catalogue (names, credits, licences) for the recordings in public/sounds (scripts/prepare-athan.mjs).
+{ const { reviewNotes, alertSeconds, recordings } = JSON.parse(await readFile('content/athan/sources.json', 'utf8'));
+  await writeFile('www/js/athan-data.js', `/* Generated from content/athan/sources.json — do not edit. */\nexport default ${JSON.stringify({ reviewNotes, alertSeconds, recordings: recordings.map(({ download, sha256, ...r }) => r), online: JSON.parse(await readFile('content/athan/online.json', 'utf8')) })};\n`); }
+// Offline prayer times: adhan-js (MIT), bundled because the web build has no bundler.
+await (await import('esbuild')).build({ entryPoints: ['node_modules/adhan/lib/esm/Adhan.js'], outfile: 'www/js/adhan.js', bundle: true, format: 'esm', target: 'es2020', minify: true, legalComments: 'inline', logLevel: 'warning' });
+// Optional voice following. Shipped only when `npm run voice:fetch` has verified the NPL-1.2 model into vendor/.
+// Without it the app hides the feature (no manifest). The single-file preview never includes it.
+const { VOICE_DIR, VOICE_ASSETS } = await import('./fetch-voice-model.mjs');
+const voiceReady = (await Promise.all(VOICE_ASSETS.map(a => access(path.join(VOICE_DIR, a.name)).then(() => true, () => false)))).every(Boolean);
+if (voiceReady) {
+    const { build: bundle } = await import('esbuild');
+    await bundle({ entryPoints: ['voice/worker.ts'], outfile: 'www/voice/worker.js', bundle: true, format: 'esm', target: 'es2022', minify: true, logLevel: 'warning' });
+    await cp('node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', 'www/voice/ort-wasm-simd-threaded.wasm');
+    await mkdir('www/voice/models', { recursive: true });
+    for (const a of VOICE_ASSETS) await cp(path.join(VOICE_DIR, a.name), 'www/voice/models/' + a.name);
+    await cp('licenses/NPL-1.2.txt', 'www/voice/models/LICENSE-NPL-1.2.txt');
+    await writeFile('www/voice/manifest.json', JSON.stringify({ worker: 'worker.js', worklet: 'capture-worklet.js', model: 'models/' + VOICE_ASSETS[0].name, corpus: 'models/' + VOICE_ASSETS[1].name, licence: 'models/LICENSE-NPL-1.2.txt', sha256: Object.fromEntries(VOICE_ASSETS.map(a => [a.name, a.sha256])) }, null, 2));
+    console.log('Voice following included (Tilawa / Quran-Lab model, NPL-1.2: no charge for the app or any feature it powers).');
+}
+else
+    console.log('Voice following not included: run `npm run voice:fetch` to download the model.');
+// The Ayah of the Moment pool for the iOS widget, in the app's order and with the corpus text as it is, so the widget
+// follows the half-hour rotation on its own for as long as it runs (AyahFlowWidget.swift, MomentClock). Written only
+// when it changes; tests/widget-moments.test.mjs checks it against the app.
+if (await access('ios/App/AyahFlowWidget').then(() => true, () => false)) {
+    const { pathToFileURL } = await import('node:url');
+    const { momentPool, SLOT_MINUTES } = await import(pathToFileURL(path.join(root, 'www/js/worship.js')).href);
+    const { verse, chapter } = await import(pathToFileURL(path.join(root, 'www/js/data.js')).href);
+    const file = 'ios/App/AyahFlowWidget/AyahMoments.json';
+    const json = JSON.stringify({ v: 1, source: `Tanzil Quran text (Uthmani 1.1), sha256 ${quran.sha256}; generated by scripts/build.mjs, do not edit`, epoch: '2000-01-01T00:00 standard local time', slotMinutes: SLOT_MINUTES, ayahs: momentPool().map(([s, a]) => [s, a, verse(s, a), chapter(s).name, chapter(s).ar]) }) + '\n';
+    if (await readFile(file, 'utf8').catch(() => '') !== json) await writeFile(file, json);
+}
 const data = await readFile('src/data.ts', 'utf8');
-await writeFile('www/content-manifest.json', JSON.stringify({ version: 'starter-1', source: 'Quran.com Arabic chapter text', captured: '2026-09-28', chapters: [1, 103, 108, 109, 110, 112, 113, 114], ayahCount: 37, teacherReview: 'pending', sha256: createHash('sha256').update(data).digest('hex'), note: 'Checksum detects source-file changes; it is not religious or editorial certification.' }, null, 2));
+await writeFile('www/content-manifest.json', JSON.stringify({ version: 'tanzil-uthmani-1.1', source: quran.source, licence: quran.licence, url: quran.url, textSha256: quran.sha256, chapters: quran.surahs.length, ayahCount: quran.surahs.reduce((n, s) => n + s.verses.length, 0), teacherReview: 'pending', lessonsSha256: createHash('sha256').update(data).digest('hex'), note: 'Checksums detect source changes; they are not religious or editorial certification.' }, null, 2));
 const jsFiles = (await readdir('www/js')).filter(f => f.endsWith('.js'));
-const assets = ['./', './index.html', './style.css', './assets/icon.svg', './assets/icon-180.png', './assets/icon-192.png', './assets/icon-512.png', './manifest.webmanifest', './content-manifest.json', ...jsFiles.map(f => './js/' + f)];
+const assets = ['./', './index.html', './style.css', './assets/icon.svg', './assets/icon-180.png', './assets/icon-192.png', './assets/icon-512.png', './fonts/AyahFlowQuran-Regular.ttf?v=62b923c1b2b5', './fonts/AyahFlowQuranAmiri-Regular.ttf?v=498f1c79416c', './fonts/me_quran.ttf?v=83d56cab9933', './manifest.webmanifest', './content-manifest.json', ...jsFiles.map(f => './js/' + f)];
 const tag = createHash('sha256').update(await readFile('www/js/app.js')).update(await readFile('www/style.css')).update(data).digest('hex').slice(0, 12);
 await writeFile('www/sw.js', `const CACHE='ayahflow-${tag}',ASSETS=${JSON.stringify(assets)};
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting();});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('ayahflow-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin)return;e.respondWith(fetch(e.request).catch(()=>caches.match(e.request).then(r=>r||new Response('Offline: this resource is not cached.',{status:503}))));});\n`);
-const style = await readFile('www/style.css', 'utf8'), icon = await readFile('www/assets/icon.svg', 'utf8'), iconURL = 'data:image/svg+xml;base64,' + Buffer.from(icon).toString('base64');
+const quranFont = 'data:font/ttf;base64,' + (await readFile('www/fonts/AyahFlowQuran-Regular.ttf')).toString('base64');
+const style = (await readFile('www/style.css', 'utf8')).replace(/\.\/fonts\/AyahFlowQuran-Regular\.ttf(\?v=\w+)?/, quranFont), icon = await readFile('www/assets/icon.svg', 'utf8'), iconURL = 'data:image/svg+xml;base64,' + Buffer.from(icon).toString('base64');
 const imports = {};
 for (const file of jsFiles) {
     let content = await readFile('www/js/' + file, 'utf8');

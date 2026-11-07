@@ -1,0 +1,11 @@
+{
+  "name": "@ayahflow/smart-reminders",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AyahFlow native geofence, vehicle and notification engine for context-aware adhkar reminders (local plugin).",
+  "main": "index.js",
+  "license": "UNLICENSED",
+  "capacitor": { "ios": { "src": "ios" }, "android": { "src": "android" } },
+  "files": ["index.js", "Package.swift", "ios/Sources", "android/src/main/", "android/build.gradle"],
+  "peerDependencies": { "@capacitor/core": ">=8.0.0" }
+}

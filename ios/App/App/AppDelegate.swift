@@ -1,5 +1,7 @@
 import UIKit
+import AVFoundation
 import Capacitor
+import SmartRemindersPlugin
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +9,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Own the location manager from launch: iOS relaunches AyahFlow in the background (without a scene or
+        // web view) to deliver geofence and significant-change events for smart adhkar reminders.
+        SmartReminders.shared.start()
+        // Fajr wake-up alarm (AlarmKit, iOS 26+): the web layer reaches it through the reminders plugin.
+        if #available(iOS 26.0, *) { FajrAlarmHook.scheduler = FajrAlarms.shared }
+        // Recitation and athan previews are media the user starts: play them like a media app, even with the
+        // Ring/Silent switch on silent (the default SoloAmbient category mutes the web view). Nothing plays until a tap.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
         return true
     }
 
