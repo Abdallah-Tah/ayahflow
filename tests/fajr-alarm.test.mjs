@@ -69,6 +69,14 @@ test('Migration v18 → v19 keeps everything and adds the alarm, off; bad settin
     assert.throws(() => validateState({ ...ok, fajrAlarm: undefined }), /Fajr alarm/);
 });
 
+test('A wake check ends with its follow-up ring, so it cannot keep reopening the wake page', () => {
+    const swift = readFileSync(new URL('../ios/App/App/FajrAlarm.swift', import.meta.url), 'utf8');
+    const body = swift.match(/func checkWaiting\(\) -> Bool \{[\s\S]*?\n    \}/)?.[0] ?? '';
+    assert.match(body, /manager\.alarms/, 'waiting only while the ring is still scheduled or ringing');
+    assert.match(body, /removeObject\(forKey: checkKey\)/, 'a finished check is forgotten');
+    assert.doesNotMatch(swift, /func checkWaiting\(\) -> Bool \{ defaults\.string\(forKey: checkKey\) != nil \}/);
+});
+
 test('Native wiring: AlarmKit in the app target, limited snooze, wake check, permission text; three languages', () => {
     const swift = read('ios/App/App/FajrAlarm.swift');
     assert.match(swift, /import AlarmKit/);

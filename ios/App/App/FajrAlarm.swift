@@ -101,7 +101,14 @@ final class FajrAlarms: FajrAlarmScheduling {
         }
     }
 
-    func checkWaiting() -> Bool { defaults.string(forKey: checkKey) != nil }
+    /// A wake check is waiting only while its follow-up ring is still to come or ringing. Once that ring is over the
+    /// check has ended, whether or not "I'm up" was held, so it stops opening the wake page and is forgotten.
+    func checkWaiting() -> Bool {
+        guard let saved = defaults.string(forKey: checkKey), let id = UUID(uuidString: saved) else { return false }
+        if ((try? manager.alarms) ?? []).contains(where: { $0.id == id }) { return true }
+        defaults.removeObject(forKey: checkKey)
+        return false
+    }
 
     func test(after seconds: Double, _ done: @escaping (Bool) -> Void) {
         guard let plan else { done(false); return }
