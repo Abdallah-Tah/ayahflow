@@ -357,6 +357,13 @@ html[data-theme=light] body.reading{--r-body:#f7f2e4}
 .q-page.q-opening{margin:auto;max-width:30em}
 .turn-next .q-page.fitted{animation:turn-next .28s ease-out}.turn-prev .q-page.fitted{animation:turn-prev .28s ease-out}
 @keyframes turn-next{from{transform:translateX(-18px);opacity:.3}to{transform:none;opacity:1}}@keyframes turn-prev{from{transform:translateX(18px);opacity:.3}to{transform:none;opacity:1}}
+/* The turning sheet (src/page-curl.ts). Copies of the page under and over a fold; the paper back carries no text. */
+.r-leaf{position:absolute;z-index:1;overflow:hidden;pointer-events:none;background:var(--r-paper);--leaf-under:rgb(0 0 0 / .26);--leaf-cast:rgb(0 0 0 / .18);--leaf-crease:rgb(0 0 0 / .2);--leaf-lit:rgb(255 255 255 / .3);--leaf-plain:rgb(0 0 0 / .03);--leaf-edge:rgb(0 0 0 / .12)}
+[data-reading-theme="night"] .r-leaf{--leaf-under:rgb(0 0 0 / .62);--leaf-cast:rgb(0 0 0 / .46);--leaf-crease:rgb(0 0 0 / .4);--leaf-lit:rgb(255 255 255 / .13);--leaf-plain:rgb(255 255 255 / .05);--leaf-edge:rgb(255 255 255 / .02)}
+.r-leaf>.r-surface,.r-leaf-shade,.r-leaf-flap{position:absolute;inset:0}
+.r-leaf>.r-surface{background:var(--r-paper);overflow:hidden}
+.r-leaf .q-page{transition:none}.r-leaf .q-page.fitted{animation:none}
+.r-leaf-flap{background-color:var(--r-paper)}
 .q-text{font-family:var(--arabic);direction:rtl;margin:0;color:var(--r-ink);font-size:1em;line-height:2.05;text-align:justify;text-align-last:center;word-spacing:.04em;letter-spacing:0;overflow-wrap:normal}
 .q-page .q-text{line-height:1.95}.q-opening .q-text{text-align:center}
 .q-v{border-radius:.25em;cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone}

@@ -171,6 +171,7 @@ test('Mushaf page as printed: running header (Juz’, Hizb, surah) and the page 
     assert.match(pageRunFoot(initialState(), 151), />151</);
     const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
     assert.match(app, /const chromeOff = \(\) => chromeHidden \?\? state\.readingLayout === 'page';/, 'page mode starts with the bar hidden');
-    assert.match(app, /\$\{pageRunHead\(state, readerPage\)\}\$\{pageBody\(state, readerPage, menuVerse\)\}\$\{pageRunFoot\(state, readerPage\)\}/);
+    assert.match(app, /\$\{pageRunHead\(state, page\)\}\$\{pageBody\(state, page, selected\)\}\$\{pageRunFoot\(state, page\)\}/);
+    assert.match(app, /\$\{surfaceInner\(readerPage, menuVerse\)\}/, 'the reader draws the page with them');
     assert.match(app, /querySelectorAll<HTMLElement>\('\.r-run, \.r-run-no'\)/, 'the page is sized with its header and number');
 });

@@ -23,6 +23,7 @@ import { hifzRange, hifzQueue, hiddenWord, HIFZ_REPEATS, HIFZ_LEVELS, HIFZ_MAX_A
 import { RAMADAN_TEXT, ramadanToday, daysToRamadan } from './ramadan.js';
 import { NAMES, NAMES_LIST, NAMES_ABOUT, NAMES_QURAN, nameOfDay } from './names.js';
 import { khatmToday, startKhatm, endKhatm, setKhatmPage, turnedPage, KHATM_DAYS } from './khatm.js';
+import { mountLeaf, releaseCompletes, type Leaf } from './page-curl.js';
 import { pageBody, easyBody, readerTitle, readingStyles, quranFontChooser, pageFor, clampPage, toEndOfJuz, pageRunHead, pageRunFoot } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
@@ -211,11 +212,27 @@ async function goToPage(n: number): Promise<void> {
     const page = clampPage(n);
     if (page === readerPage) return;
     const [s, a] = pageAyahs(page)[0]!;
-    pageTurn = page > readerPage ? 'next' : 'prev';
+    // One page along turns a sheet, unless a finger has already started it; a jump further keeps the short slide.
+    const released = leaf && leafTo === page;
+    if (!released) { leaf?.remove(); if (Math.abs(page - readerPage) === 1) { beginLeaf(page, null); leaf?.play('done'); } }
+    pageTurn = leaf ? null : page > readerPage ? 'next' : 'prev';
     const before = readerPage;
     readerPage = page; readerSurah = s; menuVerse = null;
     await commit({ ...turnedPage(state, before, page), readPosition: { surah: s, ayah: a } });
     render();
+}
+/** The page's own contents, for the reader and for the sheet being turned. */
+const surfaceInner = (page: number, selected: string | null) => `${pageRunHead(state, page)}${pageBody(state, page, selected)}${pageRunFoot(state, page)}`;
+let leaf: Leaf | null = null, leafTo = 0;
+/** Lifts a sheet towards an adjacent page, when turning can be seen and Reduce motion is off. */
+function beginLeaf(to: number, grabY: number | null): void {
+    const surface = root.querySelector<HTMLElement>('.r-page .r-surface');
+    if (!surface || view !== 'reader' || mushafOpen || state.reducedMotion || document.querySelector('dialog[open]')) return;
+    const fresh = document.createElement('div');
+    fresh.innerHTML = surfaceInner(to, null);
+    leafTo = to;
+    const mine: Leaf = mountLeaf(surface, fresh, to > readerPage ? 'next' : 'prev', grabY, fitPage, () => { if (leaf === mine) leaf = null; });
+    leaf = mine;
 }
 /** Opens a verse in the current layout: its page in Mushaf pages, else its surah scrolled to it. */
 async function openAt(s: number, a: number): Promise<void> {
@@ -227,8 +244,8 @@ async function openAt(s: number, a: number): Promise<void> {
     document.querySelector(`#ayah-${a}`)?.scrollIntoView({ block: 'center' });
 }
 /** Mushaf pages: the largest text size (within reading limits) at which the whole page fits the surface. */
-function fitPage(): void {
-    const surface = document.querySelector<HTMLElement>('.r-page .r-surface'), page = surface?.querySelector<HTMLElement>('.q-page');
+function fitPage(on?: HTMLElement): void {
+    const surface = on ?? document.querySelector<HTMLElement>('.r-page .r-surface'), page = surface?.querySelector<HTMLElement>('.q-page');
     if (!surface || !page) return;
     const cs = getComputedStyle(surface), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     // Leave room for marks below the last line (kasra, tanween) so nothing is clipped.
@@ -243,7 +260,7 @@ function fitPage(): void {
     page.classList.add('fitted');
 }
 let fitTimer: ReturnType<typeof setTimeout> | undefined;
-window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitPage, 120); });
+window.addEventListener('resize', () => { clearTimeout(fitTimer); leaf?.remove(); fitTimer = setTimeout(() => fitPage(), 120); });
 /** Plays verses one after another until the list ends or the user stops it. */
 function playQueue(list: [number, number][], label: string): void {
     const step = (i: number) => {
@@ -373,7 +390,7 @@ function readerView(): string {
         const turnCls = pageTurn && !state.reducedMotion ? ` turn-${pageTurn}` : '';
         pageTurn = null;
         // Mushaf order: the next page is on the left, whatever the interface language.
-        return shell('r-page', `${bar}<div class="r-surface${turnCls}" aria-label="${t('pageN').replace('{n}', num(readerPage))}">${pageRunHead(state, readerPage)}${pageBody(state, readerPage, menuVerse)}${pageRunFoot(state, readerPage)}</div><footer class="r-foot" dir="ltr">${turn(readerPage + 1, 'nextPage', 'prev')}<div class="r-pageno"><span>${num(readerPage)}</span><span class="r-progress" role="progressbar" aria-label="${t('pageN').replace('{n}', num(readerPage))}" aria-valuemin="1" aria-valuemax="${PAGE_COUNT}" aria-valuenow="${readerPage}"><i style="width:${(readerPage / PAGE_COUNT * 100).toFixed(2)}%"></i></span></div>${turn(readerPage - 1, 'prevPage', 'next')}</footer>`);
+        return shell('r-page', `${bar}<div class="r-surface${turnCls}" aria-label="${t('pageN').replace('{n}', num(readerPage))}">${surfaceInner(readerPage, menuVerse)}</div><footer class="r-foot" dir="ltr">${turn(readerPage + 1, 'nextPage', 'prev')}<div class="r-pageno"><span>${num(readerPage)}</span><span class="r-progress" role="progressbar" aria-label="${t('pageN').replace('{n}', num(readerPage))}" aria-valuemin="1" aria-valuemax="${PAGE_COUNT}" aria-valuenow="${readerPage}"><i style="width:${(readerPage / PAGE_COUNT * 100).toFixed(2)}%"></i></span></div>${turn(readerPage - 1, 'prevPage', 'next')}</footer>`);
     }
     const body = layout === 'flow' ? easyBody(state, s.id, menuVerse, wordSpans) : `<div class="r-cards">${s.verses.map((text, i) => { const a = i + 1, k = `${s.id}:${a}`, saved = state.bookmarks.includes(k); return `<article class="ayah-card" id="ayah-${a}"><div class="row between"><span class="ayah-meta">${ref(s.id, a)}</span><div class="ayah-tools"><button class="icon-button" data-action="play-verse" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('play')} ${s.id}:${a}">${ic('play')}</button><button class="icon-button ${saved ? 'active' : ''}" data-action="bookmark" data-surah="${s.id}" data-ayah="${a}" aria-label="${t(saved ? 'removeBookmark' : 'bookmark')} ${s.id}:${a}" aria-pressed="${saved}">${ic('bookmark')}</button><button class="icon-button" data-action="record-ayah" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('recite')} ${s.id}:${a}">${ic('mic')}</button><button class="icon-button" data-action="report" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('reportIssue')} ${s.id}:${a}">${ic('flag')}</button><button class="icon-button" data-action="verse-menu" data-surah="${s.id}" data-ayah="${a}" aria-label="${t('verseMenu')} ${s.id}:${a}">${ic('more')}</button></div></div><p class="arabic ayah-text" lang="ar" dir="rtl"><span class="ayah-src${hlClass(s.id, a)}">${wordSpans(text, k)}</span> ${marker(a)}</p>${state.worship.prefs.translation ? `<p class="e-tr" lang="en" dir="ltr"><span class="e-n">${a}</span>${escapeHtml(translation(s.id, a))}</p>` : ''}<a class="text-link" href="https://quran.com/${s.id}/${a}" target="_blank" rel="noopener noreferrer">${t('translation')} ${ic('arrow', 12)}</a></article>`; }).join('')}</div>`;
     const surahTurn = (to: number, key: string, icon: string) => to >= 1 && to <= 114 ? `<button class="r-btn" data-action="read-surah" data-surah="${to}" aria-label="${t(key)}">${ic(icon, 18)}</button>` : '<span class="r-btn-space"></span>';
@@ -1600,7 +1617,7 @@ function currentPrayer(now = Date.now()): PrayerName {
 const views: Record<View, () => string> = { hadith: hadithView, zakat: zakatView, eid: eidView, occasions: occasionsView, hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
-function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(fitPage); } } if (view === 'eid') void cardPreview(); const nightEl = root.querySelector<HTMLElement>('#night-stage'), nightNext = nightFrame; nightFrame = null; document.body.classList.toggle('night-view', !!nightEl); if (nightEl && nightNext) mountNightBeads(nightEl, nightNext); else unmountNightBeads(); syncCompass(); showReciting(false); }
+function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(() => fitPage()); } } if (leaf) { if (swipeOn) cancelDrag(); leaf?.adopt(view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null); } if (view === 'eid') void cardPreview(); const nightEl = root.querySelector<HTMLElement>('#night-stage'), nightNext = nightFrame; nightFrame = null; document.body.classList.toggle('night-view', !!nightEl); if (nightEl && nightNext) mountNightBeads(nightEl, nightNext); else unmountNightBeads(); syncCompass(); showReciting(false); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
@@ -2680,15 +2697,50 @@ async function handleAction(el: HTMLElement): Promise<void> {
         }
     }
 }
-/** Page layout: swipe to turn (right = next page, as in a printed Mushaf), arrow keys, and Enter/Space on a focused ayah. */
-let swipeFrom: { x: number; y: number } | null = null;
-root.addEventListener('touchstart', e => { const p = (e.target as Element).closest('.r-page .r-surface'); swipeFrom = p && e.touches.length === 1 ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY } : null; }, { passive: true });
+/** Page layout: drag to turn (right = next page, as in a printed Mushaf; the sheet follows the finger), arrow keys, and Enter/Space on a focused ayah. */
+let dragEnded = -Infinity, swipeFrom: { x: number; y: number; grab: number } | null = null, swipeOn = false, swipeLast = { x: 0, at: 0, speed: 0 };
+function cancelDrag(): void { swipeFrom = null; swipeOn = false; leaf?.play('back', true); }
+root.addEventListener('touchstart', e => {
+    const p = (e.target as Element).closest<HTMLElement>('.r-page .r-surface');
+    if (swipeOn) cancelDrag();
+    swipeFrom = p && e.touches.length === 1 ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, grab: e.touches[0]!.clientY - p.getBoundingClientRect().top } : null;
+    swipeLast = { x: swipeFrom?.x ?? 0, at: e.timeStamp, speed: 0 };
+}, { passive: true });
+root.addEventListener('touchmove', e => {
+    if (!swipeFrom || view !== 'reader' || state.readingLayout !== 'page') return;
+    if (e.touches.length !== 1) { if (swipeOn) cancelDrag(); else swipeFrom = null; return; }
+    const t0 = e.touches[0]!, dx = t0.clientX - swipeFrom.x, dy = t0.clientY - swipeFrom.y;
+    const gap = e.timeStamp - swipeLast.at;
+    if (gap > 0) swipeLast = { x: t0.clientX, at: e.timeStamp, speed: (t0.clientX - swipeLast.x) / gap };
+    if (!swipeOn) {
+        if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+        const to = readerPage + (dx > 0 ? 1 : -1);
+        if (to < 1 || to > PAGE_COUNT || busy) return;
+        leaf?.remove();
+        beginLeaf(to, swipeFrom.grab);
+        if (!leaf) return;
+        swipeOn = true;
+    }
+    leaf?.drag(dx, dy);
+}, { passive: true });
 root.addEventListener('touchend', e => {
     if (!swipeFrom || view !== 'reader' || state.readingLayout !== 'page') return;
-    const t0 = e.changedTouches[0]!, dx = t0.clientX - swipeFrom.x, dy = t0.clientY - swipeFrom.y;
+    const t0 = e.changedTouches[0]!, dx = t0.clientX - swipeFrom.x, dy = t0.clientY - swipeFrom.y, width = root.clientWidth;
     swipeFrom = null;
+    if (swipeOn && leaf) {
+        swipeOn = false;
+        dragEnded = e.timeStamp;
+        if (releaseCompletes(leaf.direction, width, dx, swipeLast.speed)) { leaf.play('done', true); void goToPage(leafTo); }
+        else leaf.play('back', true);
+        return;
+    }
+    swipeOn = false;
+    // Reduce motion: no sheet follows the finger, the page simply changes.
     if (Math.abs(dx) > 60 && Math.abs(dy) < 50 && !busy) void goToPage(readerPage + (dx > 0 ? 1 : -1));
 }, { passive: true });
+root.addEventListener('touchcancel', () => { if (swipeOn) cancelDrag(); swipeFrom = null; }, { passive: true });
+/** A finger that dragged the page and came back near where it started still produces a click: it must not open a verse. */
+root.addEventListener('click', e => { if (e.timeStamp - dragEnded < 400) { e.stopPropagation(); e.preventDefault(); } }, true);
 document.addEventListener('keydown', e => {
     if (view !== 'reader' || state.readingLayout !== 'page' || mushafOpen || document.querySelector('dialog[open]')) return;
     const el = e.target as HTMLElement;
