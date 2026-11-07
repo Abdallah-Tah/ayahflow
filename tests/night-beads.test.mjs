@@ -89,4 +89,7 @@ test('The Night beads choices are named in all three languages, and the look can
     for (const key of [...NIGHT_DESIGNS.map(v => `nightDesign_${v}`), ...NIGHT_SHAPES.map(v => `nightShape_${v}`), ...NIGHT_SKIES.map(v => `nightSky_${v}`), 'tasbihLook_night', 'nightPhonetic', 'nightMore', 'nightShowMinaret', 'nightPrev', 'nightNext', 'nightAutoNote'])
         assert.match(i18n, new RegExp(`\\b${key}: \\['[^']+', '[^']+', '[^']+'\\]`), key);
     assert.equal((app.match(/\$\{tasbihLookSection\(\)\}/g) ?? []).length, 4);
+    // On the other looks both counters offer it above the circle, where it shows without scrolling; only a tap changes the look.
+    assert.equal((app.match(/\$\{nightOffer\(\)\}<\/div>\n\$\{(textCard|tapTextOutside)/g) ?? []).length, 2);
+    assert.match(app, /function nightOffer\(\): string \{ return `<button class="range-chip night-offer" data-action="tasbih-theme" data-v="night">/);
 });
