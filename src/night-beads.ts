@@ -48,6 +48,30 @@ export function swingStep(s: Swing, dt: number, dvx = 0, wind = 0): Swing {
     const tv = s.tv + (-20 * s.t - 1.15 * s.tv + 9 * (s.m - s.t) + wind) * dt - .0065 * push;
     return { m: Math.max(-.24, Math.min(.24, s.m + mv * dt)), mv, t: Math.max(-.62, Math.min(.62, s.t + tv * dt)), tv };
 }
+/** The strand as a chain of loose pieces (beads and collars in turn, joined in a ring). Each can slide a little along the cord
+ * (`a`) and drop or lift off it (`n`), held by its own spring and tugged by its neighbours, so a pull on one piece travels
+ * outward as a ripple. Offsets are in px and capped so pieces never run through each other. Changes the chain in place: it runs every frame. */
+export interface Chain { a: number[]; av: number[]; n: number[]; nv: number[] }
+export function makeChain(size: number): Chain { const zeros = () => new Array<number>(size).fill(0); return { a: zeros(), av: zeros(), n: zeros(), nv: zeros() }; }
+const CHAIN_MAX_A = 8, CHAIN_MAX_N = 11;
+export function chainStep(c: Chain, dt: number, pulled = -1, along = 0, drop = 0): Chain {
+    const size = c.a.length;
+    if (pulled >= 0 && pulled < size) { c.av[pulled]! += along; c.nv[pulled]! += drop; }
+    const steps = Math.max(1, Math.ceil(dt * 120)), h = dt / steps;
+    for (let k = 0; k < steps; k++) {
+        for (let i = 0; i < size; i++) {
+            const l = (i + size - 1) % size, r = (i + 1) % size;
+            c.av[i]! += (-60 * c.a[i]! + 170 * (c.a[l]! + c.a[r]! - 2 * c.a[i]!) - 3 * c.av[i]!) * h;
+            c.nv[i]! += (-46 * c.n[i]! + 120 * (c.n[l]! + c.n[r]! - 2 * c.n[i]!) - 2.4 * c.nv[i]!) * h;
+        }
+        for (let i = 0; i < size; i++) {
+            const a = c.a[i]! + c.av[i]! * h, n = c.n[i]! + c.nv[i]! * h;
+            c.a[i] = Math.max(-CHAIN_MAX_A, Math.min(CHAIN_MAX_A, a)); if (Math.abs(a) > CHAIN_MAX_A) c.av[i] = 0;
+            c.n[i] = Math.max(-CHAIN_MAX_N, Math.min(CHAIN_MAX_N, n)); if (Math.abs(n) > CHAIN_MAX_N) c.nv[i] = 0;
+        }
+    }
+    return c;
+}
 /** The next or previous item of a list of choices, wrapping round. */
 export function stepChoice<T>(list: readonly T[], current: T, by: number): T { const i = Math.max(0, list.indexOf(current)); return list[(i + by + list.length) % list.length]!; }
 
@@ -67,7 +91,7 @@ const METALS = {
 } as const satisfies Record<string, Metal>;
 /** Each design has its own colours: bead (centre to edge, with opacity), light through it, inner marks, metal and tassel. */
 const DESIGNS: Record<NightDesign, Design> = {
-    amber: { stops: [['#ffbe55', 1], ['#e8861a', 1], ['#a84a0c', 1], ['#4a1c05', 1]], light: ['#ffd479', .92], rim: '#3f1a04', fx: 'amber', gloss: .8, metal: 'gold', tass: ['#8a6424', '#f2d68d', '#fff0c2'] },
+    amber: { stops: [['#ffd27a', .88], ['#f79c2c', .66], ['#cc640f', .66], ['#5a2406', .86]], light: ['#ffd479', .8], rim: '#3f1a04', fx: 'amber', gloss: .8, metal: 'gold', tass: ['#8a6424', '#f2d68d', '#fff0c2'] },
     crystal: { stops: [['#ffffff', .42], ['#e6f0f4', .16], ['#c7d8df', .14], ['#92a9b3', .46]], light: ['#ffffff', .22], rim: '#5e7680', fx: 'cracks', gloss: 1, metal: 'silver', tass: ['#7f8a90', '#e9eef0', '#ffffff'] },
     smoky: { stops: [['#d9cfc2', .55], ['#8a7a68', .42], ['#54483b', .5], ['#2a231c', .8]], light: ['#e8d8c0', .2], rim: '#1c1712', fx: 'wisps', gloss: .9, metal: 'bronze', tass: ['#4f3f2c', '#b9a079', '#dcc8a3'] },
     rose: { stops: [['#ffe9ee', .75], ['#f4bccb', .48], ['#d88ea4', .46], ['#9c5a70', .7]], light: ['#fff0f3', .3], rim: '#7c4258', fx: 'cloud', gloss: .9, metal: 'rose', tass: ['#a4687c', '#f6cfd9', '#ffeef2'] },
@@ -470,6 +494,15 @@ const reducedMotion = () => !!frame?.still || (typeof matchMedia === 'function' 
 /* Motion. One loop eases the strand towards the count and moves the hanging piece; it stops when there is nothing to move. */
 const REST_AFTER_MS = 45000;
 let swing: Swing = { ...SWING_REST }, windClock = 0, lastX: number | null = null, lastVx = 0, lastFrame = 0, lastDrawn = 0, lastTouch = 0;
+/** Hand-strung: each piece sits a little off the perfect line, and drifts a little at rest. */
+interface Slot { a: number; n: number; tilt: number; f: number; p: number }
+let chain: Chain = makeChain(0), slots: Slot[] = [], lastShown = 0, lastVs = 0;
+function fitChain(size: number): void {
+    if (chain.a.length === size) return;
+    chain = makeChain(size);
+    const rnd = mk(3301);
+    slots = Array.from({ length: size }, () => ({ a: (rnd() - .5) * 2.6, n: (rnd() - .5) * 3.4, tilt: (rnd() - .5) * .12, f: .7 + rnd() * 1.1, p: rnd() * 6.283 }));
+}
 let anim: { from: number; to: number; t0: number; ms: number; then?: () => void } | null = null;
 function moveHanging(x: number, dt: number): void {
     const vx = lastX === null ? 0 : (x - lastX) / dt, dvx = vx - lastVx;
@@ -480,36 +513,59 @@ function drawStrand(now: number, dt = 0): boolean {
     const f = frame, c = strandCanvas;
     if (!f || !c) return false;
     const g = c.getContext('2d')!, A = art(f.design, f.shape), STEP = SHAPES[f.shape].step, LOOP = Math.ceil(LEN / STEP) * STEP, COUNT = LOOP / STEP, shift = shown * STEP, rotate = f.shape !== 'round';
-    const cycle = cycleFor(f.total), mid = LEN / 2;
+    const cycle = cycleFor(f.total), mid = LEN / 2, size = COUNT * 2, still = reducedMotion();
+    fitChain(size);
     g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, cw, ch);
     g.translate(cw / 2 - MID_X, originY);
+    const posOf = (base: number) => (((base + shift + mid) % LOOP) + LOOP) % LOOP;
+    // The pieces on screen, each pushed off the line by its own spring.
+    const pieces: { i: number; s: number; x: number; y: number; a: number; tilt: number }[] = [];
+    let pull = -1, pullGap = Infinity;
+    for (let i = 0; i < size; i++) {
+        const base = (i >> 1) * STEP + (i & 1 ? STEP / 2 : 0), pos = posOf(base);
+        if (pos > LEN) continue;
+        if (!(i & 1) && Math.abs(pos - mid) < pullGap) { pull = i; pullGap = Math.abs(pos - mid); }
+        const slot = slots[i]!, drift = still ? 0 : Math.sin(windClock * slot.f + slot.p);
+        const along = chain.a[i]! + (still ? 0 : slot.a + drift * .7), off = chain.n[i]! + (still ? 0 : slot.n + drift * 1.3), q = at(Math.max(0, Math.min(LEN, pos + along)));
+        const tilt = (chain.n[(i + 1) % size]! - chain.n[(i + size - 1) % size]!) / STEP + (still ? 0 : slot.tilt);
+        pieces.push({ i, s: pos, x: q.x - Math.sin(q.a) * off, y: q.y + Math.cos(q.a) * off, a: q.a, tilt });
+    }
+    if (dt > 0) {
+        const vs = (shown - lastShown) * STEP / dt, dvs = vs - lastVs;
+        lastShown = shown; lastVs = vs;
+        chainStep(chain, dt, pull, Math.max(-110, Math.min(110, dvs * .2)), Math.min(110, Math.abs(dvs) * .2));
+    } else { lastShown = shown; lastVs = 0; }
+    // The cord runs through the pieces as they are now, hanging slack between them.
     g.lineJoin = 'round'; g.lineCap = 'round';
-    g.beginPath(); table.forEach((p, i) => { if (i) g.lineTo(p.x, p.y); else g.moveTo(p.x, p.y); });
+    const ordered = [...pieces].sort((p, q) => p.s - q.s), first = table[0]!, end = table[table.length - 1]!;
+    g.beginPath(); g.moveTo(first.x, first.y);
+    let px = first.x, py = first.y;
+    for (const p of [...ordered, { x: end.x, y: end.y }]) { g.quadraticCurveTo((px + p.x) / 2, (py + p.y) / 2 + 2.5, p.x, p.y); px = p.x; py = p.y; }
     g.strokeStyle = '#3a2a12'; g.lineWidth = 4; g.stroke();
     g.strokeStyle = 'rgba(226,196,136,.6)'; g.lineWidth = 1.1; g.stroke();
     // The minaret arrives when the round completes and leaves after it.
     const sImam = mid + nearest(shown, 0, cycle) * STEP, showImam = sImam > -60 && sImam < LEN + 60;
-    const posOf = (base: number) => (((base + shift + mid) % LOOP) + LOOP) % LOOP;
     // A divider follows bead 33 or 66: when that bead is in the middle, the divider is the next gap along.
     const markerAt = markersFor(cycle).map(b => mid + nearest(shown, b, cycle) * STEP - STEP / 2);
     const isMarker = (pos: number) => markerAt.some(a => Math.abs(pos - a) < STEP / 3);
     const isPale = (pos: number) => markerAt.some(a => Math.abs(pos - (a - STEP / 2)) < STEP / 3);
     const put = (sp: Sprite, x: number, y: number, a: number) => { g.save(); g.translate(x, y); if (a) g.rotate(a); g.drawImage(sp.c, -sp.w / 2, -sp.h / 2, sp.w, sp.h); g.restore(); };
-    for (let i = 0; i < COUNT; i++) { const s = posOf(i * STEP + STEP / 2); if (s > LEN || isMarker(s)) continue; const q = at(s); put(A.collar, q.x, q.y, q.a); }
-    for (let i = 0; i < COUNT; i++) {
-        const s = posOf(i * STEP); if (s > LEN) continue;
-        if (showImam && Math.abs(s - sImam) < STEP / 3) continue;
-        const q = at(s); put(isPale(s) ? A.pale : A.beads[i % 3]!, q.x, q.y, rotate ? q.a : 0);
+    for (const p of ordered) if (p.i & 1 && !isMarker(p.s)) put(A.collar, p.x, p.y, p.a + p.tilt);
+    let holder: (typeof pieces)[number] | null = null;
+    for (const p of ordered) {
+        if (p.i & 1) continue;
+        if (showImam && Math.abs(p.s - sImam) < STEP / 3) { holder = p; continue; }
+        put(isPale(p.s) ? A.pale : A.beads[(p.i >> 1) % 3]!, p.x, p.y, rotate ? p.a + p.tilt : p.tilt * .5);
     }
-    for (const a of markerAt) { if (a < 0 || a > LEN) continue; const q = at(a); put(A.marker, q.x, q.y, q.a); }
+    for (const p of ordered) if (p.i & 1 && isMarker(p.s)) put(A.marker, p.x, p.y, p.a + p.tilt); // drawn over the beads beside it
     if (showImam) {
-        const q = at(Math.max(0, Math.min(LEN, sImam))), sp = A.imam;
-        if (dt > 0) moveHanging(q.x, dt);
-        g.save(); g.translate(q.x, q.y - 1); g.rotate(swing.m);
+        const q = at(Math.max(0, Math.min(LEN, sImam))), sp = A.imam, hx = holder?.x ?? q.x, hy = holder?.y ?? q.y;
+        if (dt > 0) moveHanging(hx, dt);
+        g.save(); g.translate(hx, hy - 1); g.rotate(swing.m);
         drawTassel(g, A.threads, swing, windClock);
         g.drawImage(sp.c, -sp.w / 2, -26, sp.w, sp.h);
         g.restore();
-    } else { lastX = null; lastVx = 0; }
+    } else { lastX = null; lastVx = 0; if (dt > 0) windClock += dt; }
     return showImam;
 }
 function frameLoop(now: number): void {
@@ -524,9 +580,9 @@ function frameLoop(now: number): void {
         shown = anim.from + (anim.to - anim.from) * e;
         if (k >= 1) { finished = anim.then; anim = null; }
     }
-    const hanging = drawStrand(now, dt);
+    drawStrand(now, dt);
     finished?.();
-    if (anim || (hanging && now - lastTouch < REST_AFTER_MS)) raf = requestAnimationFrame(frameLoop); else lastFrame = 0;
+    if (anim || now - lastTouch < REST_AFTER_MS) raf = requestAnimationFrame(frameLoop); else lastFrame = 0;
 }
 const runLoop = () => { if (!raf && !reducedMotion()) raf = requestAnimationFrame(frameLoop); };
 function tween(to: number, ms: number, then?: () => void): void {
@@ -566,7 +622,7 @@ export function mountNightBeads(el: HTMLElement, next: NightFrame): void {
     shownKey = next.key; lastTouch = performance.now();
     if (sameCounter && Math.abs(delta) <= 4 && delta !== 0) tween(next.count, 420); // a few beads at most: quick taps; anything bigger (a reset) is not a slide
     else {
-        anim = null; shown = next.count; lastX = null; lastVx = 0;
+        anim = null; shown = next.count; lastX = null; lastVx = 0; lastShown = shown; lastVs = 0;
         if (reducedMotion()) swing = { ...SWING_REST };
         drawStrand(performance.now());
         runLoop();
@@ -575,7 +631,7 @@ export function mountNightBeads(el: HTMLElement, next: NightFrame): void {
     if (!listening) { listening = true; window.addEventListener('resize', () => { if (stage) { fit(); drawSky(); drawStrand(performance.now()); } }); }
 }
 export function unmountNightBeads(): void {
-    cancelAnimationFrame(raf); raf = 0; anim = null; lastFrame = 0; lastX = null; lastVx = 0; swing = { ...SWING_REST };
+    cancelAnimationFrame(raf); raf = 0; anim = null; lastFrame = 0; lastX = null; lastVx = 0; lastVs = 0; swing = { ...SWING_REST }; chain = makeChain(0);
     if (skyTimer) { clearInterval(skyTimer); skyTimer = null; }
     if (peekTimer) { clearTimeout(peekTimer); peekTimer = null; }
     frame = null; stage = null; shownKey = '';

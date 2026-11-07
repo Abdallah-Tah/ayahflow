@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initialState, validateState, STATE_VERSION, TASBIH_THEMES, NIGHT_DESIGNS, NIGHT_SHAPES, NIGHT_SKIES, defaultNightBeads } from '../www/js/engine.js';
 import { COUNTERS } from '../www/js/adhkar.js';
-import { phoneticFor, cycleFor, markersFor, nearest, autoSkyAt, stepChoice, swingStep, SWING_REST } from '../www/js/night-beads.js';
+import { phoneticFor, cycleFor, markersFor, nearest, autoSkyAt, stepChoice, swingStep, SWING_REST, makeChain, chainStep } from '../www/js/night-beads.js';
 
 const read = p => readFileSync(new URL(p, import.meta.url), 'utf8');
 const app = read('../src/app.ts'), module_ = read('../src/night-beads.ts'), css = read('../public/style.css');
@@ -83,11 +83,29 @@ test('The tassel swings looser than the minaret, against the slide, and settles 
     assert.ok(most <= .62); assert.ok(Math.abs(rough.t) < .05);
 });
 
+test('A pull on one bead ripples outward along the strand, stays small, and settles', () => {
+    const size = 16, c = makeChain(size);
+    assert.deepEqual(chainStep(makeChain(4), 1 / 60).a, [0, 0, 0, 0], 'nothing pulls it, nothing moves');
+    chainStep(c, 1 / 60, 8, 100, 100);
+    assert.ok(c.a[8] > 0 && c.n[8] > 0, 'the pulled bead moves first');
+    const first = Math.abs(c.n[11]);
+    let reach = 0;
+    for (let i = 0; i < 30; i++) { chainStep(c, 1 / 60); reach = Math.max(reach, Math.abs(c.n[11])); }
+    assert.ok(first < .2 && reach > first * 3, `the ripple reaches a neighbour later (${first} then ${reach})`);
+    for (let i = 0; i < 40; i++) { chainStep(c, 1 / 30); assert.ok(c.a.every(v => Math.abs(v) <= 8) && c.n.every(v => Math.abs(v) <= 11), 'pieces never run through each other'); }
+    for (let i = 0; i < 1200; i++) chainStep(c, 1 / 60);
+    assert.ok(c.a.every(v => Math.abs(v) < .01) && c.n.every(v => Math.abs(v) < .01), 'it comes to rest');
+    const rough = makeChain(16);
+    for (let i = 0; i < 200; i++) chainStep(rough, .05, i % 16, 400, 400);
+    assert.ok(rough.a.every(Number.isFinite) && rough.n.every(Number.isFinite), 'slow frames stay stable');
+});
+
 test('The tassel rests under Reduce Motion and stops moving when left alone', () => {
     assert.match(module_, /const runLoop = \(\) => \{ if \(!raf && !reducedMotion\(\)\)/);
     assert.match(module_, /if \(reducedMotion\(\)\) \{ shown = to; anim = null; swing = \{ \.\.\.SWING_REST \};/);
     assert.match(module_, /const REST_AFTER_MS = 45000;/);
-    assert.match(module_, /hanging && now - lastTouch < REST_AFTER_MS/);
+    assert.match(module_, /anim \|\| now - lastTouch < REST_AFTER_MS/);
+    assert.match(module_, /still \? 0 : slot\.a \+ drift/);
 });
 
 test('Choices step round and wrap', () => {
