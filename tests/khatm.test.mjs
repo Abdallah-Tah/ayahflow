@@ -54,10 +54,10 @@ test('Only a forward turn from the next unread page moves the plan; jumps never 
 });
 
 test('Migration v19 → v20 adds no plan; a saved plan round-trips; bad plans are rejected', () => {
-    assert.equal(STATE_VERSION, 26);
+    assert.equal(STATE_VERSION, 27);
     const v19 = JSON.parse(JSON.stringify({ ...initialState(), version: 19, xp: 5 })); delete v19.khatm; v19.calendar = { jumuah: false, fasting: false };
     const m = validateState(v19);
-    assert.equal(m.version, 26); assert.equal(m.khatm, null); assert.equal(m.xp, 5); assert.deepEqual(m.fajrAlarm, initialState().fajrAlarm);
+    assert.equal(m.version, 27); assert.equal(m.khatm, null); assert.equal(m.xp, 5); assert.deepEqual(m.fajrAlarm, initialState().fajrAlarm);
     const s = setKhatmPage(startKhatm(initialState(), 40, 10, '2026-10-29'), 50);
     assert.deepEqual(validateState(JSON.parse(JSON.stringify(s))).khatm, { start: '2026-10-29', days: 40, from: 10, page: 50 });
     const ok = s.khatm;

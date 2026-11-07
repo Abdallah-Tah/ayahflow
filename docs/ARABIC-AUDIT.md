@@ -78,8 +78,11 @@ stated number are labelled personal goals. Counters total the sum of their steps
 
 ## Translations and transliteration
 
-The app bundles no translation or transliteration of the du'as (translations on hadith sites belong to their
-translators; each card links its source). Titles and descriptions in English, French and Arabic were reviewed; two
+The app bundles no translation of the du'as (translations on hadith sites belong to their translators; each card links
+its source). The one transliteration is the optional phonetic line of the Night beads look, for two phrases only, in
+`src/night-beads.ts`: «أَسْتَغْفِرُ اللَّهَ» as "Astaghfirullah" and «أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ» as "Astaghfirullah wa atubu ilayh". These spellings were
+written for the app, are labelled in the app as not yet reviewed by a qualified teacher, and await that review. They are
+matched to the exact source Arabic, which is shown unchanged above them. Titles and descriptions in English, French and Arabic were reviewed; two
 corrected above.
 
 ## Flagged for scholar review (not changed)

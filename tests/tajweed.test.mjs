@@ -29,7 +29,7 @@ test('Colouring never changes the text: without the tags every word is the origi
 });
 
 test('Off by default (state v26, migrated off); loaded only when switched on; the notes say what it is', () => {
-    assert.equal(STATE_VERSION, 26); assert.equal(initialState().tajweedColours, false);
+    assert.equal(STATE_VERSION, 27); assert.equal(initialState().tajweedColours, false);
     const v25 = JSON.parse(JSON.stringify(initialState())); v25.version = 25; delete v25.tajweedColours;
     assert.equal(validateState(v25).tajweedColours, false);
     assert.throws(() => validateState({ ...initialState(), tajweedColours: 'yes' }), /Tajweed/);

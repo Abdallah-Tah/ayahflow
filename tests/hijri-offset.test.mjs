@@ -8,7 +8,7 @@ process.env.TZ = 'Asia/Riyadh';
 const NOW = new Date(2026, 10, 1, 9).getTime();
 
 test('v24 saves move to v25 with no correction; only -1, 0 and +1 are accepted', () => {
-    assert.equal(STATE_VERSION, 26); assert.deepEqual([...HIJRI_OFFSETS], [-1, 0, 1]);
+    assert.equal(STATE_VERSION, 27); assert.deepEqual([...HIJRI_OFFSETS], [-1, 0, 1]);
     const v24 = JSON.parse(JSON.stringify(initialState())); v24.version = 24; delete v24.hijriOffset; v24.xp = 7;
     const m = validateState(v24); assert.equal(m.hijriOffset, 0); assert.equal(m.xp, 7);
     for (const o of HIJRI_OFFSETS) assert.equal(validateState({ ...initialState(), hijriOffset: o }).hijriOffset, o);
