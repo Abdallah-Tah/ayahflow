@@ -37,6 +37,17 @@ export function autoSkyAt(now: number, times: Times | null): SkyName {
     const h = new Date(now).getHours();
     return h >= 4 && h < 6 ? 'fajr' : h >= 6 && h < 17 ? 'day' : h >= 17 && h < 19 ? 'sunset' : 'night';
 }
+/** The swing of the hanging piece, in radians from straight down: the minaret (`m`), stiff and heavy, and the tassel below it
+ * (`t`), looser and lighter, pulled along by the minaret. `dvx` is how much the cord point's sideways speed changed this step
+ * (px/s): the piece lags behind, so it swings the other way. `wind` is a small steady push, for sway at rest. */
+export interface Swing { m: number; mv: number; t: number; tv: number }
+export const SWING_REST: Readonly<Swing> = { m: 0, mv: 0, t: 0, tv: 0 };
+export function swingStep(s: Swing, dt: number, dvx = 0, wind = 0): Swing {
+    const push = Math.max(-900, Math.min(900, dvx));
+    const mv = s.mv + (-38 * s.m - 1.7 * s.mv + .12 * wind) * dt - .0018 * push;
+    const tv = s.tv + (-20 * s.t - 1.15 * s.tv + 9 * (s.m - s.t) + wind) * dt - .0065 * push;
+    return { m: Math.max(-.24, Math.min(.24, s.m + mv * dt)), mv, t: Math.max(-.62, Math.min(.62, s.t + tv * dt)), tv };
+}
 /** The next or previous item of a list of choices, wrapping round. */
 export function stepChoice<T>(list: readonly T[], current: T, by: number): T { const i = Math.max(0, list.indexOf(current)); return list[(i + by + list.length) % list.length]!; }
 
@@ -325,35 +336,54 @@ function makeImam(D: Design, seed: number): Sprite { // a minaret hanging from t
     g.fillStyle = ball; g.beginPath(); g.arc(0, 116, 6.8, 0, 7); g.fill();
     g.fillStyle = metalAcross(g, M, -12, 12); g.beginPath(); g.moveTo(-3.6, 121); g.quadraticCurveTo(-5, 127, -11, 133); g.lineTo(11, 133); g.quadraticCurveTo(5, 127, 3.6, 121); g.fill();
     g.fillStyle = metalAcross(g, M, -13, 13); g.beginPath(); rr(g, -12.5, 132, 25, 4, 2); g.fill();
-    // Tassel: hundreds of single threads, fanning out from the binding
-    const T = D.tass, base = g.createLinearGradient(-30, 0, 30, 0);
-    base.addColorStop(0, T[0]); base.addColorStop(.5, T[1]); base.addColorStop(1, T[0]);
-    g.fillStyle = base; g.beginPath(); g.moveTo(-11, 136); g.bezierCurveTo(-13, 158, -24, 176, -30, 198); g.lineTo(30, 198); g.bezierCurveTo(24, 176, 13, 158, 11, 136); g.fill();
-    g.shadowColor = 'transparent'; // a blurred shadow on each of 300 threads costs far more than it shows
-    for (let i = 0; i < 300; i++) {
-        const u = rnd() * 2 - 1, x0 = u * 11, x1 = u * 31 + (rnd() - .5) * 2.4, end = 192 + rnd() * 10, tone = rnd();
-        g.strokeStyle = tone < .45 ? T[0] : tone < .85 ? T[1] : T[2];
-        g.globalAlpha = .4 + rnd() * .6; g.lineWidth = .35 + rnd() * .45;
-        g.beginPath(); g.moveTo(x0, 137); g.bezierCurveTo(x0 * 1.1, 158, x1 * .74, 174, x1, end); g.stroke();
-    }
-    g.globalAlpha = 1;
-    const edge = g.createLinearGradient(-30, 0, 30, 0);
-    edge.addColorStop(0, 'rgba(0,0,0,.4)'); edge.addColorStop(.28, 'rgba(0,0,0,0)'); edge.addColorStop(.7, 'rgba(0,0,0,0)'); edge.addColorStop(1, 'rgba(0,0,0,.45)');
-    g.globalCompositeOperation = 'source-atop'; g.fillStyle = edge; g.fillRect(-32, 136, 64, 68);
-    const under = g.createLinearGradient(0, 136, 0, 150); under.addColorStop(0, 'rgba(0,0,0,.45)'); under.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = under; g.fillRect(-32, 136, 64, 14);
-    g.globalCompositeOperation = 'source-over';
+    // The wrapped neck the threads hang from. The threads themselves are drawn live: see drawTassel.
+    const T = D.tass;
+    g.fillStyle = metalAcross(g, [T[0], T[1], T[0], T[2]], -11.5, 11.5); g.beginPath(); rr(g, -11.5, 135.5, 23, 6, 2); g.fill();
+    g.strokeStyle = rgba(T[0], .7); g.lineWidth = .5;
+    for (const y of [137.2, 138.6, 140]) { g.beginPath(); g.moveTo(-11.5, y); g.lineTo(11.5, y); g.stroke(); }
     g.restore();
     return S;
 }
-interface Art { beads: readonly Sprite[]; collar: Sprite; marker: Sprite; pale: Sprite; imam: Sprite }
+/** One free thread of the tassel. `loose` says how much further it trails than its neighbours. */
+interface Thread { x0: number; x1: number; end: number; loose: number; f: number; p: number }
+interface ThreadGroup { colour: string; alpha: number; width: number; threads: Thread[] }
+function makeThreads(D: Design, seed: number): ThreadGroup[] {
+    const T = D.tass, rnd = mk(seed);
+    const make = (n: number): Thread[] => Array.from({ length: n }, () => { const u = rnd() * 2 - 1; return { x0: u * 10.5, x1: u * 31 + (rnd() - .5) * 2.4, end: 190 + rnd() * 13, loose: rnd(), f: 1.1 + rnd() * 1.9, p: rnd() * 6.283 }; });
+    // Outer threads fall in shade, as on a round tassel.
+    const sorted = make(220).sort((a, b) => Math.abs(a.x1) - Math.abs(b.x1));
+    return [
+        { colour: T[0], alpha: 1, width: 1.7, threads: make(60) }, // the dense body behind
+        { colour: T[0], alpha: .85, width: .7, threads: sorted.slice(120) },
+        { colour: T[1], alpha: .9, width: .6, threads: sorted.slice(0, 120).filter((_, i) => i % 4 !== 0) },
+        { colour: T[2], alpha: .8, width: .5, threads: sorted.slice(0, 120).filter((_, i) => i % 4 === 0) }
+    ];
+}
+function drawTassel(g: G, groups: readonly ThreadGroup[], s: Swing, clock: number): void {
+    const L = 62, lean = s.t - s.m, energy = Math.min(1, Math.abs(s.tv) / 2.5);
+    g.lineCap = 'round';
+    for (const group of groups) {
+        g.strokeStyle = group.colour; g.globalAlpha = group.alpha; g.lineWidth = group.width;
+        g.beginPath();
+        for (const th of group.threads) {
+            const a = lean * (1 + th.loose * .5) + .055 * Math.sin(clock * th.f + th.p), dx = a * L, lift = a * a * L * .5, spread = 1 + energy * .16 * th.loose;
+            g.moveTo(th.x0, 139);
+            g.bezierCurveTo(th.x0 * 1.1 + dx * .16, 158, th.x1 * .74 * spread + dx * .58, 174 - lift * .5, th.x1 * spread + dx, th.end - lift);
+        }
+        g.stroke();
+    }
+    g.globalAlpha = 1;
+    const under = g.createLinearGradient(0, 139, 0, 150); under.addColorStop(0, 'rgba(0,0,0,.42)'); under.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = under; g.beginPath(); g.moveTo(-11, 139); g.lineTo(11, 139); g.lineTo(14, 150); g.lineTo(-14, 150); g.closePath(); g.fill();
+}
+interface Art { beads: readonly Sprite[]; collar: Sprite; marker: Sprite; pale: Sprite; imam: Sprite; threads: readonly ThreadGroup[] }
 const cache = new Map<string, Art>();
 function art(design: NightDesign, shape: NightShape): Art {
     const key = `${design}-${shape}`, have = cache.get(key);
     if (have) return have;
     if (cache.size >= 6) cache.clear(); // sprites are large; stepping through every design should not keep them all
     const D = DESIGNS[design], SH = SHAPES[shape];
-    const made = { beads: [makeBead(D, SH, 11), makeBead(D, SH, 2203), makeBead(D, SH, 40127)], collar: makeCollar(D), marker: makeMarker(D), pale: makeBead(lighter(D), SH, 3301), imam: makeImam(D, 7717) };
+    const made = { beads: [makeBead(D, SH, 11), makeBead(D, SH, 2203), makeBead(D, SH, 40127)], collar: makeCollar(D), marker: makeMarker(D), pale: makeBead(lighter(D), SH, 3301), imam: makeImam(D, 7717), threads: makeThreads(D, 5519) };
     cache.set(key, made);
     return made;
 }
@@ -434,10 +464,19 @@ let skyCanvas: HTMLCanvasElement | null = null, strandCanvas: HTMLCanvasElement 
 let skyDrawn = '', cw = 0, ch = 0, dpr = 1, originY = 0;
 /** The bead position shown right now, in beads. It eases towards the count; it never feeds back into one. */
 let shown = 0, shownKey = '';
-let raf = 0, swingAt = -1e9, skyTimer: ReturnType<typeof setInterval> | null = null, peekTimer: ReturnType<typeof setTimeout> | null = null, listening = false;
+let raf = 0, skyTimer: ReturnType<typeof setInterval> | null = null, peekTimer: ReturnType<typeof setTimeout> | null = null, listening = false;
 const reducedMotion = () => !!frame?.still || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-function drawStrand(now: number): boolean {
+/* Motion. One loop eases the strand towards the count and moves the hanging piece; it stops when there is nothing to move. */
+const REST_AFTER_MS = 45000;
+let swing: Swing = { ...SWING_REST }, windClock = 0, lastX: number | null = null, lastVx = 0, lastFrame = 0, lastDrawn = 0, lastTouch = 0;
+let anim: { from: number; to: number; t0: number; ms: number; then?: () => void } | null = null;
+function moveHanging(x: number, dt: number): void {
+    const vx = lastX === null ? 0 : (x - lastX) / dt, dvx = vx - lastVx;
+    lastX = x; lastVx = vx; windClock += dt;
+    swing = swingStep(swing, dt, dvx, 1.9 * Math.sin(windClock * 1.3) + 1.1 * Math.sin(windClock * .71 + 1));
+}
+function drawStrand(now: number, dt = 0): boolean {
     const f = frame, c = strandCanvas;
     if (!f || !c) return false;
     const g = c.getContext('2d')!, A = art(f.design, f.shape), STEP = SHAPES[f.shape].step, LOOP = Math.ceil(LEN / STEP) * STEP, COUNT = LOOP / STEP, shift = shown * STEP, rotate = f.shape !== 'round';
@@ -464,25 +503,36 @@ function drawStrand(now: number): boolean {
     }
     for (const a of markerAt) { if (a < 0 || a > LEN) continue; const q = at(a); put(A.marker, q.x, q.y, q.a); }
     if (showImam) {
-        const q = at(Math.max(0, Math.min(LEN, sImam))), sp = A.imam, t = (now - swingAt) / 1000, swing = reducedMotion() || t > 2.4 ? 0 : .085 * Math.exp(-t * 1.5) * Math.sin(t * 6.4);
-        g.save(); g.translate(q.x, q.y - 1); g.rotate(swing); g.drawImage(sp.c, -sp.w / 2, -26, sp.w, sp.h); g.restore();
-    }
+        const q = at(Math.max(0, Math.min(LEN, sImam))), sp = A.imam;
+        if (dt > 0) moveHanging(q.x, dt);
+        g.save(); g.translate(q.x, q.y - 1); g.rotate(swing.m);
+        drawTassel(g, A.threads, swing, windClock);
+        g.drawImage(sp.c, -sp.w / 2, -26, sp.w, sp.h);
+        g.restore();
+    } else { lastX = null; lastVx = 0; }
     return showImam;
 }
+function frameLoop(now: number): void {
+    raf = 0;
+    if (!frame) return;
+    const moving = !!anim, dt = lastFrame ? Math.min((now - lastFrame) / 1000, .05) : 1 / 60;
+    if (!moving && now - lastDrawn < 30) { raf = requestAnimationFrame(frameLoop); return; } // the sway at rest needs no more than 30 frames a second
+    lastFrame = now; lastDrawn = now;
+    let finished: (() => void) | undefined;
+    if (anim) {
+        const k = Math.min(1, Math.max(0, (now - anim.t0) / anim.ms)), e = 1 - Math.pow(1 - k, 3);
+        shown = anim.from + (anim.to - anim.from) * e;
+        if (k >= 1) { finished = anim.then; anim = null; }
+    }
+    const hanging = drawStrand(now, dt);
+    finished?.();
+    if (anim || (hanging && now - lastTouch < REST_AFTER_MS)) raf = requestAnimationFrame(frameLoop); else lastFrame = 0;
+}
+const runLoop = () => { if (!raf && !reducedMotion()) raf = requestAnimationFrame(frameLoop); };
 function tween(to: number, ms: number, then?: () => void): void {
-    cancelAnimationFrame(raf);
-    if (reducedMotion()) { shown = to; drawStrand(performance.now()); then?.(); return; }
-    const t0 = performance.now(), from = shown;
-    let finished = false;
-    const step = (now: number) => {
-        const k = Math.min(1, Math.max(0, (now - t0) / ms)), e = 1 - Math.pow(1 - k, 3);
-        shown = from + (to - from) * e;
-        const imam = drawStrand(now);
-        if (k >= 1 && !finished) { finished = true; then?.(); }
-        if (k < 1 || (imam && now - swingAt < 2400)) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    drawStrand(t0);
+    if (reducedMotion()) { shown = to; anim = null; swing = { ...SWING_REST }; drawStrand(performance.now()); then?.(); return; }
+    anim = { from: shown, to, t0: performance.now(), ms, ...(then ? { then } : {}) };
+    runLoop();
 }
 function fit(): void {
     if (!stage || !skyCanvas || !strandCanvas) return;
@@ -513,16 +563,19 @@ export function mountNightBeads(el: HTMLElement, next: NightFrame): void {
     holder.append(skyCanvas, strandCanvas);
     fit(); drawSky();
     const sameCounter = shownKey === next.key, delta = next.count - shown;
-    shownKey = next.key;
-    if (sameCounter && Math.abs(delta) <= 4 && delta !== 0) { // a few beads at most: quick taps; anything bigger (a reset) is not a slide
-        if (delta > 0) swingAt = performance.now();
-        tween(next.count, 420);
-    } else { cancelAnimationFrame(raf); shown = next.count; drawStrand(performance.now()); }
+    shownKey = next.key; lastTouch = performance.now();
+    if (sameCounter && Math.abs(delta) <= 4 && delta !== 0) tween(next.count, 420); // a few beads at most: quick taps; anything bigger (a reset) is not a slide
+    else {
+        anim = null; shown = next.count; lastX = null; lastVx = 0;
+        if (reducedMotion()) swing = { ...SWING_REST };
+        drawStrand(performance.now());
+        runLoop();
+    }
     if (!skyTimer) skyTimer = setInterval(() => { fit(); drawSky(); }, 60000);
     if (!listening) { listening = true; window.addEventListener('resize', () => { if (stage) { fit(); drawSky(); drawStrand(performance.now()); } }); }
 }
 export function unmountNightBeads(): void {
-    cancelAnimationFrame(raf);
+    cancelAnimationFrame(raf); raf = 0; anim = null; lastFrame = 0; lastX = null; lastVx = 0; swing = { ...SWING_REST };
     if (skyTimer) { clearInterval(skyTimer); skyTimer = null; }
     if (peekTimer) { clearTimeout(peekTimer); peekTimer = null; }
     frame = null; stage = null; shownKey = '';
@@ -532,6 +585,6 @@ export function peekMinaret(): void {
     if (!frame) return;
     const cycle = cycleFor(frame.total), to = Math.round(shown / cycle) * cycle;
     if (peekTimer) clearTimeout(peekTimer);
-    swingAt = performance.now();
+    lastTouch = performance.now();
     tween(to, 900, () => { peekTimer = setTimeout(() => { peekTimer = null; if (frame) tween(frame.count, 900); }, 2600); });
 }

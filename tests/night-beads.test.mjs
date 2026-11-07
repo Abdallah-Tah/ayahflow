@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initialState, validateState, STATE_VERSION, TASBIH_THEMES, NIGHT_DESIGNS, NIGHT_SHAPES, NIGHT_SKIES, defaultNightBeads } from '../www/js/engine.js';
 import { COUNTERS } from '../www/js/adhkar.js';
-import { phoneticFor, cycleFor, markersFor, nearest, autoSkyAt, stepChoice } from '../www/js/night-beads.js';
+import { phoneticFor, cycleFor, markersFor, nearest, autoSkyAt, stepChoice, swingStep, SWING_REST } from '../www/js/night-beads.js';
 
 const read = p => readFileSync(new URL(p, import.meta.url), 'utf8');
 const app = read('../src/app.ts'), module_ = read('../src/night-beads.ts'), css = read('../public/style.css');
@@ -66,6 +66,30 @@ test('Auto sky follows the prayer times, and the phone clock when no place is sa
     assert.equal(autoSkyAt(at(12), { ...times, fajr: NaN }), 'day'); // no usable times (high latitudes): the clock
 });
 
+test('The tassel swings looser than the minaret, against the slide, and settles back to rest', () => {
+    const run = (s, seconds, dt = 1 / 60) => { for (let i = 0; i < seconds / dt; i++) s = swingStep(s, dt); return s; };
+    assert.deepEqual(swingStep({ ...SWING_REST }, 1 / 60), { ...SWING_REST }, 'nothing moves it, nothing moves');
+    const kicked = swingStep({ ...SWING_REST }, 1 / 60, 500);
+    assert.ok(kicked.tv < 0 && kicked.mv < 0, 'cord moves right, the piece lags left');
+    assert.ok(Math.abs(kicked.tv) > Math.abs(kicked.mv) * 2, 'the tassel is the loose part');
+    let peakT = 0, peakM = 0, s = kicked;
+    for (let i = 0; i < 90; i++) { s = swingStep(s, 1 / 60); peakT = Math.max(peakT, Math.abs(s.t)); peakM = Math.max(peakM, Math.abs(s.m)); }
+    assert.ok(peakT > peakM && peakT > .2 && peakT <= .62, `tassel ${peakT}, minaret ${peakM}`);
+    const later = run(kicked, 12);
+    assert.ok(Math.abs(later.t) < .01 && Math.abs(later.m) < .01, 'it comes to rest');
+    // Slow or uneven frames must not make it fly off, and a huge jump is capped.
+    let rough = swingStep({ ...SWING_REST }, .05, 1e6), most = 0;
+    for (let i = 0; i < 400; i++) { rough = swingStep(rough, .05); most = Math.max(most, Math.abs(rough.t), Math.abs(rough.m)); assert.ok(Number.isFinite(rough.t)); }
+    assert.ok(most <= .62); assert.ok(Math.abs(rough.t) < .05);
+});
+
+test('The tassel rests under Reduce Motion and stops moving when left alone', () => {
+    assert.match(module_, /const runLoop = \(\) => \{ if \(!raf && !reducedMotion\(\)\)/);
+    assert.match(module_, /if \(reducedMotion\(\)\) \{ shown = to; anim = null; swing = \{ \.\.\.SWING_REST \};/);
+    assert.match(module_, /const REST_AFTER_MS = 45000;/);
+    assert.match(module_, /hanging && now - lastTouch < REST_AFTER_MS/);
+});
+
 test('Choices step round and wrap', () => {
     assert.equal(stepChoice(NIGHT_DESIGNS, 'amber', 1), 'crystal'); assert.equal(stepChoice(NIGHT_DESIGNS, 'amber', -1), 'ebony'); assert.equal(stepChoice(NIGHT_SHAPES, 'ridged', 1), 'round');
 });
@@ -73,8 +97,7 @@ test('Choices step round and wrap', () => {
 test('It draws but never counts, sends nothing, and stays still under Reduce Motion', () => {
     assert.doesNotMatch(module_, /from '\.\/storage|commit\(|localStorage|fetch\(|XMLHttpRequest|setInterval\([^)]*count/);
     assert.match(module_, /const reducedMotion = \(\) => !!frame\?\.still \|\| /);
-    assert.match(module_, /if \(reducedMotion\(\)\) \{ shown = to;/);
-    assert.doesNotMatch(module_, /\.filter\s*=/); // canvas filters do not run on iOS Safari
+        assert.doesNotMatch(module_, /\.filter\s*=/); // canvas filters do not run on iOS Safari
     assert.doesNotMatch(module_, /\.roundRect\(/); // needs iOS 16; the app supports iOS 15
     // The stage's button uses the same actions as the other looks, so every count still goes through the same path.
     assert.match(app, /nightStage\(\{ action: 'count-tap'/); assert.match(app, /nightStage\(\{ action: 'tasbih-tap', disabled: done \|\| tasbihPaused/);
