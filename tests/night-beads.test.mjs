@@ -92,7 +92,7 @@ test('A pull on one bead ripples outward along the strand, stays small, and sett
     let reach = 0;
     for (let i = 0; i < 30; i++) { chainStep(c, 1 / 60); reach = Math.max(reach, Math.abs(c.n[11])); }
     assert.ok(first < .2 && reach > first * 3, `the ripple reaches a neighbour later (${first} then ${reach})`);
-    for (let i = 0; i < 40; i++) { chainStep(c, 1 / 30); assert.ok(c.a.every(v => Math.abs(v) <= 8) && c.n.every(v => Math.abs(v) <= 11), 'pieces never run through each other'); }
+    for (let i = 0; i < 40; i++) { chainStep(c, 1 / 30); assert.ok(c.a.every(v => Math.abs(v) <= 5) && c.n.every(v => Math.abs(v) <= 6), 'pieces never run through each other'); }
     for (let i = 0; i < 1200; i++) chainStep(c, 1 / 60);
     assert.ok(c.a.every(v => Math.abs(v) < .01) && c.n.every(v => Math.abs(v) < .01), 'it comes to rest');
     const rough = makeChain(16);

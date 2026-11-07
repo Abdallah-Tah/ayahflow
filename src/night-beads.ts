@@ -53,7 +53,7 @@ export function swingStep(s: Swing, dt: number, dvx = 0, wind = 0): Swing {
  * outward as a ripple. Offsets are in px and capped so pieces never run through each other. Changes the chain in place: it runs every frame. */
 export interface Chain { a: number[]; av: number[]; n: number[]; nv: number[] }
 export function makeChain(size: number): Chain { const zeros = () => new Array<number>(size).fill(0); return { a: zeros(), av: zeros(), n: zeros(), nv: zeros() }; }
-const CHAIN_MAX_A = 8, CHAIN_MAX_N = 11;
+const CHAIN_MAX_A = 5, CHAIN_MAX_N = 6;
 export function chainStep(c: Chain, dt: number, pulled = -1, along = 0, drop = 0): Chain {
     const size = c.a.length;
     if (pulled >= 0 && pulled < size) { c.av[pulled]! += along; c.nv[pulled]! += drop; }
@@ -61,8 +61,8 @@ export function chainStep(c: Chain, dt: number, pulled = -1, along = 0, drop = 0
     for (let k = 0; k < steps; k++) {
         for (let i = 0; i < size; i++) {
             const l = (i + size - 1) % size, r = (i + 1) % size;
-            c.av[i]! += (-60 * c.a[i]! + 170 * (c.a[l]! + c.a[r]! - 2 * c.a[i]!) - 3 * c.av[i]!) * h;
-            c.nv[i]! += (-46 * c.n[i]! + 120 * (c.n[l]! + c.n[r]! - 2 * c.n[i]!) - 2.4 * c.nv[i]!) * h;
+            c.av[i]! += (-60 * c.a[i]! + 170 * (c.a[l]! + c.a[r]! - 2 * c.a[i]!) - 7 * c.av[i]!) * h;
+            c.nv[i]! += (-46 * c.n[i]! + 120 * (c.n[l]! + c.n[r]! - 2 * c.n[i]!) - 6.5 * c.nv[i]!) * h;
         }
         for (let i = 0; i < size; i++) {
             const a = c.a[i]! + c.av[i]! * h, n = c.n[i]! + c.nv[i]! * h;
@@ -501,7 +501,7 @@ function fitChain(size: number): void {
     if (chain.a.length === size) return;
     chain = makeChain(size);
     const rnd = mk(3301);
-    slots = Array.from({ length: size }, () => ({ a: (rnd() - .5) * 2.6, n: (rnd() - .5) * 3.4, tilt: (rnd() - .5) * .12, f: .7 + rnd() * 1.1, p: rnd() * 6.283 }));
+    slots = Array.from({ length: size }, () => ({ a: (rnd() - .5) * 1.8, n: (rnd() - .5) * 2.2, tilt: (rnd() - .5) * .08, f: .7 + rnd() * 1.1, p: rnd() * 6.283 }));
 }
 let anim: { from: number; to: number; t0: number; ms: number; then?: () => void } | null = null;
 function moveHanging(x: number, dt: number): void {
@@ -526,14 +526,14 @@ function drawStrand(now: number, dt = 0): boolean {
         if (pos > LEN) continue;
         if (!(i & 1) && Math.abs(pos - mid) < pullGap) { pull = i; pullGap = Math.abs(pos - mid); }
         const slot = slots[i]!, drift = still ? 0 : Math.sin(windClock * slot.f + slot.p);
-        const along = chain.a[i]! + (still ? 0 : slot.a + drift * .7), off = chain.n[i]! + (still ? 0 : slot.n + drift * 1.3), q = at(Math.max(0, Math.min(LEN, pos + along)));
+        const along = chain.a[i]! + (still ? 0 : slot.a + drift * .3), off = chain.n[i]! + (still ? 0 : slot.n + drift * .55), q = at(Math.max(0, Math.min(LEN, pos + along)));
         const tilt = (chain.n[(i + 1) % size]! - chain.n[(i + size - 1) % size]!) / STEP + (still ? 0 : slot.tilt);
         pieces.push({ i, s: pos, x: q.x - Math.sin(q.a) * off, y: q.y + Math.cos(q.a) * off, a: q.a, tilt });
     }
     if (dt > 0) {
         const vs = (shown - lastShown) * STEP / dt, dvs = vs - lastVs;
         lastShown = shown; lastVs = vs;
-        chainStep(chain, dt, pull, Math.max(-110, Math.min(110, dvs * .2)), Math.min(110, Math.abs(dvs) * .2));
+        chainStep(chain, dt, pull, Math.max(-60, Math.min(60, dvs * .1)), Math.min(60, Math.abs(dvs) * .09));
     } else { lastShown = shown; lastVs = 0; }
     // The cord runs through the pieces as they are now, hanging slack between them.
     g.lineJoin = 'round'; g.lineCap = 'round';
