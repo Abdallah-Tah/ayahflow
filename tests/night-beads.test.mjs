@@ -108,6 +108,12 @@ test('The tassel rests under Reduce Motion and stops moving when left alone', ()
     assert.match(module_, /still \? 0 : slot\.a \+ drift/);
 });
 
+test('The stage says why the beads are still; only a tap turns the movement back on', () => {
+    assert.match(app, /if \(state\.reducedMotion\) return actionButton\('night-motion-on'/);
+    assert.match(app, /case 'night-motion-on':\s+await commit\(\{ \.\.\.state, reducedMotion: false \}\)/);
+    assert.equal((app.match(/reducedMotion: false/g) ?? []).length, 1);
+});
+
 test('Choices step round and wrap', () => {
     assert.equal(stepChoice(NIGHT_DESIGNS, 'amber', 1), 'crystal'); assert.equal(stepChoice(NIGHT_DESIGNS, 'amber', -1), 'ebony'); assert.equal(stepChoice(NIGHT_SHAPES, 'ridged', 1), 'round');
 });

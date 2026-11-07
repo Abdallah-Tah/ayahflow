@@ -866,7 +866,12 @@ function nightStage(o: { action: string; disabled?: boolean; key: string; count:
 <div class="night-top"><div class="night-bar"><span class="night-pill">${o.pill}</span><span class="night-today" aria-live="polite">${o.today}</span></div><div class="night-head"><h1 class="night-name" dir="auto">${escapeHtml(o.title)}</h1>${o.titleEnd ?? ''}</div>
 <div class="night-glass">${words}${phonetic ? `<p class="night-phonetic" lang="en" dir="ltr">${escapeHtml(phonetic)}</p>` : ''}</div>
 <div class="night-ring ${o.heart ? '' : 'no-heart'}" style="--p:${Math.max(0, Math.min(100, o.percent)).toFixed(2)}"><span class="night-ring-in">${o.heart}<span class="night-num"><b>${num(o.shown)}</b><small>${t('of')} ${num(o.of)}</small></span></span></div></div>
-<div class="night-foot">${o.foot}</div></section>`;
+${nightMotionNote()}<div class="night-foot">${o.foot}</div></section>`;
+}
+/** Why the strand is still, where the person is looking. The app's own setting can be turned off here; only a tap changes it. */
+function nightMotionNote(): string {
+    if (state.reducedMotion) return actionButton('night-motion-on', t('nightMotionOff'), 'night-motion');
+    return matchMedia('(prefers-reduced-motion: reduce)').matches ? `<p class="night-motion">${t('nightMotionSystem')}</p>` : '';
 }
 const nightDesignName = (v: string) => t(`nightDesign_${v}`), nightShapeName = (v: string) => t(`nightShape_${v}`), nightSkyName = (v: string) => t(`nightSky_${v}`);
 function nightStepper(k: 'design' | 'shape' | 'sky', label: string, name: string, list: readonly string[]): string {
@@ -1746,6 +1751,10 @@ async function handleAction(el: HTMLElement): Promise<void> {
             document.querySelector<HTMLElement>(`[data-action="night-step"][data-k="${k}"][data-dir="${d.dir}"]`)?.focus();
             break;
         }
+        case 'night-motion-on':
+            await commit({ ...state, reducedMotion: false });
+            keepScroll();
+            break;
         case 'night-more':
             document.querySelector('#tasbih-look')?.scrollIntoView({ behavior: state.reducedMotion ? 'instant' : 'smooth', block: 'start' });
             break;
