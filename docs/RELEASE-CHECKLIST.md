@@ -89,6 +89,22 @@ Quran reader redesign (build of 2026-10-27; schema v17 adds reading theme and re
 - [ ] Printed fifteen-line pages: needs a publisher decision (Quran Foundation account and terms, or a licensed layout);
   see docs/CONTENT-PROVENANCE.md.
 
+Mushaf page accuracy and spacing (branch `feature/mushaf-reader-accuracy`, 2026-11-08; no schema change):
+- [x] `tests/quran-pages.test.mjs`: every verse of all 604 pages, read back from the page markup, is the Tanzil string
+  exactly (no normalisation), in page order, once; same code points and counts as the corpus; medallion numbers;
+  headings and basmala only where a surah starts (none for 1 and 9); Juz' and Hizb from each page's first verse;
+  pages 1, 2, 162 (7:88–95, Juz' 9, Hizb 17) and 604.
+- [x] Browser (Chromium), all 604 pages at 320×568, 375×667, 375×812, 390×844, 430×932 and 844×390: no sideways
+  scroll, no text outside the page, nothing under the running header or the page number. Widest word gap at 375×812:
+  median 0.80 → 0.67 em, pages over 1 em 92 → 4. Pages that scroll at the 16 px minimum: 377 at 320×568, 1 at
+  375×667, 12 at 844×390, none at 375×812 and wider.
+- [x] Fixed: page 162 drew 7:92 with wrong glyphs after a line break (Chromium, default font).
+- [x] iOS Simulator (iPhone 16 Pro, iOS 18.6, Debug build): page 162 opened from `ayahflow://ayah/7:92` renders in
+  order with even spacing and Juz' 9, Hizb 17, page 162. That simulator had Amiri chosen, so the default font was not
+  re-checked in WKWebView.
+- [ ] iPhone: the same pages with the default font; rotation refits the page; a scrolling page scrolls and still
+  turns by swipe.
+
 Reader pages, verse menu and Mushaf chooser (iPhone, build of 2026-10-26 ~19:15; schema v16 migrated on the phone with
 all data kept; device screenshot shows the verse menu on 2:14, page 3):
 - [ ] Turn pages by swiping (right = next) and with the arrows; the place is kept after closing the app.

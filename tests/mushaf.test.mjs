@@ -75,7 +75,7 @@ test('Mushaf page body: verbatim text, a heading only where a surah begins, uniq
     s = setNote(setHighlight(s, 7, 23, 'rose', 1), 7, 24, 'note', 1);
     const html = pageBody(s, 153, '7:25');
     for (const [su, a] of pageAyahs(153)) assert.equal(textOf(html, `v-${su}-${a}`), esc(verse(su, a)), `${su}:${a} verbatim`);
-    assert.match(html, /<span class="q-tail">[^ <]+\u00a0<span class="ayah-end"/, 'last word and medallion kept together');
+    assert.match(html, /<span class="q-tail">(<span class="w" data-w="\d+">[^ <]+<\/span>|<span class="wg">[^\u00a0]+?<\/span><\/span>)\u00a0<span class="ayah-end"/, 'last word and medallion kept together');
     assert.match(html, /class="q-v hl hl-rose" id="v-7-23"/);
     assert.match(html, /id="v-7-24"[^>]*has a note/);
     assert.match(html, /class="q-v selected" id="v-7-25"/);

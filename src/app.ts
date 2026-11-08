@@ -243,24 +243,82 @@ async function openAt(s: number, a: number): Promise<void> {
     if (view !== 'reader') await navigate('reader'); else render();
     document.querySelector(`#ayah-${a}`)?.scrollIntoView({ block: 'center' });
 }
-/** Mushaf pages: the largest text size (within reading limits) at which the whole page fits the surface. */
+/** Mushaf page text sizes, in CSS px. Below READ_MIN the marks of the Uthmani text get hard to read, so a page that
+ * does not fit at that size scrolls instead of shrinking further. */
+const READ_MIN = 16, READ_MAX = 34;
+/** How much smaller than the fitting size a page may be set to even out its word spacing (see fitPage). */
+const EVEN_STEPS = 8, EVEN_STEP = 0.0125, EVEN_GOOD = 0.7;
+/** The widest space between two words on any justified line of a page, in em (a plain space is about .3 em). Each
+ * word, mark group and verse medallion is measured; the last line of each block is centred, not justified, and
+ * is left out. */
+function widestGap(page: HTMLElement): number {
+    const size = parseFloat(getComputedStyle(page).fontSize) || 1;
+    let worst = 0;
+    for (const p of page.querySelectorAll<HTMLElement>('.q-text')) {
+        const lines: { mid: number; boxes: DOMRect[] }[] = [];
+        for (const el of p.querySelectorAll<HTMLElement>('.w:not(.wg .w), .wg, .ayah-end')) {
+            const r = el.getBoundingClientRect();
+            if (!r.width) continue;
+            const mid = (r.top + r.bottom) / 2, line = lines.find(l => Math.abs(l.mid - mid) < size * 0.6);
+            if (line) line.boxes.push(r); else lines.push({ mid, boxes: [r] });
+        }
+        lines.sort((x, y) => x.mid - y.mid).slice(0, -1).forEach(({ boxes }) => {
+            boxes.sort((x, y) => y.right - x.right);
+            for (let i = 1; i < boxes.length; i++) worst = Math.max(worst, (boxes[i - 1]!.left - boxes[i]!.right) / size);
+        });
+    }
+    return worst;
+}
+/** Mushaf pages: the largest text size, within reading limits, at which the whole page fits the surface; then, among
+ * sizes up to 10% smaller, the largest whose justified lines have no wide gaps between words (a different size moves
+ * the line breaks, which is the only way to even the spacing without touching the text: no kashida or letter
+ * stretching is added). If the page does not fit at the smallest readable size, it scrolls. */
 function fitPage(on?: HTMLElement): void {
     const surface = on ?? document.querySelector<HTMLElement>('.r-page .r-surface'), page = surface?.querySelector<HTMLElement>('.q-page');
-    if (!surface || !page) return;
+    if (!surface || !page || !surface.clientHeight) return;
     const cs = getComputedStyle(surface), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     // Leave room for marks below the last line (kasra, tanween) so nothing is clipped.
     // The running header and the page number sit inside the surface too.
     const runs = [...surface.querySelectorAll<HTMLElement>('.r-run, .r-run-no')].reduce((n, el) => n + el.offsetHeight, 0);
     const room = surface.clientHeight - pad - 6 - runs, width = surface.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    let lo = 11, hi = Math.min(34, Math.max(18, width / 13));
-    for (let i = 0; i < 9; i++) { const mid = (lo + hi) / 2; page.style.setProperty('--q-size', `${mid}px`); if (page.scrollHeight <= room - mid * 0.25) lo = mid; else hi = mid; }
-    page.style.setProperty('--q-size', `${lo}px`);
+    const set = (size: number) => page.style.setProperty('--q-size', `${size}px`);
+    const fits = (size: number) => { set(size); return page.scrollHeight <= room - size * 0.25; };
+    let lo = READ_MIN, hi = Math.min(READ_MAX, Math.max(READ_MIN + 2, width / 13));
+    if (fits(hi)) lo = hi;
+    else for (let i = 0; i < 9; i++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+    let best = lo;
+    if (fits(lo)) {
+        let bestGap = Infinity;
+        for (let k = 0; k <= EVEN_STEPS; k++) {
+            const size = lo * (1 - EVEN_STEP * k);
+            if (size < READ_MIN) break;
+            set(size);
+            const gap = widestGap(page);
+            if (gap < bestGap - 0.02) { best = size; bestGap = gap; }
+            if (gap <= EVEN_GOOD) { best = size; break; }
+        }
+    }
+    set(best);
     const over = page.scrollHeight > room + 6;
     surface.classList.toggle('r-overflow', over);
+    // A page that scrolls can be scrolled from the keyboard too.
+    if (over) surface.tabIndex = 0; else surface.removeAttribute('tabindex');
     page.classList.add('fitted');
+    fittedFor = `${surface.clientWidth}x${surface.clientHeight}`;
 }
-let fitTimer: ReturnType<typeof setTimeout> | undefined;
-window.addEventListener('resize', () => { clearTimeout(fitTimer); leaf?.remove(); fitTimer = setTimeout(() => fitPage(), 120); });
+/** Refits the page when its box changes size for any reason: rotation, a WebView resize, the keyboard, the safe area.
+ * The page-turn sheet is dropped first, since its size was taken from the old box. */
+let fitTimer: ReturnType<typeof setTimeout> | undefined, fittedFor = '';
+function refitSoon(): void { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitPage(), 120); }
+const surfaceWatch = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => {
+    const el = entries[0]?.target as HTMLElement | undefined;
+    if (!el?.isConnected || `${el.clientWidth}x${el.clientHeight}` === fittedFor) return;
+    leaf?.remove(); refitSoon();
+}) : null;
+window.addEventListener('resize', () => { leaf?.remove(); refitSoon(); });
+window.addEventListener('orientationchange', () => { leaf?.remove(); refitSoon(); });
+// A Quran font that finishes loading after the first fit changes every line's width.
+document.fonts?.addEventListener?.('loadingdone', () => { if (document.querySelector('.r-page .q-page')) refitSoon(); });
 /** Plays verses one after another until the list ends or the user stops it. */
 function playQueue(list: [number, number][], label: string): void {
     const step = (i: number) => {
@@ -1617,7 +1675,7 @@ function currentPrayer(now = Date.now()): PrayerName {
 const views: Record<View, () => string> = { hadith: hadithView, zakat: zakatView, eid: eidView, occasions: occasionsView, hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
-function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(() => fitPage()); } } if (leaf) { if (swipeOn) cancelDrag(); leaf?.adopt(view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null); } if (view === 'eid') void cardPreview(); const nightEl = root.querySelector<HTMLElement>('#night-stage'), nightNext = nightFrame; nightFrame = null; document.body.classList.toggle('night-view', !!nightEl); if (nightEl && nightNext) mountNightBeads(nightEl, nightNext); else unmountNightBeads(); syncCompass(); showReciting(false); }
+function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(() => fitPage()); } } surfaceWatch?.disconnect(); const fitOn = view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null; if (fitOn) surfaceWatch?.observe(fitOn); if (leaf) { if (swipeOn) cancelDrag(); leaf?.adopt(view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null); } if (view === 'eid') void cardPreview(); const nightEl = root.querySelector<HTMLElement>('#night-stage'), nightNext = nightFrame; nightFrame = null; document.body.classList.toggle('night-view', !!nightEl); if (nightEl && nightNext) mountNightBeads(nightEl, nightNext); else unmountNightBeads(); syncCompass(); showReciting(false); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)

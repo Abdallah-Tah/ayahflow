@@ -136,15 +136,41 @@ export function readerTitle(state: AppState, layout: ReadingLayout, page: number
     const c = chapter(surah), j1 = juzOf(surah, 1), j2 = juzOf(surah, c.count);
     return { title: name(surah), sub: `${t('juzN').replace('{n}', j1 === j2 ? num(j1) : `${num(j1)}–${num(j2)}`)} · ${num(c.count)} ${t('ayahs')}` };
 }
-/** One verse as an interactive span (verse menu), with the user's highlight, note mark and the verse-end medallion. */
-function verseSpan(state: AppState, s: number, a: number, selected: string | null, inner: string, id: string): string {
+/** Marks Tanzil writes as a word of their own, after a space: the pause signs, the sajdah sign ۩ and the small high
+ * seen ۜ belong over the end of the word before; the hizb sign ۞ opens the verse and belongs with the word after. */
+const MARK_ONLY = /^[ۖ-ۜ۞۩]+$/, OPENS = '۞';
+/** A verse's words for a Mushaf page, each in its own span, as in Easy reading. The text is the verse unchanged: the
+ * spans hold its words and the single spaces between them stay as they are, so stripping the markup gives the verse
+ * back. A mark written as a word of its own is kept on one line with the word it belongs to (`wg`, never broken or
+ * stretched inside), so a pause sign never starts a line and ۞ never ends one. Each word being its own run also keeps
+ * the browser from shaping a whole verse at once, which drew wrong glyphs after a line break with the default font
+ * (7:92 on page 162). */
+export function pageWords(text: string): string[] {
+    const groups: string[][] = [];
+    let openNext = false;
+    text.split(' ').forEach((word, i) => {
+        const span = `<span class="w" data-w="${i}">${esc(word)}</span>`;
+        if (openNext) { groups[groups.length - 1]!.push(span); openNext = false; return; }
+        if (MARK_ONLY.test(word) && word !== OPENS && groups.length) { groups[groups.length - 1]!.push(span); return; }
+        groups.push([span]);
+        openNext = word === OPENS;
+    });
+    return groups.map(g => g.length > 1 ? `<span class="wg">${g.join(' ')}</span>` : g[0]!);
+}
+/** One verse as an interactive span (verse menu), with the user's highlight, note mark and the verse-end medallion.
+ * `inner` is the verse as text, word spans, or (Mushaf pages) the groups pageWords() returns. */
+function verseSpan(state: AppState, s: number, a: number, selected: string | null, inner: string | string[], id: string): string {
     const key = sameKey(s, a), hl = state.highlights.find(h => h.key === key)?.color, note = state.notes.some(n => n.key === key);
     const t = (k: string) => tr(k, state.locale), num = (n: number) => formatNumber(n, state.locale);
     // The last word and the medallion never break apart: a marker alone on a line looks like a missing verse end.
-    // Word spans: cut before the last one; plain text: at the last space. Never at a space inside a tag (a one-word ayah
-    // such as 7:1 الٓمٓصٓ has no space between words, and its tag's own spaces must not be taken for one).
-    const cut = inner.includes('<') ? inner.lastIndexOf(' <span class="w"') : inner.lastIndexOf(' ');
-    const head = cut >= 0 ? inner.slice(0, cut + 1) : '', tail = cut >= 0 ? inner.slice(cut + 1) : inner;
+    // Groups: the last one; word spans: cut before the last one; plain text: at the last space. Never at a space inside a
+    // tag (a one-word ayah such as 7:1 الٓمٓصٓ has no space between words, and its tag's own spaces must not be taken for one).
+    let head: string, tail: string;
+    if (Array.isArray(inner)) { head = inner.length > 1 ? `${inner.slice(0, -1).join(' ')} ` : ''; tail = inner[inner.length - 1]!; }
+    else {
+        const cut = inner.includes('<') ? inner.lastIndexOf(' <span class="w"') : inner.lastIndexOf(' ');
+        head = cut >= 0 ? inner.slice(0, cut + 1) : ''; tail = cut >= 0 ? inner.slice(cut + 1) : inner;
+    }
     return `<span class="q-v${hl ? ` hl hl-${hl}` : ''}${selected === key ? ' selected' : ''}" id="${id}" data-action="verse-menu" data-surah="${s}" data-ayah="${a}" role="button" tabindex="0" aria-label="${esc(chapter(s).name)} ${s}:${a}${hl ? ` · ${t('highlighted')}` : ''}${note ? ` · ${t('hasNote')}` : ''}">${head}<span class="q-tail">${tail}${note ? '<span class="note-dot" aria-hidden="true"></span>' : ''}\u00a0${ayahMarker(`${t('ayah')} ${num(a)}`, arabicDigits.format(a))}</span></span>`;
 }
 /** A Mushaf page: the verses of one Madani page, a heading where a surah begins, one justified block per surah. The app
@@ -152,7 +178,7 @@ function verseSpan(state: AppState, s: number, a: number, selected: string | nul
 export function pageBody(state: AppState, page: number, selected: string | null = null): string {
     const groups: [number, number[]][] = [];
     for (const [s, a] of pageAyahs(page)) { const g = groups[groups.length - 1]; if (g && g[0] === s) g[1].push(a); else groups.push([s, [a]]); }
-    const blocks = groups.map(([s, list]) => `${list[0] === 1 ? surahHead(s, state.locale) : ''}<p class="q-text" lang="ar" dir="rtl">${list.map(a => verseSpan(state, s, a, selected, esc(verse(s, a)), `v-${s}-${a}`)).join(' ')}</p>`).join('');
+    const blocks = groups.map(([s, list]) => `${list[0] === 1 ? surahHead(s, state.locale) : ''}<p class="q-text" lang="ar" dir="rtl">${list.map(a => verseSpan(state, s, a, selected, pageWords(verse(s, a)), `v-${s}-${a}`)).join(' ')}</p>`).join('');
     const opening = page <= 2 ? ' q-opening' : '';
     return `<div class="q-page${opening}" data-page="${page}">${blocks}</div>`;
 }
@@ -161,7 +187,9 @@ export function pageBody(state: AppState, page: number, selected: string | null 
 export function pageRunHead(state: AppState, page: number): string {
     const [s, a] = pageAyahs(page)[0]!, num = (n: number) => formatNumber(n, state.locale), c = chapter(s);
     const where = tr('pageJuzHizb', state.locale).replace('{j}', num(juzOf(s, a))).replace('{h}', num(hizbOf(s, a)));
-    return `<div class="r-run" dir="ltr"><span>${esc(where)}</span><span>${esc(c.name)} <span class="r-run-ar" lang="ar" dir="rtl">${esc(c.ar)}</span></span></div>`;
+    // In Arabic the surah is named once, in Arabic; other languages also get its transliteration.
+    const latin = state.locale === 'ar' ? '' : `${esc(c.name)} `;
+    return `<div class="r-run" dir="ltr"><span>${esc(where)}</span><span>${latin}<span class="r-run-ar" lang="ar" dir="rtl">${esc(c.ar)}</span></span></div>`;
 }
 /** The page number under the page, as in a printed Mushaf. */
 export const pageRunFoot = (state: AppState, page: number) => `<div class="r-run-no" aria-hidden="true">${formatNumber(page, state.locale)}</div>`;
