@@ -208,10 +208,10 @@ const chromeOff = () => chromeHidden ?? state.readingLayout === 'page';
 /** The page to show: the one holding the saved place in the open surah, else the surah's first page. */
 function currentPage(): number { return pageFor(state, readerSurah, readerPage); }
 /** Turns to a page and keeps the place (the page's first ayah), so the reader reopens there. */
-async function goToPage(n: number): Promise<void> {
+async function goToPage(n: number, at?: [number, number]): Promise<void> {
     const page = clampPage(n);
-    if (page === readerPage) return;
-    const [s, a] = pageAyahs(page)[0]!;
+    if (page === readerPage) { if (at) { await commit({ ...state, readPosition: { surah: at[0], ayah: at[1] } }); revealVerse(at[0], at[1]); } return; }
+    const [s, a] = at && pageOf(at[0], at[1]) === page ? at : pageAyahs(page)[0]!;
     // One page along turns a sheet, unless a finger has already started it; a jump further keeps the short slide.
     const released = leaf && leafTo === page;
     if (!released) { leaf?.remove(); if (Math.abs(page - readerPage) === 1) { beginLeaf(page, null); leaf?.play('done'); } }
@@ -220,7 +220,36 @@ async function goToPage(n: number): Promise<void> {
     readerPage = page; readerSurah = s; menuVerse = null;
     await commit({ ...turnedPage(state, before, page), readPosition: { surah: s, ayah: a } });
     render();
+    if (at) revealVerse(s, a);
 }
+/** On a Mushaf page that scrolls, brings a verse into view (a quarter down the screen) instead of leaving the reader at
+ * the top of the page: "Continue reading", a deep link or a search result lands on the verse itself. */
+function revealVerse(s: number, a: number): void {
+    const surface = root.querySelector<HTMLElement>('.r-page .r-surface'), el = surface?.querySelector<HTMLElement>(`.q-v[data-surah="${s}"][data-ayah="${a}"]`);
+    if (!surface || !el || surface.scrollHeight <= surface.clientHeight) return;
+    const y = el.getBoundingClientRect().top - surface.getBoundingClientRect().top + surface.scrollTop - surface.clientHeight * 0.25;
+    keepReaderTop(surface, Math.max(0, Math.round(y)));
+}
+/** The place on a scrolling Mushaf page that the reader chose: by touch, wheel or keys, or the app keeping it (fitPage,
+ * sheets, revealVerse). WebKit in the iOS app moves the scroller by itself when the system appearance changes (seen
+ * in the iOS 18.6 Simulator: 264 → 45 px, with no resize, render or font event); the app puts this place back. */
+let readerTop = { page: 0, top: 0 }, userScrollUntil = 0;
+function keepReaderTop(surface: HTMLElement, top: number): void {
+    if (surface.scrollTop !== top) surface.scrollTop = top;
+    readerTop = { page: readerPage, top: surface.scrollTop };
+}
+for (const ev of ['touchstart', 'touchmove', 'touchend', 'wheel', 'keydown', 'pointerdown'] as const) root.addEventListener(ev, () => { userScrollUntil = performance.now() + 3000; }, { passive: true, capture: true });
+root.addEventListener('scroll', e => {
+    const el = e.target as HTMLElement;
+    if (performance.now() < userScrollUntil && el.classList?.contains('r-surface') && el.closest('.r-page') && !el.closest('.r-leaf')) readerTop = { page: readerPage, top: el.scrollTop };
+}, { passive: true, capture: true });
+function restoreReaderTop(): void {
+    const surface = root.querySelector<HTMLElement>('.r-page .r-surface');
+    if (view !== 'reader' || !surface || readerTop.page !== readerPage || surface.scrollTop === readerTop.top) return;
+    surface.scrollTop = readerTop.top;
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { restoreReaderTop(); requestAnimationFrame(restoreReaderTop); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) requestAnimationFrame(restoreReaderTop); });
 /** The page's own contents, for the reader and for the sheet being turned. */
 const surfaceInner = (page: number, selected: string | null) => `${pageRunHead(state, page)}${pageBody(state, page, selected)}${pageRunFoot(state, page)}`;
 let leaf: Leaf | null = null, leafTo = 0;
@@ -237,7 +266,7 @@ function beginLeaf(to: number, grabY: number | null): void {
 /** Opens a verse in the current layout: its page in Mushaf pages, else its surah scrolled to it. */
 async function openAt(s: number, a: number): Promise<void> {
     verse(s, a);
-    if (state.readingLayout === 'page') { readerSurah = s; await goToPage(pageOf(s, a)); return; }
+    if (state.readingLayout === 'page') { readerSurah = s; await goToPage(pageOf(s, a), [s, a]); return; }
     readerSurah = s;
     await commit({ ...state, readPosition: { surah: s, ayah: a } });
     if (view !== 'reader') await navigate('reader'); else render();
@@ -312,7 +341,8 @@ function fitPage(on?: HTMLElement): void {
     surface.classList.toggle('r-overflow', over);
     // A page that scrolls can be scrolled from the keyboard too.
     if (over) surface.tabIndex = 0; else surface.removeAttribute('tabindex');
-    surface.scrollTop = over ? place * (surface.scrollHeight - surface.clientHeight) : 0;
+    const at = over ? Math.round(place * (surface.scrollHeight - surface.clientHeight)) : 0;
+    if (on) surface.scrollTop = at; else keepReaderTop(surface, at);
     page.classList.add('fitted');
     fittedFor = `${surface.clientWidth}x${surface.clientHeight}`;
 }
@@ -364,9 +394,13 @@ function sheetDialog(id: string): HTMLDialogElement {
 function openSheet(d: HTMLDialogElement, focus?: HTMLElement | null): void {
     const surface = root.querySelector<HTMLElement>('.r-surface'), top = surface?.scrollTop ?? 0, y = window.scrollY;
     if (!d.open) d.showModal();
-    focus?.focus({ preventScroll: true });
+    if (keyboardUse) focus?.focus({ preventScroll: true });
     if (surface && surface.scrollTop !== top) surface.scrollTop = top;
     if (window.scrollY !== y) window.scrollTo(0, y);
+    if (keyboardUse) return;
+    // After a touch, focus the sheet itself rather than its first button: WebKit draws the focus ring on a button
+    // focused by script. Keyboard users still start on the first action.
+    d.tabIndex = -1; d.focus({ preventScroll: true });
 }
 /** Closes a sheet without moving the page under it: WebKit's close() gives focus back and scrolls it into view. */
 function closeSheet(d: HTMLDialogElement): void {
@@ -1722,7 +1756,7 @@ function currentPrayer(now = Date.now()): PrayerName {
 const views: Record<View, () => string> = { hadith: hadithView, zakat: zakatView, eid: eidView, occasions: occasionsView, hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
-function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); const was = reading ? root.querySelector<HTMLElement>('.r-page .r-surface') : null, kept = was ? { page: Number(was.querySelector<HTMLElement>('.q-page')?.dataset.page), top: was.scrollTop } : null; root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); const sf = root.querySelector<HTMLElement>('.r-page .r-surface'); if (sf && kept?.page === readerPage) sf.scrollTop = kept.top; void document.fonts?.ready.then(() => fitPage()); } roveVerses(); } surfaceWatch?.disconnect(); const fitOn = view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null; if (fitOn) surfaceWatch?.observe(fitOn); if (leaf) { if (swipeOn) cancelDrag(); leaf?.adopt(view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null); } if (view === 'eid') void cardPreview(); const nightEl = root.querySelector<HTMLElement>('#night-stage'), nightNext = nightFrame; nightFrame = null; document.body.classList.toggle('night-view', !!nightEl); if (nightEl && nightNext) mountNightBeads(nightEl, nightNext); else unmountNightBeads(); syncCompass(); showReciting(false); }
+function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); const was = reading ? root.querySelector<HTMLElement>('.r-page .r-surface') : null, kept = was ? { page: Number(was.querySelector<HTMLElement>('.q-page')?.dataset.page), top: was.scrollTop } : null; root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); const sf = root.querySelector<HTMLElement>('.r-page .r-surface'); if (sf && kept?.page === readerPage) keepReaderTop(sf, kept.top); void document.fonts?.ready.then(() => fitPage()); } roveVerses(); } surfaceWatch?.disconnect(); const fitOn = view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null; if (fitOn) surfaceWatch?.observe(fitOn); if (leaf) { if (swipeOn) cancelDrag(); leaf?.adopt(view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null); } if (view === 'eid') void cardPreview(); const nightEl = root.querySelector<HTMLElement>('#night-stage'), nightNext = nightFrame; nightFrame = null; document.body.classList.toggle('night-view', !!nightEl); if (nightEl && nightNext) mountNightBeads(nightEl, nightNext); else unmountNightBeads(); syncCompass(); showReciting(false); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
@@ -1970,7 +2004,8 @@ async function handleAction(el: HTMLElement): Promise<void> {
         case 'read-last':
             readerSurah = state.readPosition.surah;
             await navigate('reader');
-            document.querySelector(`#ayah-${state.readPosition.ayah}`)?.scrollIntoView();
+            if (state.readingLayout === 'page') revealVerse(state.readPosition.surah, state.readPosition.ayah);
+            else document.querySelector(`#ayah-${state.readPosition.ayah}`)?.scrollIntoView();
             break;
         case 'library-filter':
             libraryFilter = d.filter!;
@@ -3109,7 +3144,7 @@ async function boot(): Promise<void> { try {
     if (view === 'session' && !state.session)
         view = 'today';
     render();
-    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } if (/^ayahflow:\/\/wake\/?$/.test(url)) { void navigate('wake'); return; } if (/^ayahflow:\/\/occasions\/?$/.test(url)) { void navigate('occasions'); return; } if (/^ayahflow:\/\/eid\/?$/.test(url)) { eidKind = null; void navigate('eid'); return; } const recited = /^(ayahflow:\/\/moment\/[a-z_+]+)\/?\?recited=1$/.exec(url); if (recited) { const rm = parseMomentUrl(recited[1]!); if (rm.length) { momentIds = rm; void recitedFromNotification(rm).then(() => navigate('moment')); } return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => navigate('reader')).then(() => document.querySelector(`#ayah-${n}`)?.scrollIntoView({ block: 'center' })); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
+    onDeepLink(url => { if (/^ayahflow:\/\/prayer\/?$/.test(url)) { prayerTab = 'times'; void navigate('prayer'); return; } if (/^ayahflow:\/\/wake\/?$/.test(url)) { void navigate('wake'); return; } if (/^ayahflow:\/\/occasions\/?$/.test(url)) { void navigate('occasions'); return; } if (/^ayahflow:\/\/eid\/?$/.test(url)) { eidKind = null; void navigate('eid'); return; } const recited = /^(ayahflow:\/\/moment\/[a-z_+]+)\/?\?recited=1$/.exec(url); if (recited) { const rm = parseMomentUrl(recited[1]!); if (rm.length) { momentIds = rm; void recitedFromNotification(rm).then(() => navigate('moment')); } return; } const salahLink = /^ayahflow:\/\/(salah|tasbih)\/(fajr|dhuhr|asr|maghrib|isha)\/?$/.exec(url); if (salahLink) { if (salahLink[1] === 'tasbih') { tasbihPrayer = salahLink[2] as PrayerName; tasbihDay = salahDay(state); void navigate('tasbih'); } else { prayerTab = 'today'; void navigate('prayer'); } return; } if (/^ayahflow:\/\/(home|moment-ayah)\/?$/.test(url)) { void navigate('today'); return; } if (/^ayahflow:\/\/steps\/?$/.test(url)) { void navigate('steps'); return; } if (/^ayahflow:\/\/adhkar\/?$/.test(url)) { void navigate('adhkar'); return; } if (/^ayahflow:\/\/rotation\/?$/.test(url)) { void navigate('rotation'); return; } const ayahLink = /^ayahflow:\/\/ayah\/(\d{1,3}):(\d{1,3})\/?$/.exec(url); if (ayahLink) { const s = Number(ayahLink[1]), n = Number(ayahLink[2]); try { verse(s, n); } catch { return; } readerSurah = s; void commit({ ...state, readPosition: { surah: s, ayah: n } }).then(() => view === 'reader' ? undefined : navigate('reader')).then(() => openAt(s, n)); return; } const counterLink = /^ayahflow:\/\/counter\/([a-z-]+)\/?$/.exec(url); if (counterLink && counterDefs().some(c => c.id === counterLink[1])) { counterId = counterLink[1]!; void navigate('counter'); return; } const ms = parseMomentUrl(url); if (ms.length) { momentIds = ms; void navigate('moment'); } });
     void syncSmart().then(() => { if (view === 'reminders') render(); });
     void refreshSteps(true);
     void voiceManifest().then(m => { voiceAvailable = Boolean(m); if (voiceAvailable && ['reader', 'settings'].includes(view)) render(); });

@@ -148,11 +148,18 @@ Reader accessibility, keyboard and reading place (2026-11-08, after 3f11ebe; no 
 - [ ] VoiceOver itself (simulator or device): not run. The markup and Chromium's DOM were checked; WebKit's
   accessibility tree was not read (Accessibility Inspector access was declined).
 - [ ] Physical iPhone and Android: not run in this round.
-- [ ] Open: in the iOS app (not Safari), switching the system appearance while a landscape page is scrolled moved the
-  page towards its top. Cause not found.
-- [ ] Open (existing): with the reader bar hidden, its empty footer still takes touches, so a drag that starts near the
-  bottom edge does not scroll; the verse menu's preview clips the first letter of a line at its right edge in landscape;
-  "Continue reading" opens the page at its top, not at the verse, on a page that scrolls.
+- [x] Fixed (2026-11-08, second round): in the iOS app WebKit itself scrolled a landscape page when the system
+  appearance changed (logged with a temporary on-screen probe: 264 → 45 px, no resize, render or font event before
+  it). The app remembers the place the reader chose (touch, wheel, keys, or the app keeping it) and puts it back on the
+  colour-scheme change and on returning to the app. Simulator: three switches, each jump undone at once (264 px kept).
+- [x] Fixed: the hidden reader bar and footer let touches through; a drag that starts in the bottom band scrolls
+  (simulator, logged).
+- [x] Fixed: the verse-menu preview keeps the first letter of a line (7:92, 7:94 in landscape, simulator).
+- [x] Fixed: "Continue reading", search results and `ayahflow://ayah/s:a` links open at the verse (saved as that verse,
+  not the page's first) and bring it into view on a page that scrolls (`ayahflow://ayah/7:94` in the simulator).
+- [x] Fixed: after a touch, a sheet focuses itself instead of its first button, so no focus ring is drawn; with the
+  keyboard, focus still starts on the first action (Chromium; simulator screenshot shows no ring).
+- [ ] Android: none of the reader fixes has been run on an Android WebView yet.
 
 Reader pages, verse menu and Mushaf chooser (iPhone, build of 2026-10-26 ~19:15; schema v16 migrated on the phone with
 all data kept; device screenshot shows the verse menu on 2:14, page 3):

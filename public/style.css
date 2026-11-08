@@ -348,7 +348,7 @@ html[data-theme=light] body.reading{--r-body:#f7f2e4}
 .r-foot{position:sticky;bottom:0;z-index:12;display:flex;align-items:center;gap:6px;padding:4px 10px calc(4px + var(--safe-bottom));background:var(--r-chrome);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--r-line);transition:opacity .25s}
 .r-pageno{flex:1;display:grid;justify-items:center;gap:5px;font:500 12px/1 var(--serif);color:var(--r-muted);font-variant-numeric:tabular-nums}
 .r-progress{width:min(180px,60%);height:2px;border-radius:2px;background:var(--r-line);overflow:hidden}.r-progress i{display:block;height:100%;background:var(--r-gold-soft)}
-.reader.chrome-off .r-bar>*,.reader.chrome-off .r-foot>*{opacity:0;pointer-events:none}.reader.chrome-off .r-bar,.reader.chrome-off .r-foot{background:transparent;border-color:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
+.reader.chrome-off .r-bar>*,.reader.chrome-off .r-foot>*{opacity:0;pointer-events:none}.reader.chrome-off .r-bar,.reader.chrome-off .r-foot{pointer-events:none}.reader.chrome-off .r-bar,.reader.chrome-off .r-foot{background:transparent;border-color:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
 /* Mushaf page: fixed to the screen, the text sized by the app so the page fits without scrolling */
 .reader.r-page{position:fixed;inset:0;background:var(--r-outer)}
 .r-page .r-surface{flex:1;min-height:0;margin:8px 8px;padding:10px clamp(10px,4vw,22px);background:var(--r-paper);border-radius:4px;box-shadow:0 0 0 1px var(--r-line);overflow:hidden;display:flex;flex-direction:column;touch-action:pan-y}
@@ -393,12 +393,12 @@ html[data-theme=light] body.reading{--r-body:#f7f2e4}
 /* bottom sheets (verse, settings, go to): compact, grouped, keep the page visible */
 dialog.r-sheet{--r-paper:#f7f2e4;--r-ink:#1b241e;--r-gold:#a07a2e;--r-muted:#6f6a5a;--r-line:rgb(160 122 46 / .25);--r-panel:#efe8d6;margin:auto auto 0;width:100%;max-width:520px;max-height:min(78dvh,640px);overflow:auto;padding:6px 18px calc(14px + var(--safe-bottom));border:0;border-top:1px solid var(--r-line);border-radius:var(--r-xl) var(--r-xl) 0 0;background:var(--r-paper);color:var(--r-ink);box-shadow:0 -10px 40px rgb(0 0 0 / .25)}
 dialog.r-sheet[data-reading-theme=night]{--r-paper:#18201b;--r-ink:#ece3cc;--r-gold:#c4a35e;--r-muted:#949b8c;--r-line:rgb(196 163 94 / .18);--r-panel:#1f2822}
-dialog.r-sheet::backdrop{background:rgb(0 0 0 / .22);-webkit-backdrop-filter:none;backdrop-filter:none}
+dialog.r-sheet:focus{outline:none}.r-sheet::backdrop{background:rgb(0 0 0 / .22);-webkit-backdrop-filter:none;backdrop-filter:none}
 dialog.r-sheet[open]{animation:sheet-up .22s ease-out}@keyframes sheet-up{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
 body.reduced-motion dialog.r-sheet[open],body.reduced-motion .q-page.fitted{animation:none}
 .vs-grab{width:38px;height:4px;border-radius:2px;background:var(--r-line);margin:4px auto 8px}
 .vs-head{display:flex;align-items:center;gap:8px}.vs-head h2{font:600 17px/1.3 var(--serif);margin:0;color:var(--r-ink)}.vs-head h2 bdi{color:var(--r-gold);font-weight:500}.vs-head p{font:12px var(--ui);color:var(--r-muted);margin:2px 0 0}
-.vs-preview{font:21px/1.9 var(--arabic);color:var(--r-ink);margin:6px 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:right}
+.vs-preview{font:21px/1.9 var(--arabic);color:var(--r-ink);margin:6px 0 10px;padding-inline:.35em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:right}
 .vs-primary{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:8px 4px;border:1px solid var(--r-line);border-radius:var(--r-lg);background:var(--r-panel)}
 .vs-act{display:grid;justify-items:center;gap:5px;padding:6px 0;min-height:64px;color:var(--r-ink);border-radius:var(--r-md)}.vs-ico{width:42px;height:42px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--r-line)}.vs-act.on .vs-ico{background:rgb(196 163 94 / .2);border-color:var(--r-gold);color:var(--r-gold)}
 .vs-lbl{font:500 11.5px/1.1 var(--ui);color:var(--r-muted);text-align:center}.vs-act:focus-visible{outline:2px solid var(--r-gold)}

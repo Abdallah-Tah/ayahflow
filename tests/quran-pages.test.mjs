@@ -230,10 +230,10 @@ test('Reading place on a page that scrolls: kept when the page is redrawn or ref
     const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
     const fit = app.slice(app.indexOf('function fitPage'), app.indexOf('/** Keyboard: the verses'));
     assert.match(fit, /place = scrolled > 0 \? surface\.scrollTop \/ scrolled : 0/);
-    assert.match(fit, /surface\.scrollTop = over \? place \* \(surface\.scrollHeight - surface\.clientHeight\) : 0;/, 'a refit (rotation, a late font) keeps the place');
+    assert.match(fit, /const at = over \? Math\.round\(place \* \(surface\.scrollHeight - surface\.clientHeight\)\) : 0;\n\s*if \(on\) surface\.scrollTop = at; else keepReaderTop\(surface, at\);/, 'a refit (rotation, a late font) keeps the place');
     const render = app.slice(app.indexOf('function render(): void'), app.indexOf('function render(): void') + 4000);
     assert.match(render, /kept = was \? \{ page: Number\(was\.querySelector<HTMLElement>\('\.q-page'\)\?\.dataset\.page\), top: was\.scrollTop \}/);
-    assert.match(render, /if \(sf && kept\?\.page === readerPage\) sf\.scrollTop = kept\.top;/, 'redrawing the same page (a highlight, a bookmark) keeps the scroll; a new page starts at the top');
+    assert.match(render, /if \(sf && kept\?\.page === readerPage\) keepReaderTop\(sf, kept\.top\);/, 'redrawing the same page (a highlight, a bookmark) keeps the scroll; a new page starts at the top');
     assert.match(app, /const intent = dragIntent\(dx, dy, swipeFrom\.scrolls, swipeFrom\.on\.scrollTop !== swipeFrom\.top\);\n\s*if \(intent === 'scroll'\) \{ swipeFrom = null; return; \}/, 'a scroll never becomes a page turn');
     assert.match(app, /if \(!scrolled && Math\.abs\(dx\) > 60/, 'nor with Reduce Motion, where the page changes on release');
     // WebKit's showModal() scrolls the page (seen in the iOS 18.6 simulator: 296 → 212 px); every reader sheet puts it back.
@@ -244,4 +244,27 @@ test('Reading place on a page that scrolls: kept when the page is redrawn or ref
     const sheets = app.slice(app.indexOf('function sheetActions'), app.indexOf('/** Tajweed colours switch'));
     assert.ok(!/d\.close\(\)/.test(sheets), 'reading settings and jump close through closeSheet, which keeps the place');
     assert.match(app, /case 'sheet-close': \{\n\s*const sheet = el\.closest\('dialog'\);\n\s*if \(sheet\) closeSheet\(sheet\);/);
+});
+
+test('Reading place survives what WebKit does on its own, and Continue reading lands on the verse', () => {
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+    const css = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
+    // iOS app: an appearance change scrolled 264 → 45 px with no app event; the place the reader chose is put back.
+    assert.match(app, /if \(performance\.now\(\) < userScrollUntil && el\.classList\?\.contains\('r-surface'\)/, 'only the reader\u2019s own scrolling (or the app keeping the place) moves the remembered place');
+    assert.match(app, /matchMedia\('\(prefers-color-scheme: dark\)'\)\.addEventListener\('change', \(\) => \{ restoreReaderTop\(\);/);
+    assert.match(app, /if \(!document\.hidden\) requestAnimationFrame\(restoreReaderTop\)/, 'and on coming back to the app');
+    // A deep link, search result or Continue reading saves and shows that verse, not only the top of its page.
+    assert.match(app, /await goToPage\(pageOf\(s, a\), \[s, a\]\)/);
+    assert.match(app, /\.then\(\(\) => view === 'reader' \? undefined : navigate\('reader'\)\)\.then\(\(\) => openAt\(s, n\)\)/, 'an ayahflow://ayah link opens at the verse in every layout');
+    assert.match(app, /if \(state\.readingLayout === 'page'\) revealVerse\(state\.readPosition\.surah, state\.readPosition\.ayah\);/);
+    assert.match(app, /const \[s, a\] = at && pageOf\(at\[0\], at\[1\]\) === page \? at : pageAyahs\(page\)\[0\]!;/, 'a page turn still saves the page\u2019s first verse');
+    // The hidden reader bar and footer let touches through to the page.
+    assert.match(css, /\.reader\.chrome-off \.r-bar,\.reader\.chrome-off \.r-foot\{pointer-events:none\}/);
+    // The verse preview keeps room for the first letter of a right-to-left line inside its clipped box.
+    assert.match(css, /\.vs-preview\{[^}]*padding-inline:\.35em;[^}]*overflow:hidden/);
+    // After a touch the sheet itself takes focus (no ring on its first button); keyboard users start on the first action.
+    const sheet = app.slice(app.indexOf('function openSheet'), app.indexOf('function closeSheet'));
+    assert.match(sheet, /if \(keyboardUse\) focus\?\.focus\(\{ preventScroll: true \}\);/);
+    assert.match(sheet, /d\.tabIndex = -1; d\.focus\(\{ preventScroll: true \}\);/);
+    assert.match(css, /\.r-sheet:focus\{outline:none\}/);
 });
