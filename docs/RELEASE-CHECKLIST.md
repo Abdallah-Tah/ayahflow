@@ -99,11 +99,25 @@ Mushaf page accuracy and spacing (branch `feature/mushaf-reader-accuracy`, 2026-
   median 0.80 → 0.67 em, pages over 1 em 92 → 4. Pages that scroll at the 16 px minimum: 377 at 320×568, 1 at
   375×667, 12 at 844×390, none at 375×812 and wider.
 - [x] Fixed: page 162 drew 7:92 with wrong glyphs after a line break (Chromium, default font).
-- [x] iOS Simulator (iPhone 16 Pro, iOS 18.6, Debug build): page 162 opened from `ayahflow://ayah/7:92` renders in
-  order with even spacing and Juz' 9, Hizb 17, page 162. That simulator had Amiri chosen, so the default font was not
-  re-checked in WKWebView.
-- [ ] iPhone: the same pages with the default font; rotation refits the page; a scrolling page scrolls and still
-  turns by swipe.
+- [x] The 7:92 glyph fault is Chromium-only. A test page narrowed page 162 until يَغْنَوْا۟ starts a line (the failing
+  condition), at 20.65 px in AyahFlow Quran: the old one-run markup is garbled in Chromium and correct in WebKit (iOS
+  18.6 Simulator Safari); the word-span markup is correct in both. The old markup in WebKit also showed a pause sign
+  starting a line (page 162, «ۚ عَلَى ٱللَّهِ»); with the word spans it stays with its word.
+- [x] iOS Simulator app (iPhone 16 Pro, iOS 18.6, Debug build of 11878d9), Madinah Mushaf (DigitalKhatt) chosen in
+  Settings, page 162 from `ayahflow://ayah/7:92`, Classic and Night: 7:92 whole, nothing doubled or missing; tapping a
+  verse opens its menu.
+- [ ] Physical iPhone: the same pages with the default font; rotation refits the page; a scrolling page scrolls and
+  still turns by swipe.
+
+Landscape and tablets (2026-11-08): Mushaf lines stop at 26 em (about 12–14 words), centred, with the header and page
+number on the same column; the 16 px minimum is kept, so a page that does not fit scrolls vertically.
+- [x] Browser (Chromium), all 604 pages: 844×390 (489 scroll), 932×430 (268), 667×375 (586), 1024×768, 768×1024 and
+  1366×1024 (none scroll, text 20–34 px). No sideways scroll, no text outside the page, nothing under the header or the
+  page number, scrolling reaches the end. Portrait 320–430 px wide is unchanged (the column is wider than the screen).
+- [x] iOS Simulator app (iPhone 16 Pro, iOS 18.6, Debug build with this change), Madinah Mushaf font, Night, page
+  162: rotating to landscape refits the page into the centred column; it scrolls vertically to the end and the page
+  number; 7:92 whole.
+- [ ] iPad and a physical phone in landscape.
 
 Reader pages, verse menu and Mushaf chooser (iPhone, build of 2026-10-26 ~19:15; schema v16 migrated on the phone with
 all data kept; device screenshot shows the verse menu on 2:14, page 3):

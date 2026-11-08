@@ -353,8 +353,9 @@ html[data-theme=light] body.reading{--r-body:#f7f2e4}
 .reader.r-page{position:fixed;inset:0;background:var(--r-outer)}
 .r-page .r-surface{flex:1;min-height:0;margin:8px 8px;padding:10px clamp(10px,4vw,22px);background:var(--r-paper);border-radius:4px;box-shadow:0 0 0 1px var(--r-line);overflow:hidden;display:flex;flex-direction:column;touch-action:pan-y}
 .r-page .r-surface.r-overflow{overflow-y:auto}
-.q-page{--q-size:22px;margin:auto 0;width:100%;font-size:var(--q-size);opacity:0}.q-page.fitted{opacity:1;transition:opacity .12s}
-.q-page.q-opening{margin:auto;max-width:30em}
+.q-page{--q-size:22px;margin:auto;width:100%;max-width:26em;font-size:var(--q-size);opacity:0}.q-page.fitted{opacity:1;transition:opacity .12s}
+.r-page .r-surface.r-overflow .q-page{padding-block:.3em}
+.r-page .r-surface>.r-run,.r-page .r-surface>.r-run-no{width:100%;max-width:var(--q-measure,none);margin-inline:auto}
 .turn-next .q-page.fitted{animation:turn-next .28s ease-out}.turn-prev .q-page.fitted{animation:turn-prev .28s ease-out}
 @keyframes turn-next{from{transform:translateX(-18px);opacity:.3}to{transform:none;opacity:1}}@keyframes turn-prev{from{transform:translateX(18px);opacity:.3}to{transform:none;opacity:1}}
 /* The turning sheet (src/page-curl.ts). Copies of the page under and over a fold; the paper back carries no text. */

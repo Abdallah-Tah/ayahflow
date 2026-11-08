@@ -125,6 +125,34 @@ test('Words: each in its own span; a mark written as a word stays on the line of
     assert.match(easyBody(state, 112, null, (t) => t), /id="ayah-1"/);
 });
 
+test('Word spans add nothing to the text: no hidden or direction characters, one plain space between words', () => {
+    const HIDDEN = /[­؜​-‏‪-‮⁠-⁩﻿]/;
+    for (const s of SURAH_DATA) assert.ok(!s.verses.some(v => HIDDEN.test(v)), `${s.id}: the corpus has none either`);
+    for (let p = 1; p <= PAGE_COUNT; p++) {
+        const html = pageBody(state, p);
+        assert.ok(!HIDDEN.test(html), `page ${p}: no zero-width, soft-hyphen or bidi control characters`);
+        // Inside a verse: a word span holds one word with no space in it, and words are separated by exactly one space.
+        for (const m of html.matchAll(/<span class="w" data-w="\d+">([^<]*)<\/span>/g)) assert.ok(m[1].length > 0 && !/\s/.test(m[1]), `page ${p}: "${m[1]}"`);
+        assert.ok(!/<\/span>\s{2,}<span class="w/.test(html) && !/<\/span><span class="w"/.test(html), `page ${p}: words never run together or double-spaced`);
+    }
+});
+
+test('Word indices follow the verse’s words (voice following counts the same tokens); every verse stays one button', () => {
+    for (const p of [1, 2, 50, 162, 255, 442, 604]) {
+        const html = pageBody(state, p);
+        let checked = 0;
+        for (const m of html.matchAll(/<span class="q-v[^"]*" id="v-(\d+)-(\d+)" data-action="verse-menu" data-surah="(\d+)" data-ayah="(\d+)" role="button" tabindex="0" aria-label="([^"]+)">([\s\S]*?)<span class="ayah-end" role="img" aria-label="Ayah (\d+)"/g)) {
+            const [, s, a, ds, da, label, inner, n] = m;
+            assert.deepEqual([ds, da, n], [s, a, a], `${s}:${a}: the button and its medallion name this verse`);
+            assert.ok(label.endsWith(` ${s}:${a}`), `${s}:${a}: read by its reference`);
+            const idx = [...inner.matchAll(/data-w="(\d+)"/g)].map(x => Number(x[1]));
+            assert.deepEqual(idx, verse(Number(s), Number(a)).split(' ').map((_, i) => i), `${s}:${a}: data-w 0…n−1 in order`);
+            checked++;
+        }
+        assert.equal(checked, pageAyahs(p).length, `page ${p}: every verse checked`);
+    }
+});
+
 test('Right to left, in Arabic, and drawn in the chosen Quran font', () => {
     for (const p of [1, 2, 162, 604]) {
         const blocks = pageBody(state, p).match(/<p class="q-text"[^>]*>/g);
@@ -146,4 +174,17 @@ test('Page fitting: readable minimum, scrolling instead of shrinking, even spaci
     assert.match(fit, /new ResizeObserver/); assert.match(fit, /'orientationchange'/); assert.match(fit, /'loadingdone'/);
     assert.ok(!/kashida|ـ/.test(fit.replace(/no kashida/g, '')), 'no tatweel is inserted to justify');
     assert.match(app, /surfaceWatch\?\.observe\(fitOn\)/);
+});
+
+test('Landscape and tablets: lines stop at a readable width, never below the 16 px minimum, and scroll vertically', () => {
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+    const css = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
+    const em = Number(app.match(/const MEASURE_EM = (\d+);/)[1]);
+    assert.ok(em >= 22 && em <= 32, 'about 12–14 words a line');
+    assert.match(css, new RegExp(`\\.q-page\\{[^}]*margin:auto;width:100%;max-width:${em}em;`), 'the CSS column is the same width fitPage assumes, centred');
+    assert.match(app, /surface\.style\.setProperty\('--q-measure', `\$\{\(best \* MEASURE_EM\)\.toFixed\(1\)\}px`\)/);
+    assert.match(css, /\.r-page \.r-surface>\.r-run,\.r-page \.r-surface>\.r-run-no\{width:100%;max-width:var\(--q-measure,none\);margin-inline:auto\}/, 'header and page number line up with the text');
+    assert.match(css, /\.r-page \.r-surface\.r-overflow\{overflow-y:auto\}/, 'a page that does not fit scrolls vertically');
+    assert.match(css, /\.r-page \.r-surface\.r-overflow \.q-page\{padding-block:\.3em\}/, 'marks of a scrolling page clear the header and the page number');
+    assert.ok(!/\.r-page[^{]*\{[^}]*overflow-x:(auto|scroll)/.test(css), 'never a sideways scroll');
 });

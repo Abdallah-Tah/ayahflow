@@ -246,6 +246,10 @@ async function openAt(s: number, a: number): Promise<void> {
 /** Mushaf page text sizes, in CSS px. Below READ_MIN the marks of the Uthmani text get hard to read, so a page that
  * does not fit at that size scrolls instead of shrinking further. */
 const READ_MIN = 16, READ_MAX = 34;
+/** The longest Mushaf line, in em of the Quran text (.q-page max-width in style.css): about 12–14 words. On a phone held
+ * upright the screen is narrower than this; in landscape and on tablets it keeps lines readable, and a page that then
+ * does not fit at READ_MIN scrolls vertically. */
+const MEASURE_EM = 26;
 /** How much smaller than the fitting size a page may be set to even out its word spacing (see fitPage). */
 const EVEN_STEPS = 8, EVEN_STEP = 0.0125, EVEN_GOOD = 0.7;
 /** The widest space between two words on any justified line of a page, in em (a plain space is about .3 em). Each
@@ -299,6 +303,9 @@ function fitPage(on?: HTMLElement): void {
         }
     }
     set(best);
+    // The running header and the page number line up with the text column (max-width: 26em in style.css), which
+    // only matters where the screen is wider than the column: landscape and tablets.
+    surface.style.setProperty('--q-measure', `${(best * MEASURE_EM).toFixed(1)}px`);
     const over = page.scrollHeight > room + 6;
     surface.classList.toggle('r-overflow', over);
     // A page that scrolls can be scrolled from the keyboard too.
