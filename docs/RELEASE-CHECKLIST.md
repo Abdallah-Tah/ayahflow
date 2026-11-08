@@ -119,6 +119,41 @@ number on the same column; the 16 px minimum is kept, so a page that does not fi
   number; 7:92 whole.
 - [ ] iPad and a physical phone in landscape.
 
+Reader accessibility, keyboard and reading place (2026-11-08, after 3f11ebe; no schema change):
+- Fixed: each verse button had `aria-label="Al-A'raaf 7:92"`, which replaces its content, so a screen reader heard only
+  the reference, never the Arabic. The button is now named by its content (the verse, `lang="ar"`, and its medallion
+  "Ayah 92" in the app's language) and described (`aria-describedby`) by a hidden reference, highlight and note, kept
+  outside the verse so its text stays exactly the corpus string (Arabic interface: «سورة الأعراف 7:92»).
+- Fixed: every verse was a Tab stop (up to 42 on page 585, 286 in Easy reading of Al-Baqarah). A page or surah is now one
+  Tab stop (the verse last opened or read); ↑/↓ and Home/End move between verses; ←/→ still turn the page. Enter/Space
+  now also open a verse in Easy reading (they did nothing there). After keyboard use, closing the verse menu puts focus
+  back on that verse; after a touch it does not (WebKit would draw the focus ring).
+- Fixed: on a page that scrolls, a scroll that drifted sideways could turn the page (seen in the iOS Simulator app:
+  up first, then left, turned 162 → 161). iOS WebKit can hold touchmove back while it scrolls, so the page now treats
+  "it scrolled under the finger" as a scroll as well as "it moved up or down first".
+- Fixed: opening and closing a reader sheet (verse menu, reading settings, jump) moved a scrolled page. WebKit's
+  `showModal()` and `close()` scroll the page's own scroller (logged in iOS 18.6 Simulator Safari: 296 → 212 px), and
+  closing the verse menu redrew the page at the top. The place is now kept across the sheet, a highlight, a bookmark, a
+  theme change and a refit.
+- [x] `npm run typecheck`, `npm test` (301 pass), `npm run build`; Chromium 667×375 and 874×402: accessible name
+  inputs, one Tab stop, ↑/↓/Home/End, Enter/Space, Esc, focus back after keyboard only, scroll kept after Close,
+  highlight and bookmark.
+- [x] iOS Simulator app (iPhone 16 Pro, iOS 18.6, Debug), landscape, Madinah Mushaf font: page 162 correct in Classic,
+  Night and Auto (Auto shows Night with the app appearance set to Dark), after rotation and after quitting and reopening
+  the app; drift gesture keeps 162 and scrolls; a sideways swipe still turns to 163 and back; theme change from a
+  scrolled page keeps the place; highlight, bookmark and "Continue reading" survive a relaunch.
+- [x] iOS Simulator Safari (same WebKit): scroll kept across the verse menu and a highlight (329 px before and after).
+- [x] Development build for the iPhone (`generic/platform=iOS`, team KFHK4QSUC6) builds and is signed with a profile that
+  lists the paired iPhone 16 Pro. Not installed in this round.
+- [ ] VoiceOver itself (simulator or device): not run. The markup and Chromium's DOM were checked; WebKit's
+  accessibility tree was not read (Accessibility Inspector access was declined).
+- [ ] Physical iPhone and Android: not run in this round.
+- [ ] Open: in the iOS app (not Safari), switching the system appearance while a landscape page is scrolled moved the
+  page towards its top. Cause not found.
+- [ ] Open (existing): with the reader bar hidden, its empty footer still takes touches, so a drag that starts near the
+  bottom edge does not scroll; the verse menu's preview clips the first letter of a line at its right edge in landscape;
+  "Continue reading" opens the page at its top, not at the verse, on a page that scrolls.
+
 Reader pages, verse menu and Mushaf chooser (iPhone, build of 2026-10-26 ~19:15; schema v16 migrated on the phone with
 all data kept; device screenshot shows the verse menu on 2:14, page 3):
 - [ ] Turn pages by swiping (right = next) and with the arrows; the place is kept after closing the app.

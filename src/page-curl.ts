@@ -21,6 +21,17 @@ export function tipFromDrag(direction: TurnDirection, width: number, dx: number)
     return Math.max(0, Math.min(width * 2, tip));
 }
 
+/** What a one-finger drag on the page is so far: a page turn, a scroll, or not clear yet. On a page that scrolls, a drag
+ * that moved up or down first is a scroll, and stays one when the finger drifts sideways later (the caller drops it).
+ * `scrolled`: the page has already scrolled under this finger. iOS WebKit can hold touchmove back while it scrolls, so
+ * the first move the page sees may already be far to the side; the scroll itself is then the evidence. */
+export function dragIntent(dx: number, dy: number, scrolls: boolean, scrolled = false): 'turn' | 'scroll' | 'wait' {
+    if (scrolled) return 'scroll';
+    if (scrolls && Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) return 'scroll';
+    if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return 'wait';
+    return 'turn';
+}
+
 /** A released finger completes the turn when it travelled far enough or flicked that way; flicking back cancels it. */
 export function releaseCompletes(direction: TurnDirection, width: number, dx: number, velocity: number): boolean {
     const along = direction === 'next' ? dx : -dx, speed = direction === 'next' ? velocity : -velocity;

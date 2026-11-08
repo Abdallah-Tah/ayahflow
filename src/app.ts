@@ -23,7 +23,7 @@ import { hifzRange, hifzQueue, hiddenWord, HIFZ_REPEATS, HIFZ_LEVELS, HIFZ_MAX_A
 import { RAMADAN_TEXT, ramadanToday, daysToRamadan } from './ramadan.js';
 import { NAMES, NAMES_LIST, NAMES_ABOUT, NAMES_QURAN, nameOfDay } from './names.js';
 import { khatmToday, startKhatm, endKhatm, setKhatmPage, turnedPage, KHATM_DAYS } from './khatm.js';
-import { mountLeaf, releaseCompletes, type Leaf } from './page-curl.js';
+import { dragIntent, mountLeaf, releaseCompletes, type Leaf } from './page-curl.js';
 import { pageBody, easyBody, readerTitle, readingStyles, quranFontChooser, pageFor, clampPage, toEndOfJuz, pageRunHead, pageRunFoot } from './mushaf.js';
 import { slotOf, slotRange, ayahOfMoment, upcomingMoments, RECITATIONS, recitation, daySummary, salahStreak, salahWeek, salahInsights, anyTasbihDone, salahReminders, salahDay } from './worship.js';
 import { voiceManifest, startFollowing, stopFollowing, releaseFollowing, followingActive, type FollowEvent } from './voice.js';
@@ -280,6 +280,8 @@ function widestGap(page: HTMLElement): number {
 function fitPage(on?: HTMLElement): void {
     const surface = on ?? document.querySelector<HTMLElement>('.r-page .r-surface'), page = surface?.querySelector<HTMLElement>('.q-page');
     if (!surface || !page || !surface.clientHeight) return;
+    // Where the reader is on a page that scrolls, as a fraction, so a refit (rotation, a late font) keeps the place.
+    const scrolled = surface.scrollHeight - surface.clientHeight, place = scrolled > 0 ? surface.scrollTop / scrolled : 0;
     const cs = getComputedStyle(surface), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     // Leave room for marks below the last line (kasra, tanween) so nothing is clipped.
     // The running header and the page number sit inside the surface too.
@@ -310,8 +312,22 @@ function fitPage(on?: HTMLElement): void {
     surface.classList.toggle('r-overflow', over);
     // A page that scrolls can be scrolled from the keyboard too.
     if (over) surface.tabIndex = 0; else surface.removeAttribute('tabindex');
+    surface.scrollTop = over ? place * (surface.scrollHeight - surface.clientHeight) : 0;
     page.classList.add('fitted');
     fittedFor = `${surface.clientWidth}x${surface.clientHeight}`;
+}
+/** Whether the last input was the keyboard (not a touch, pen or mouse): focus is moved back for keyboard users only. */
+let keyboardUse = false;
+document.addEventListener('keydown', () => { keyboardUse = true; }, true);
+document.addEventListener('pointerdown', () => { keyboardUse = false; }, true);
+/** Keyboard: the verses of a page (or of a surah in Easy reading) are one Tab stop, at the verse last opened or read,
+ * and ↑/↓ (Home/End) move between them; ←/→ stay the page turn. A page holds up to 42 verses (page 585), a surah 286. */
+function roveVerses(at?: HTMLElement): void {
+    const vs = [...root.querySelectorAll<HTMLElement>('.q-v')];
+    if (!vs.length) return;
+    const want = menuVerse ?? `${state.readPosition.surah}:${state.readPosition.ayah}`;
+    const stop = at ?? vs.find(v => `${v.dataset.surah}:${v.dataset.ayah}` === want) ?? vs[0]!;
+    for (const v of vs) v.tabIndex = v === stop ? 0 : -1;
 }
 /** Refits the page when its box changes size for any reason: rotation, a WebView resize, the keyboard, the safe area.
  * The page-turn sheet is dropped first, since its size was taken from the old box. */
@@ -343,6 +359,21 @@ function sheetDialog(id: string): HTMLDialogElement {
     d.dataset.readingTheme = readingThemeResolved();
     return d;
 }
+/** Opens a reader sheet without moving the page under it: WebKit's showModal() scrolls the page's own scroller (a Mushaf
+ * page that does not fit), and the reader would come back from the sheet to another place on the page. */
+function openSheet(d: HTMLDialogElement, focus?: HTMLElement | null): void {
+    const surface = root.querySelector<HTMLElement>('.r-surface'), top = surface?.scrollTop ?? 0, y = window.scrollY;
+    if (!d.open) d.showModal();
+    focus?.focus({ preventScroll: true });
+    if (surface && surface.scrollTop !== top) surface.scrollTop = top;
+    if (window.scrollY !== y) window.scrollTo(0, y);
+}
+/** Closes a sheet without moving the page under it: WebKit's close() gives focus back and scrolls it into view. */
+function closeSheet(d: HTMLDialogElement): void {
+    const surface = root.querySelector<HTMLElement>('.r-surface'), top = surface?.scrollTop ?? 0;
+    if (d.open) d.close();
+    if (surface?.isConnected && surface.scrollTop !== top) surface.scrollTop = top;
+}
 const readingThemeResolved = () => state.readingTheme !== 'auto' ? state.readingTheme : document.documentElement.dataset.theme === 'light' ? 'classic' : 'night';
 /** The verse sheet: five primary actions, highlight colours, and the rest under More. */
 function openVerseMenu(s: number, a: number, mode: 'menu' | 'more' | 'note' | 'translation' = 'menu'): void {
@@ -359,7 +390,17 @@ function openVerseMenu(s: number, a: number, mode: 'menu' | 'more' | 'note' | 't
 <div class="vs-colours" role="group" aria-label="${t('highlightColour')}">${HIGHLIGHT_COLORS.map(col => `<button class="swatch hl-${col}${hl === col ? ' active' : ''}" data-verse="colour" data-colour="${col}" aria-label="${t('hl_' + col)}" aria-pressed="${hl === col}"></button>`).join('')}</div>
 ${mode === 'more' ? `<div class="vs-list">${row('translation', 'globe', t('translationTafsir'))}${row('note', 'note', t(note ? 'editNote' : 'addNote'), note ? escapeHtml(note.length > 28 ? note.slice(0, 27) + '…' : note) : '')}${row('copy', 'copy', t('copy'))}${row('share', 'share', t('shareVerseMenu'))}${row('play-juz', 'play', t('playToJuzEnd'), t('juzN').replace('{n}', num(juz)))}</div>` : ''}`;
     d.innerHTML = head + body;
-    const done = () => { if (d.open) d.close(); menuVerse = null; const y = window.scrollY; render(); window.scrollTo(0, y); };
+    // Closing goes back to the verse: the same place on the page (taken before close(), which in WebKit scrolls the
+    // verse that had focus into view), and, after keyboard use, keyboard focus on that verse again. After a touch the
+    // focus is not moved: WebKit would draw the focus ring around the verse.
+    const done = () => {
+        const surface = root.querySelector<HTMLElement>('.r-surface'), top = surface?.scrollTop ?? 0;
+        if (d.open) d.close(); menuVerse = null; const y = window.scrollY; render(); window.scrollTo(0, y);
+        const back = root.querySelector<HTMLElement>(`.q-v[data-surah="${s}"][data-ayah="${a}"]`);
+        if (back) { roveVerses(back); if (keyboardUse) back.focus({ preventScroll: true }); }
+        const now = root.querySelector<HTMLElement>('.r-surface');
+        if (now && surface && now.scrollTop !== top) now.scrollTop = top;
+    };
     d.onclick = async e => {
         const b = (e.target as Element).closest<HTMLButtonElement>('[data-verse]');
         if (!b) { if (e.target === d) done(); return; }
@@ -392,20 +433,19 @@ ${mode === 'more' ? `<div class="vs-list">${row('translation', 'globe', t('trans
         if (act === 'bookmark') { await commit({ ...state, bookmarks: saved ? state.bookmarks.filter(x => x !== key) : [...state.bookmarks, key], readPosition: { surah: s, ayah: a } }); return done(); }
     };
     d.oncancel = e => { e.preventDefault(); done(); };
-    if (!d.open) d.showModal();
-    (d.querySelector<HTMLElement>(mode === 'note' ? '#note-text' : '.vs-act'))?.focus();
+    openSheet(d, d.querySelector<HTMLElement>(mode === 'note' ? '#note-text' : '.vs-act'));
 }
 /** Runs an app action from inside a reader sheet, then refreshes the sheet if it should stay open. */
 function sheetActions(d: HTMLDialogElement, reopen: () => void, stay: string[]): void {
     d.onclick = async e => {
         const b = (e.target as Element).closest<HTMLElement>('[data-action]');
-        if (!b) { if (e.target === d) d.close(); return; }
+        if (!b) { if (e.target === d) closeSheet(d); return; }
         const keep = stay.includes(b.dataset.action!);
-        if (!keep) d.close();
+        if (!keep) closeSheet(d);
         try { await handleAction(b); } catch { toast(t('error')); }
         if (keep && d.open) reopen();
     };
-    d.oncancel = e => { e.preventDefault(); d.close(); };
+    d.oncancel = e => { e.preventDefault(); closeSheet(d); };
 }
 /** Tajweed colours switch, legend and notes (Cards and Easy reading; the Mushaf page keeps its plain lines). */
 function tajweedSwitch(page: boolean): string {
@@ -427,7 +467,7 @@ function openReaderSettings(): void {
 <div class="vs-list mt12"><button class="vs-row" data-action="mushaf-open">${ic('book', 18)}<span class="grow">${t('readingStylesLink')}</span>${ic('chevron', 15)}</button>${practice}</div>
 <p class="vs-fine center"><a href="${QURAN_SOURCE.url}" target="_blank" rel="noopener noreferrer">${t('quranSource')}</a></p>`;
     sheetActions(d, openReaderSettings, ['layout', 'reader-theme', 'reader-size', 'toggle-translation', 'toggle-tajweed']);
-    if (!d.open) d.showModal();
+    openSheet(d);
 }
 /** Go to: a page number, a juz', or a surah. */
 function openReaderJump(): void {
@@ -438,7 +478,7 @@ function openReaderJump(): void {
 <label class="vs-label" for="jump-surah">${t('surah')}</label><select id="jump-surah" class="r-select" data-action-change="jump-surah">${SURAH_DATA.map(x => `<option value="${x.id}" ${x.id === readerSurah ? 'selected' : ''}>${num(x.id)}. ${escapeHtml(x.name)} · ${x.ar}</option>`).join('')}</select>
 <div class="vs-buttons"><button class="vs-pill" data-action="nav" data-view="quran">${ic('search', 15)} ${t('searchSurahs')}</button><button class="vs-pill primary" data-action="jump-surah">${t('openSurah')}</button></div>`;
     sheetActions(d, openReaderJump, []);
-    if (!d.open) d.showModal();
+    openSheet(d);
     d.querySelector<HTMLInputElement>('#jump-page')?.select();
 }
 function readerView(): string {
@@ -1682,7 +1722,7 @@ function currentPrayer(now = Date.now()): PrayerName {
 const views: Record<View, () => string> = { hadith: hadithView, zakat: zakatView, eid: eidView, occasions: occasionsView, hifz: hifzView, names: namesView, khatm: khatmView, wake: wakeView, review: reviewView, today: homeView, practice: practiceView, quran: quranView, reader: readerView, session: sessionView, result: resultView, tajweed: tajweedView, lesson: lessonView, recite: reciteView, progress: progressView, settings: settingsView, adhkar: adhkarView, moment: momentView, reminders: remindersView, prayer: prayersView, counter: counterView, steps: stepsView, rotation: rotationView, tasbih: tasbihView, verses: versesView, recitations: recitationsView };
 /** The view last drawn: redrawing the same screen (a tap, a toggle) skips the enter animation so it does not flicker. */
 let drawnView: View | null = null;
-function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); void document.fonts?.ready.then(() => fitPage()); } } surfaceWatch?.disconnect(); const fitOn = view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null; if (fitOn) surfaceWatch?.observe(fitOn); if (leaf) { if (swipeOn) cancelDrag(); leaf?.adopt(view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null); } if (view === 'eid') void cardPreview(); const nightEl = root.querySelector<HTMLElement>('#night-stage'), nightNext = nightFrame; nightFrame = null; document.body.classList.toggle('night-view', !!nightEl); if (nightEl && nightNext) mountNightBeads(nightEl, nightNext); else unmountNightBeads(); syncCompass(); showReciting(false); }
+function render(): void { const same = drawnView === view; drawnView = view; applyTheme(); document.documentElement.lang = state.locale; document.documentElement.dir = state.locale === 'ar' ? 'rtl' : 'ltr'; document.body.classList.toggle('reduced-motion', state.reducedMotion); document.body.classList.toggle('audio-playing', audioState === 'playing'); const reading = view === 'reader'; document.body.classList.toggle('reading', reading); const was = reading ? root.querySelector<HTMLElement>('.r-page .r-surface') : null, kept = was ? { page: Number(was.querySelector<HTMLElement>('.q-page')?.dataset.page), top: was.scrollTop } : null; root.innerHTML = `<div class="app-shell${reading ? ' reading-shell' : ''}">${reading ? '' : header()}${isTemporary() ? `<div class="temporary-banner">${ic('info', 13)} ${t('temporary')}</div>` : ''}<main class="main ${view === 'session' ? 'focus-screen' : ''} ${reading ? 'reader-main' : ''} ${same ? 'still' : ''}" id="main" tabindex="-1">${views[view]()}</main>${reading ? '' : nav()}<div class="sticky-audio" id="audio-banner" ${audioState === 'stopped' ? 'hidden' : ''}><span class="gold">${ic('wave', 20)}</span><div class="grow"><strong class="small">${bannerTitle()}</strong><p>${bannerSub()}</p></div><button class="icon-button" data-action="stop-audio" aria-label="${t('stopAudio')}">${ic('stop', 18)}</button></div>${followBar()}</div>`; if (view === 'reader') { applyFollow(); if (state.readingLayout === 'page' && !mushafOpen) { fitPage(); const sf = root.querySelector<HTMLElement>('.r-page .r-surface'); if (sf && kept?.page === readerPage) sf.scrollTop = kept.top; void document.fonts?.ready.then(() => fitPage()); } roveVerses(); } surfaceWatch?.disconnect(); const fitOn = view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null; if (fitOn) surfaceWatch?.observe(fitOn); if (leaf) { if (swipeOn) cancelDrag(); leaf?.adopt(view === 'reader' && state.readingLayout === 'page' && !mushafOpen ? root.querySelector<HTMLElement>('.r-page .r-surface') : null); } if (view === 'eid') void cardPreview(); const nightEl = root.querySelector<HTMLElement>('#night-stage'), nightNext = nightFrame; nightFrame = null; document.body.classList.toggle('night-view', !!nightEl); if (nightEl && nightNext) mountNightBeads(nightEl, nightNext); else unmountNightBeads(); syncCompass(); showReciting(false); }
 async function navigate(target: View, updateHistory = true): Promise<void> { if (!Object.hasOwn(views, target))
     target = 'today'; if (recordingActive())
     await finishRecording(); if (followingActive() || target !== 'reader') { await stopFollowing(); followOff(); } if (target !== 'reader') releaseFollowing(); stopAudio(); view = target; if (updateHistory && location.href !== 'about:blank' && location.hash !== `#${target}`)
@@ -1980,9 +2020,11 @@ async function handleAction(el: HTMLElement): Promise<void> {
         case 'reader-jump':
             openReaderJump();
             break;
-        case 'sheet-close':
-            el.closest('dialog')?.close();
+        case 'sheet-close': {
+            const sheet = el.closest('dialog');
+            if (sheet) closeSheet(sheet);
             break;
+        }
         case 'noop':
             break;
         case 'reader-theme':
@@ -2762,13 +2804,14 @@ async function handleAction(el: HTMLElement): Promise<void> {
         }
     }
 }
-/** Page layout: drag to turn (right = next page, as in a printed Mushaf; the sheet follows the finger), arrow keys, and Enter/Space on a focused ayah. */
-let dragEnded = -Infinity, swipeFrom: { x: number; y: number; grab: number } | null = null, swipeOn = false, swipeLast = { x: 0, at: 0, speed: 0 };
+/** Page layout: drag to turn (right = next page, as in a printed Mushaf; the sheet follows the finger) and ←/→. Any
+ * layout: Enter/Space on a focused ayah opens its menu, ↑/↓ Home/End move between ayahs (roveVerses). */
+let dragEnded = -Infinity, swipeFrom: { x: number; y: number; grab: number; scrolls: boolean; on: HTMLElement; top: number } | null = null, swipeOn = false, swipeLast = { x: 0, at: 0, speed: 0 };
 function cancelDrag(): void { swipeFrom = null; swipeOn = false; leaf?.play('back', true); }
 root.addEventListener('touchstart', e => {
     const p = (e.target as Element).closest<HTMLElement>('.r-page .r-surface');
     if (swipeOn) cancelDrag();
-    swipeFrom = p && e.touches.length === 1 ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, grab: e.touches[0]!.clientY - p.getBoundingClientRect().top } : null;
+    swipeFrom = p && e.touches.length === 1 ? { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, grab: e.touches[0]!.clientY - p.getBoundingClientRect().top, scrolls: p.classList.contains('r-overflow'), on: p, top: p.scrollTop } : null;
     swipeLast = { x: swipeFrom?.x ?? 0, at: e.timeStamp, speed: 0 };
 }, { passive: true });
 root.addEventListener('touchmove', e => {
@@ -2778,7 +2821,10 @@ root.addEventListener('touchmove', e => {
     const gap = e.timeStamp - swipeLast.at;
     if (gap > 0) swipeLast = { x: t0.clientX, at: e.timeStamp, speed: (t0.clientX - swipeLast.x) / gap };
     if (!swipeOn) {
-        if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+        // A scroll on a page that scrolls never turns into a page turn when the finger drifts sideways later.
+        const intent = dragIntent(dx, dy, swipeFrom.scrolls, swipeFrom.on.scrollTop !== swipeFrom.top);
+        if (intent === 'scroll') { swipeFrom = null; return; }
+        if (intent === 'wait') return;
         const to = readerPage + (dx > 0 ? 1 : -1);
         if (to < 1 || to > PAGE_COUNT || busy) return;
         leaf?.remove();
@@ -2791,26 +2837,32 @@ root.addEventListener('touchmove', e => {
 root.addEventListener('touchend', e => {
     if (!swipeFrom || view !== 'reader' || state.readingLayout !== 'page') return;
     const t0 = e.changedTouches[0]!, dx = t0.clientX - swipeFrom.x, dy = t0.clientY - swipeFrom.y, width = root.clientWidth;
+    const scrolled = swipeFrom.on.scrollTop !== swipeFrom.top;
     swipeFrom = null;
     if (swipeOn && leaf) {
         swipeOn = false;
         dragEnded = e.timeStamp;
-        if (releaseCompletes(leaf.direction, width, dx, swipeLast.speed)) { leaf.play('done', true); void goToPage(leafTo); }
+        if (!scrolled && releaseCompletes(leaf.direction, width, dx, swipeLast.speed)) { leaf.play('done', true); void goToPage(leafTo); }
         else leaf.play('back', true);
         return;
     }
     swipeOn = false;
     // Reduce motion: no sheet follows the finger, the page simply changes.
-    if (Math.abs(dx) > 60 && Math.abs(dy) < 50 && !busy) void goToPage(readerPage + (dx > 0 ? 1 : -1));
+    if (!scrolled && Math.abs(dx) > 60 && Math.abs(dy) < 50 && !busy) void goToPage(readerPage + (dx > 0 ? 1 : -1));
 }, { passive: true });
 root.addEventListener('touchcancel', () => { if (swipeOn) cancelDrag(); swipeFrom = null; }, { passive: true });
 /** A finger that dragged the page and came back near where it started still produces a click: it must not open a verse. */
 root.addEventListener('click', e => { if (e.timeStamp - dragEnded < 400) { e.stopPropagation(); e.preventDefault(); } }, true);
 document.addEventListener('keydown', e => {
-    if (view !== 'reader' || state.readingLayout !== 'page' || mushafOpen || document.querySelector('dialog[open]')) return;
+    if (view !== 'reader' || mushafOpen || document.querySelector('dialog[open]')) return;
     const el = e.target as HTMLElement;
-    if ((e.key === 'Enter' || e.key === ' ') && el.classList?.contains('q-v')) { e.preventDefault(); el.click(); return; }
-    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
+    if (el.classList?.contains('q-v')) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); return; }
+        const vs = [...root.querySelectorAll<HTMLElement>('.q-v')], i = vs.indexOf(el);
+        const to = { ArrowDown: vs[i + 1], ArrowUp: vs[i - 1], Home: vs[0], End: vs[vs.length - 1] }[e.key];
+        if (to) { e.preventDefault(); roveVerses(to); to.focus(); return; }
+    }
+    if (state.readingLayout !== 'page' || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); void goToPage(readerPage + (e.key === 'ArrowLeft' ? 1 : -1)); }
 });
 root.addEventListener('click', e => {

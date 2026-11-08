@@ -77,7 +77,8 @@ test('Mushaf page body: verbatim text, a heading only where a surah begins, uniq
     for (const [su, a] of pageAyahs(153)) assert.equal(textOf(html, `v-${su}-${a}`), esc(verse(su, a)), `${su}:${a} verbatim`);
     assert.match(html, /<span class="q-tail">(<span class="w" data-w="\d+">[^ <]+<\/span>|<span class="wg">[^\u00a0]+?<\/span><\/span>)\u00a0<span class="ayah-end"/, 'last word and medallion kept together');
     assert.match(html, /class="q-v hl hl-rose" id="v-7-23"/);
-    assert.match(html, /id="v-7-24"[^>]*has a note/);
+    assert.match(html, /id="v-7-24-ref" lang="en" hidden>[^<]* · has a note</, 'the note is said in the verse’s description');
+    assert.match(html, /id="v-7-23-ref" lang="en" hidden>Al-A&#39;raaf 7:23 · highlighted</);
     assert.match(html, /class="q-v selected" id="v-7-25"/);
     assert.ok(!html.includes('q-surah'), 'no surah starts on page 153');
     const last = pageBody(initialState(), 604);

@@ -141,10 +141,14 @@ test('Word indices follow the verse’s words (voice following counts the same t
     for (const p of [1, 2, 50, 162, 255, 442, 604]) {
         const html = pageBody(state, p);
         let checked = 0;
-        for (const m of html.matchAll(/<span class="q-v[^"]*" id="v-(\d+)-(\d+)" data-action="verse-menu" data-surah="(\d+)" data-ayah="(\d+)" role="button" tabindex="0" aria-label="([^"]+)">([\s\S]*?)<span class="ayah-end" role="img" aria-label="Ayah (\d+)"/g)) {
-            const [, s, a, ds, da, label, inner, n] = m;
+        for (const m of html.matchAll(/<span class="q-v[^"]*" id="v-(\d+)-(\d+)" data-action="verse-menu" data-surah="(\d+)" data-ayah="(\d+)" role="button" tabindex="0" aria-describedby="([^"]+)">([\s\S]*?)<span class="ayah-end" role="img" aria-label="Ayah (\d+)" lang="en">/g)) {
+            const [, s, a, ds, da, described, inner, n] = m;
             assert.deepEqual([ds, da, n], [s, a, a], `${s}:${a}: the button and its medallion name this verse`);
-            assert.ok(label.endsWith(` ${s}:${a}`), `${s}:${a}: read by its reference`);
+            // VoiceOver reads a button by its content unless it has an aria-label: the content is the Arabic verse.
+            assert.ok(!/aria-label/.test(m[0].slice(0, m[0].indexOf('>'))), `${s}:${a}: no aria-label hides the Quran text`);
+            assert.equal(described, `v-${s}-${a}-ref`);
+            const desc = html.match(new RegExp(`<span class="q-ref" id="${described}" lang="en" hidden>([^<]*)</span>`));
+            assert.equal(desc?.[1], `${chapter(Number(s)).name.replace(/'/g, '&#39;')} ${s}:${a}`, `${s}:${a}: described by its reference`);
             const idx = [...inner.matchAll(/data-w="(\d+)"/g)].map(x => Number(x[1]));
             assert.deepEqual(idx, verse(Number(s), Number(a)).split(' ').map((_, i) => i), `${s}:${a}: data-w 0…n−1 in order`);
             checked++;
@@ -187,4 +191,57 @@ test('Landscape and tablets: lines stop at a readable width, never below the 16 
     assert.match(css, /\.r-page \.r-surface\.r-overflow\{overflow-y:auto\}/, 'a page that does not fit scrolls vertically');
     assert.match(css, /\.r-page \.r-surface\.r-overflow \.q-page\{padding-block:\.3em\}/, 'marks of a scrolling page clear the header and the page number');
     assert.ok(!/\.r-page[^{]*\{[^}]*overflow-x:(auto|scroll)/.test(css), 'never a sideways scroll');
+});
+
+test('Screen readers hear the Quran text: each verse button is named by its Arabic content, described by its reference', () => {
+    // Easy reading builds its verses the same way as the Mushaf page.
+    const flow = easyBody(setHighlight(state, 112, 2, 'gold', 1), 112, null, (t) => t);
+    const v2 = flow.match(/<span class="q-v[^"]*" id="ayah-2"[^>]*>/)[0];
+    assert.ok(!v2.includes('aria-label'), 'no aria-label replaces the verse');
+    assert.match(v2, /role="button" tabindex="0" aria-describedby="ayah-2-ref"/);
+    assert.match(flow, /<span class="q-ref" id="ayah-2-ref" lang="en" hidden>Al-Ikhlaas 112:2 · highlighted<\/span>/);
+    const inner = flow.slice(flow.indexOf(v2) + v2.length, flow.indexOf('<span class="ayah-end"', flow.indexOf(v2)));
+    assert.equal(unescape(inner.replace(/<[^>]+>/g, '')).replace(/\u00a0$/, ''), verse(112, 2), 'the verse text is the button’s content, unchanged');
+    // Arabic interface: the description and the medallion are said in Arabic.
+    const ar = pageBody({ ...state, locale: 'ar' }, 604);
+    assert.match(ar, /<span class="ayah-end" role="img" aria-label="[^"]+" lang="ar">/);
+    assert.match(ar, /<span class="q-ref" id="v-112-1-ref" lang="ar" hidden>سورة الإخلاص 112:1<\/span>/);
+    // The description is outside the verse span: reading a verse back from the markup still gives the corpus text.
+    for (const p of [1, 162, 585]) for (const v of versesOf(pageBody(state, p))) assert.equal(v.text, verse(v.s, v.a));
+});
+
+test('Keyboard: a page of verses is one Tab stop, arrows move between verses, and closing the menu returns to the verse', () => {
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+    assert.ok(pageAyahs(585).length === 42, 'the page with the most verses');
+    const rove = app.slice(app.indexOf('function roveVerses'), app.indexOf('/** Refits the page'));
+    assert.match(rove, /v\.tabIndex = v === stop \? 0 : -1/, 'one verse is tabbable, the others are reached with the arrows');
+    assert.match(app, /roveVerses\(\); \}/, 'render() sets the Tab stop in every reader layout');
+    const keys = app.slice(app.indexOf("document.addEventListener('keydown', e => {\n    if (view !== 'reader'"), app.indexOf("root.addEventListener('click', e => {\n    const el = e.target as Element;"));
+    assert.ok(!/view !== 'reader' \|\| state\.readingLayout !== 'page'/.test(keys.split('\n')[1]), 'Enter/Space open a verse in Easy reading too');
+    assert.match(keys, /ArrowDown: vs\[i \+ 1\], ArrowUp: vs\[i - 1\], Home: vs\[0\], End: vs\[vs\.length - 1\]/);
+    assert.match(keys, /e\.key === 'ArrowLeft' \|\| e\.key === 'ArrowRight'/, 'left and right still turn the page');
+    const done = app.slice(app.indexOf('const done = () => {'), app.indexOf('d.onclick = async e =>'));
+    assert.match(done, /if \(keyboardUse\) back\.focus\(\{ preventScroll: true \}\)/, 'after keyboard use, focus goes back to the verse whose menu closed (not after a touch: no focus ring)');
+    assert.ok(done.indexOf('top = surface?.scrollTop') < done.indexOf('d.close()'), 'the place is taken before close(), which scrolls in WebKit');
+    assert.match(done, /now\.scrollTop = top/);
+});
+
+test('Reading place on a page that scrolls: kept when the page is redrawn or refitted', () => {
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+    const fit = app.slice(app.indexOf('function fitPage'), app.indexOf('/** Keyboard: the verses'));
+    assert.match(fit, /place = scrolled > 0 \? surface\.scrollTop \/ scrolled : 0/);
+    assert.match(fit, /surface\.scrollTop = over \? place \* \(surface\.scrollHeight - surface\.clientHeight\) : 0;/, 'a refit (rotation, a late font) keeps the place');
+    const render = app.slice(app.indexOf('function render(): void'), app.indexOf('function render(): void') + 4000);
+    assert.match(render, /kept = was \? \{ page: Number\(was\.querySelector<HTMLElement>\('\.q-page'\)\?\.dataset\.page\), top: was\.scrollTop \}/);
+    assert.match(render, /if \(sf && kept\?\.page === readerPage\) sf\.scrollTop = kept\.top;/, 'redrawing the same page (a highlight, a bookmark) keeps the scroll; a new page starts at the top');
+    assert.match(app, /const intent = dragIntent\(dx, dy, swipeFrom\.scrolls, swipeFrom\.on\.scrollTop !== swipeFrom\.top\);\n\s*if \(intent === 'scroll'\) \{ swipeFrom = null; return; \}/, 'a scroll never becomes a page turn');
+    assert.match(app, /if \(!scrolled && Math\.abs\(dx\) > 60/, 'nor with Reduce Motion, where the page changes on release');
+    // WebKit's showModal() scrolls the page (seen in the iOS 18.6 simulator: 296 → 212 px); every reader sheet puts it back.
+    const sheet = app.slice(app.indexOf('function openSheet'), app.indexOf('const readingThemeResolved'));
+    assert.match(sheet, /if \(surface && surface\.scrollTop !== top\) surface\.scrollTop = top;/);
+    assert.equal((app.match(/openSheet\(d[,)]/g) ?? []).length, 3, 'the verse menu, reading settings and jump sheets');
+    assert.ok(!/if \(!d\.open\) d\.showModal\(\);\n/.test(app.replace(sheet, '')), 'no reader sheet opens around it');
+    const sheets = app.slice(app.indexOf('function sheetActions'), app.indexOf('/** Tajweed colours switch'));
+    assert.ok(!/d\.close\(\)/.test(sheets), 'reading settings and jump close through closeSheet, which keeps the place');
+    assert.match(app, /case 'sheet-close': \{\n\s*const sheet = el\.closest\('dialog'\);\n\s*if \(sheet\) closeSheet\(sheet\);/);
 });

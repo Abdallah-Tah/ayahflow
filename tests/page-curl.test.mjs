@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { curlShape, clampTilt, tipFromDrag, releaseCompletes } from '../www/js/page-curl.js';
+import { curlShape, clampTilt, tipFromDrag, releaseCompletes, dragIntent } from '../www/js/page-curl.js';
 
 const read = p => readFileSync(new URL(p, import.meta.url), 'utf8');
 const app = read('../src/app.ts'), curl = read('../src/page-curl.ts'), css = read('../public/style.css');
@@ -91,4 +91,20 @@ test('the click after a page drag does nothing: a finger that came back must not
     const end = app.slice(app.indexOf("root.addEventListener('touchend'"), app.indexOf("root.addEventListener('touchcancel'"));
     assert.match(end, /dragEnded = e\.timeStamp/);
     assert.match(app, /root\.addEventListener\('click', e => \{ if \(e\.timeStamp - dragEnded < 400\) \{ e\.stopPropagation\(\); e\.preventDefault\(\); \} \}, true\);/);
+});
+
+test('Scrolling a long page never turns it: a drag that went up or down first stays a scroll', () => {
+    assert.equal(dragIntent(4, 3, true), 'wait', 'too small to tell');
+    assert.equal(dragIntent(30, 4, true), 'turn', 'sideways first turns the page');
+    assert.equal(dragIntent(-30, 6, true), 'turn', 'either way');
+    assert.equal(dragIntent(3, 14, true), 'scroll', 'up or down first is a scroll');
+    assert.equal(dragIntent(-14, -40, true), 'scroll', 'a scroll up with some drift');
+    assert.equal(dragIntent(12, 12, true), 'scroll', 'a diagonal is not a turn on a page that scrolls');
+    // A page that fits the screen has nothing to scroll: the gesture is judged as before (the sheet takes up/down too).
+    assert.equal(dragIntent(3, 14, false), 'wait');
+    assert.equal(dragIntent(40, 20, false), 'turn');
+    assert.equal(dragIntent(20, 20, false), 'wait');
+    // iOS WebKit can deliver the first touchmove only after it has scrolled: a far sideways move is still a scroll then.
+    assert.equal(dragIntent(-187, -80, true), 'turn', 'without the scroll evidence this looks like a turn');
+    assert.equal(dragIntent(-187, -80, true, true), 'scroll', 'the page scrolled under the finger: never a turn');
 });

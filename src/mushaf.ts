@@ -171,7 +171,12 @@ function verseSpan(state: AppState, s: number, a: number, selected: string | nul
         const cut = inner.includes('<') ? inner.lastIndexOf(' <span class="w"') : inner.lastIndexOf(' ');
         head = cut >= 0 ? inner.slice(0, cut + 1) : ''; tail = cut >= 0 ? inner.slice(cut + 1) : inner;
     }
-    return `<span class="q-v${hl ? ` hl hl-${hl}` : ''}${selected === key ? ' selected' : ''}" id="${id}" data-action="verse-menu" data-surah="${s}" data-ayah="${a}" role="button" tabindex="0" aria-label="${esc(chapter(s).name)} ${s}:${a}${hl ? ` · ${t('highlighted')}` : ''}${note ? ` · ${t('hasNote')}` : ''}">${head}<span class="q-tail">${tail}${note ? '<span class="note-dot" aria-hidden="true"></span>' : ''}\u00a0${ayahMarker(`${t('ayah')} ${num(a)}`, arabicDigits.format(a))}</span></span>`;
+    // Assistive technology: the button's name is its content, the Arabic verse itself (the page is lang="ar") and its
+    // medallion ("Ayah 92", in the app's language); the reference, highlight and note are its description, kept outside
+    // the verse so its text stays exactly the verse. An aria-label here would replace the Quran text with the reference.
+    // In Arabic the surah is named in Arabic, as in the running header.
+    const ref = `${esc(state.locale === 'ar' ? `سورة ${chapter(s).ar}` : chapter(s).name)} ${s}:${a}${hl ? ` · ${t('highlighted')}` : ''}${note ? ` · ${t('hasNote')}` : ''}`;
+    return `<span class="q-v${hl ? ` hl hl-${hl}` : ''}${selected === key ? ' selected' : ''}" id="${id}" data-action="verse-menu" data-surah="${s}" data-ayah="${a}" role="button" tabindex="0" aria-describedby="${id}-ref">${head}<span class="q-tail">${tail}${note ? '<span class="note-dot" aria-hidden="true"></span>' : ''}\u00a0${ayahMarker(`${t('ayah')} ${num(a)}`, arabicDigits.format(a), state.locale)}</span></span><span class="q-ref" id="${id}-ref" lang="${state.locale}" hidden>${ref}</span>`;
 }
 /** A Mushaf page: the verses of one Madani page, a heading where a surah begins, one justified block per surah. The app
  * sizes the text so the page fits the screen without scrolling. */
