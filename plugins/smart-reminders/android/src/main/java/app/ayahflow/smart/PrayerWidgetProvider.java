@@ -64,7 +64,7 @@ public class PrayerWidgetProvider extends AppWidgetProvider {
                 if (i >= today.size()) { v.setTextViewText(cells[i], ""); continue; }
                 JSONObject p = today.get(i);
                 v.setTextViewText(cells[i], p.optString("label") + "\n" + DateFormat.getTimeFormat(c).format(new Date((long) p.optDouble("at"))));
-                v.setTextColor(cells[i], p.optDouble("at") == nextAtForRow ? 0xFFD9BB79 : p.optDouble("at") <= now ? 0x80A7AD9F : 0xFFA7AD9F);
+                v.setTextColor(cells[i], p.optDouble("at") == nextAtForRow ? 0xFFEFD293 : p.optDouble("at") <= now ? 0x80B7C2AF : 0xFFB7C2AF);
             }
             v.setViewVisibility(R.id.widget_row, today.isEmpty() ? View.GONE : View.VISIBLE);
             if (upcoming.isEmpty()) {

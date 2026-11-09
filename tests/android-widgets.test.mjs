@@ -38,3 +38,11 @@ test('Every ayahflow:// link a widget or reminder opens matches the Android link
     for (const f of readdirSync(dir)) for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/"ayahflow:\/\/([a-z-]+)/g)) hosts.add(m[1]);
     assert.ok(['prayer', 'counter', 'ayah', 'adhkar', 'home', 'moment'].every(h => hosts.has(h)), `widgets open ${[...hosts].join(', ')}`);
 });
+
+test('Android widgets share the emerald and gold palette (colours only; layouts and actions unchanged)', () => {
+    const bg = read(`${P}/res/drawable/ayahflow_widget_bg.xml`), chip = read(`${P}/res/drawable/ayahflow_widget_chip.xml`);
+    assert.match(bg, /android:startColor="#0F3D2E" android:endColor="#082519"/);
+    assert.match(chip, /android:startColor="#EFD293" android:endColor="#D8B56C"/);
+    for (const f of ['ayahflow_widget', 'ayahflow_widget_simple']) assert.doesNotMatch(read(`${P}/res/layout/${f}.xml`), /#A7AD9F|#F3F0E7|#32362B/, f);
+    assert.match(read(`${P}/java/app/ayahflow/smart/PrayerWidgetProvider.java`), /0xFFEFD293 : p\.optDouble\("at"\) <= now \? 0x80B7C2AF : 0xFFB7C2AF/);
+});

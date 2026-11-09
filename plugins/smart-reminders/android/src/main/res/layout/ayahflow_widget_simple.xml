@@ -3,13 +3,13 @@
     android:id="@+id/simple_root" android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:padding="14dp" android:background="@drawable/ayahflow_widget_bg">
     <TextView android:id="@+id/simple_label" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:textColor="#D9BB79" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        android:textColor="#EFD293" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
     <TextView android:id="@+id/simple_title" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-        android:layout_marginTop="6dp" android:textColor="#F3F0E7" android:textSize="18sp" android:fontFamily="serif"
+        android:layout_marginTop="6dp" android:textColor="#F4ECD8" android:textSize="18sp" android:fontFamily="serif"
         android:ellipsize="end" android:maxLines="6" android:gravity="center_vertical|start" />
     <ProgressBar android:id="@+id/simple_progress" style="@android:style/Widget.ProgressBar.Horizontal"
         android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="6dp"
-        android:max="100" android:progressTint="#D9BB79" android:progressBackgroundTint="#32362B" android:visibility="gone" />
+        android:max="100" android:progressTint="#EFD293" android:progressBackgroundTint="#2A5A45" android:visibility="gone" />
     <TextView android:id="@+id/simple_sub" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="6dp" android:textColor="#A7AD9F" android:textSize="11sp" android:maxLines="2" android:ellipsize="end" />
+        android:layout_marginTop="6dp" android:textColor="#B7C2AF" android:textSize="11sp" android:maxLines="2" android:ellipsize="end" />
 </LinearLayout>
