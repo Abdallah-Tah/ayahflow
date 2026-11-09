@@ -1,6 +1,6 @@
 # Beta release pack — AyahFlow 1.0 (build 1)
 
-Prepared 2026-11-08 on `feature/mushaf-reader-accuracy`. Nothing here has been submitted: TestFlight, App Store and Google
+Prepared 2026-11-08 (updated for round 2: steps removed, widget redesign, smart adhkar) on `feature/mushaf-reader-accuracy`. Nothing here has been submitted: TestFlight, App Store and Google
 Play submissions need the owner's approval. Store text below is a draft for the owner to edit; every claim in it is
 backed by the build (see `RELEASE-CHECKLIST.md`, "Beta round 2026-11-08").
 
@@ -9,7 +9,7 @@ backed by the build (see `RELEASE-CHECKLIST.md`, "Beta round 2026-11-08").
 | Platform | Identifier | Version | State |
 | --- | --- | --- | --- |
 | iOS | `com.buildwithabdallah.ayahflow` (+ `AyahFlowWidget` extension) | 1.0 (1) | Development build signed (team KFHK4QSUC6) and installed on the owner's iPhone 16 Pro on 2026-11-08 as an in-place update; data verified before and after. A TestFlight build needs an Archive with distribution signing (owner's account). |
-| Android | `com.buildwithabdallah.ayahflow` | 1.0 (versionCode 1), minSdk 24, targetSdk 36 | **Blocked on this Mac**: Gradle needs JDK 21 (only JDK 17 is installed), and both emulator system images are incomplete (no `system.img`; the emulator also lacks a Qt library). Not built or run in this round. |
+| Android | `com.buildwithabdallah.ayahflow` | 1.0 (versionCode 1), minSdk 24, targetSdk 36 | Debug APK **builds** (2026-11-08, OpenJDK 21 from Homebrew, Gradle offline; 37 MB). **Not run**: no phone attached and both emulator system images are incomplete (no `system.img`). An earlier note here said JDK 21 was missing; it was installed under Homebrew. |
 
 Voice following (Tilawa, NPL-1.2) is **not included** (owner decision 2026-11-08). Beta builds are made without
 `npm run voice:fetch`; `www/voice/` then holds only the capture worklet, and Settings says the feature is not included.
@@ -17,7 +17,7 @@ Voice following (Tilawa, NPL-1.2) is **not included** (owner decision 2026-11-08
 ### Build commands (as run)
 
 ```sh
-npm run typecheck && npm test                      # 314 tests
+npm run typecheck && npm test                      # 333 tests
 npm run native:prepare && npx cap sync ios         # check the output says "Copying web assets"; a plain `npm run build`
                                                    # before sync removes the native bridge and the copy hook refuses
 xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS' \
@@ -29,8 +29,8 @@ xcrun devicectl device install app --device <iPhone UDID> <out>/Build/Products/D
 For TestFlight: Xcode → Product → Archive (Release, automatic signing, team KFHK4QSUC6) → Distribute → App Store
 Connect. Bump `CFBundleVersion` for every upload.
 
-Android, once JDK 21 is installed (owner approval needed for the download):
-`npm run native:prepare && npx cap sync android && cd android && ./gradlew bundleRelease` with an upload key the owner
+Android (JDK 21 is at `/opt/homebrew/opt/openjdk@21`):
+`npm run native:prepare && npx cap sync android && cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew bundleRelease` with an upload key the owner
 keeps outside the repository (never commit a keystore or its passwords).
 
 ## App size (measured)
@@ -40,7 +40,7 @@ keeps outside the repository (never commit a keystore or its passwords).
 | iOS Debug `.app` for device, widget included (2026-11-08) | 36 MB on disk |
 | … of which the web bundle (`public/`) | 29 MB: athan sounds 21 MB, JavaScript 3.8 MB, Quran fonts 2.2 MB, Quran text and data 1.5 MB |
 | Voice model (not shipped) | ~75 MB; would only ever be an optional download, and is not in this beta |
-| Android | not measured (not built in this round) |
+| Android debug APK (2026-11-08) | 37 MB |
 
 The athan recordings are the largest part. If a smaller first download matters, the bundled reciters beyond the default
 could become on-request downloads like the online ones (a product decision).
@@ -70,7 +70,7 @@ Memorisation and review
 Prayer and remembrance
 • Prayer times calculated on the device for your saved place, athan and reminders, and a private Salah record.
 • Adhkar for morning, evening and daily moments, each with its source.
-• Qibla direction, tasbih counters and widgets.
+• Qibla direction, tasbih counters and widgets: a five-page Home Screen widget (prayer, upcoming days, dhikr, daily moments, Quranic du'a).
 
 Private by design
 • No account, no analytics, no advertising. Your data stays on your device; export or delete it any time.
@@ -86,6 +86,11 @@ continuing; the Mushaf reader (page turns, scrolling a long page, highlights and
 and the athan; reminders on your chosen days; widgets; backup and restore from Settings.
 
 French and Arabic listings: translate from the in-app strings of the same features; have a native speaker check them.
+
+## Widget screenshots (real, simulator)
+
+`evidence/widget-2026-11-08/`: the medium widget before (`before-*`, the earlier charcoal design with Steps) and after
+(`after-*`: the five pages, dark, tinted and Arabic), iPhone 16 Pro simulator, iOS 18.6, simulator test data.
 
 ## Screenshots (real, from the app)
 
@@ -112,7 +117,7 @@ panel's access for that device, which was not granted in this session.
 | Notifications | When the user sets a reminder, athan or alarm | Reminders the user chooses. |
 | Location When In Use | When saving a place | Prayer times and Qibla for saved places; coordinates stay on the device. |
 | Location Always / `ACCESS_BACKGROUND_LOCATION` | Only if the user turns on place reminders | Dhikr reminder on leaving/arriving at a saved place with the app closed. **Google Play needs the background-location declaration form and a video; App Review needs the same explanation.** If not ready, ship the beta with place reminders labelled iOS-only or hidden on Android. |
-| Motion / `ACTIVITY_RECOGNITION` | Only if the user turns on the travel reminder or steps | Riding du'a and the step count; on the device only. |
+| Motion / `ACTIVITY_RECOGNITION` | Only if the user turns on the riding (vehicle) reminder | Noticing a car journey for the riding du'a; on the device only. No step counting or fitness data (the step tracker was removed in v29). |
 | AlarmKit (iOS 26+) | When the Fajr alarm is turned on | The Fajr alarm the user sets. |
 
 Android `allowBackup="true"`: Google's device backup may include the app's data (disclosed in the policy). Keep, so a new
@@ -134,5 +139,8 @@ recordings CC0 / CC BY / CC BY-SA, Tajweed annotations CC BY 4.0. The NPL-1.2 mo
 4. Google Play background-location declaration, or keep place reminders off on Android for the beta.
 5. Qualified review: Tajweed lesson drafts, adhkar wording and sources, the prayer notes. Labels stay "pending" until then.
 6. Licence: Tilawa/NPL-1.2 distribution (feature stays off until resolved); me_quran store distribution.
-7. On the iPhone: VoiceOver pass of the reader and the plan; widgets after this update; a Saturday (day off) with the
+7. On the iPhone: open AyahFlow once (it writes the v29 save); VoiceOver pass of the reader, the plan and the widget;
+   the redesigned widget on your Home Screen; a real departure from and return to Home, and a car journey, with the
+   automatic reminders on (Reminders › Your automatic adhkar shows what is set up); a Saturday (day off) with the
    practice reminder set.
+8. Android: connect a phone (or approve the emulator image download) so the APK, which now builds, can be run.

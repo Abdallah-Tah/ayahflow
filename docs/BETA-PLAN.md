@@ -58,7 +58,7 @@ Still to run: the same checks in an Android WebView and on a physical iPhone.
 - Optional recitation-following pack: not in the base app, downloaded on request with manifest, SHA-256, progress,
   atomic activation, removal and storage check. **Blocked on a licence and hosting decision** (section F).
 - **Done (phase 4):** Home order is Quran plan → prayer (next prayer, today's five) → remembrance (adhkar of the
-  moment, quick dhikr) → ayah of the moment → Qibla → native pulse (istighfar, steps). The daily-verse and
+  moment, quick dhikr) → ayah of the moment → Qibla → native pulse (istighfar; the step card was removed in v29). The daily-verse and
   short-recitation tiles, previously on both Home and the Quran tab, are now only on the Quran tab. The Quran tab leads
   with continue reading, memorisation, review practice, khatm and highlight review. Tajweed drafts and recording are
   under "Learn and record". Zakat, Eid and the hadith and names libraries stay where they were, one level down
@@ -84,7 +84,20 @@ Still to run: the same checks in an Android WebView and on a physical iPhone.
 | Place reminders | unchanged | needs the Play background-location declaration |
 | Offline | static only | static only |
 
-Android is BLOCKED on this Mac (JDK 21, emulator images).
+Android: builds on this Mac (round 2: JDK 21 was under Homebrew); not run (no phone, emulator images incomplete).
+
+## E2. Round 2 (2026-11-08): steps removed, smart adhkar, widget redesign
+
+- **Done:** step tracker removed everywhere (schema v29; old saves and backups import; Android's placed step widget
+  becomes Daily moments). Motion permission kept for the riding reminder only.
+- **Done:** the medium widget redesigned (emerald, cream, gold) with five in-place pages: Prayer, Upcoming, Dhikr,
+  Moments, Quran. Light, dark, tinted and Arabic checked on the simulator. Two defects fixed: Arabic tabs did not respond,
+  and a language change left the widget and reminders in the old language.
+- **Done:** one riding reminder per journey (30-minute gap), "Test" is a preview that records nothing (it used to record a
+  fake detection and could cancel the day's real morning or evening reminder), bedtime by the clock, and a status for each
+  automatic reminder.
+- **Not done, by design:** in-widget tabs on Android (each Android widget keeps its own tap; colours match).
+- **Needs the owner:** real crossings of Home and a real car journey on the iPhone; Android on a device.
 
 ## F. Needs an external decision or a physical device
 
@@ -95,4 +108,5 @@ Android is BLOCKED on this Mac (JDK 21, emulator images).
 - Physical iPhone and Android phone runs; VoiceOver and TalkBack; qualified review of Tajweed drafts and adhkar.
 - Push, merge, TestFlight, store submission: owner approval. The beta pack (store text, privacy answers, permission
   justifications, screenshots, build commands) is in `BETA-RELEASE.md`.
-- Android toolchain: JDK 21 and working emulator images, or an Android phone.
+- Android: the debug APK builds (JDK 21 was installed under Homebrew); running it needs an Android phone or repaired
+  emulator images.

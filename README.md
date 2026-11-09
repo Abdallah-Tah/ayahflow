@@ -6,15 +6,15 @@
 
 A local-first mobile app with a charcoal-and-gold interface: the whole Quran, daily adhkar, prayer times with a Salah tracker, and iOS widgets. Written in strict TypeScript with a small web runtime and a Capacitor 8 native adapter for iOS and Android.
 
-**Status: v0.1, not an App Store / Google Play release.** What has and has not been verified, by kind of evidence:
+**Status: beta candidate (1.0 build 1), not an App Store / Google Play release.** What has and has not been verified, by kind of evidence (2026-11-08):
 
 | Evidence | Status |
 | --- | --- |
-| Automated tests | `npm run typecheck` and `npm test` (115 Node tests) pass |
-| Native builds | iOS Debug build of the app and widget extension succeeds (Xcode 27) and is development-signed; Android not built in the latest round |
-| Simulator | The app launches and renders Home; widgets not tested on the simulator |
-| Real iPhone | Development build installed as an in-place update and launched; saved data (schema v13) kept |
-| Not yet done | Widgets, notifications, counters and offline use checked by hand on the iPhone; any Android device; Release signing; TestFlight; store review |
+| Automated tests | `npm run typecheck` and `npm test` (333 Node tests) pass; schema v29 |
+| Native builds | iOS Debug (app and widget extension) builds and is development-signed; Android `assembleDebug` builds (OpenJDK 21 from Homebrew, Gradle offline) |
+| Simulator (iPhone 16 Pro, iOS 18.6) | The app and the redesigned widget: all five widget pages switch in place in English and Arabic, light, dark and tinted |
+| Real iPhone | Development build installed as an in-place update; saved data verified identical after the install (backup kept) |
+| Not yet done | Any Android device or emulator run (emulator images incomplete); real geofence crossings and vehicle trips; VoiceOver; Release signing; TestFlight; store review |
 
 Details and the open items: `docs/RELEASE-CHECKLIST.md`.
 
@@ -66,7 +66,7 @@ Five tabs: **Home, Adhkar, Quran, Prayers, Progress.** Memorization practice, th
 - **Night beads** (a fourth counter look, optional): a full-screen strand of beads drawn in code, with 10 designs, 6 bead shapes and a sky that follows the prayer times for the saved place (or the phone's clock). A divider follows beads 33 and 66, and a minaret and tassel arrive when the round completes. The istighfar heart stays. Two istighfar phrases can show a Latin phonetic line, labelled as not yet reviewed by a qualified teacher. It only draws: counts rise only on taps.
 - **Dhikr library**: 16 sourced adhkar (salawat, tahlil, tasbih, istighfar, Quranic and daily duas) with the hadith's own count or a clearly labelled personal goal, favourites, recently used, personal targets, daily and lifetime totals, copy/share, optional vibration and sound. Your own dhikr stays labelled as added by you and is never edited.
 - **Short Recitations for Salah**: complete passages from longer surahs (e.g. 67:1–5, 55:1–13, 23:1–11, 59:21–24, 76:1–6), offered as suggestions only.
-- **Widgets (iOS)**: the prayer widget shows the prayers you confirmed; the **Ayah of the Moment** widget works out the rotation itself from a verse pool bundled in the extension (`ios/App/AyahFlowWidget/AyahMoments.json`, generated from the corpus by `npm run build`), so it keeps going without the app being opened. Slots last 30 elapsed minutes and start on :00 and :30, also across daylight saving changes. WidgetKit decides when a widget actually redraws, so a change can show a little late. A widget too small for an ayah names it instead of cutting it. Between midnight and Fajr the tracker still shows the previous day, so a late Isha is noted on its own day. Widget data is shared through a keychain access group; a failed write is logged and shown on the Prayers page. **Widget appearance after the latest changes has not yet been checked on the phone.**
+- **Widgets (iOS)**: the prayer widget's medium size has five pages switched in place by the tabs along its emerald header (iOS 17+): Prayer (the next prayer in a mosque arch, the day's five, Today's adhkar), Upcoming (Fridays, fasts, Ramadan and occasions; Umm al-Qura estimates marked “≈”), Dhikr (today's counts as rings), Moments (driving, leaving and entering home, before sleep; links only, no detection claimed) and Quran (the day's du'a). Colours follow light, dark and tinted Home Screens; Arabic is laid out right to left. Evidence: `evidence/widget-2026-11-08`. The prayer widget shows the prayers you confirmed; the **Ayah of the Moment** widget works out the rotation itself from a verse pool bundled in the extension (`ios/App/AyahFlowWidget/AyahMoments.json`, generated from the corpus by `npm run build`), so it keeps going without the app being opened. Slots last 30 elapsed minutes and start on :00 and :30, also across daylight saving changes. WidgetKit decides when a widget actually redraws, so a change can show a little late. A widget too small for an ayah names it instead of cutting it. Between midnight and Fajr the tracker still shows the previous day, so a late Isha is noted on its own day. Widget data is shared through a keychain access group; a failed write is logged and shown on the Prayers page. **Widget appearance after the latest changes has not yet been checked on the phone.**
 
 See `docs/CONTENT-PROVENANCE.md` for every source decision.
 
@@ -78,15 +78,16 @@ The **Adhkar** tab has morning, evening, after-prayer, sleep and waking collecti
 
 **Dhikr counters** (Adhkar tab and Today): istighfar ×100 (Muslim 2702 / in-book 48/52), istighfar with tawbah "more than 70" (Bukhari 6307) and the after-prayer tasbih 33/33/33 plus the tahlil (Muslim in-book 5/188). Each phrase is sliced verbatim from a cited hadith, and the build checks that the count is stated in the cited narration. Counts are self-reported, saved per day on the device (schema v9, `setCount` sets rather than adds, so a repeated save cannot inflate it) and included in exports.
 
-**Steps** (opt-in, iPhone and Android app only): read live from the phone's pedometer (iOS CMPedometer under Motion & Fitness; Android's step-counter sensor, labelled approximate because it has no history). The app stores only the on/off setting and the goal; step figures are never saved, exported or sent. **Not yet verified on a physical Android phone.**
+**No step counting.** The step tracker (and its Steps screen, Home card and widgets) was removed in schema v29 at the owner's request. Saves and backups from earlier versions still import; their two step settings are dropped. Step counts were never stored, so no recorded activity is lost.
 
 **Automatic reminders** (iPhone and Android app, all off until you turn them on):
 
 - *Places* — save Home, Work and your mosque from your current location (100–500 m). Leaving or arriving triggers the fitting dhikr; inside the morning or evening window the collection is grouped into the same notification.
-- *Vehicle* — Android uses activity-recognition transitions (`IN_VEHICLE`). iPhone checks recent motion when the system wakes the app (significant location change or leaving Home), so it can be late or missed; an iOS Shortcuts automation (“When CarPlay connects → Open URL `ayahflow://moment/vehicle`”) is the dependable route.
+- *Vehicle* — Android uses activity-recognition transitions (`IN_VEHICLE`). iPhone checks recent motion when the system wakes the app (significant location change or leaving Home), or, without the Motion permission, the speed between wakes; it can be late or missed. An iOS Shortcuts automation (“When CarPlay connects → Open URL `ayahflow://moment/vehicle`”) is the dependable route. One reminder per journey: vehicle evidence within 30 minutes of the previous evidence is the same journey.
+- *Bedtime* — at the chosen time, scheduled as a clock time so it follows a time-zone change on iPhone; counted as recited only when you confirm it.
 - *Time* — morning after Fajr, evening after ‘Asr and a sleep reminder, from prayer times calculated on the device (adhan-js; method, Hanafi ‘Asr and window span are settings).
 
-The rules engine (`src/adhkar.ts`) applies cooldowns, once-per-day collections, grouping and the user's choices; the native engines in `plugins/smart-reminders` (Swift and Java) follow the same steps while the app is closed. Saved places and detections stay on the device and are excluded from exports; no network request is made. **Not yet verified on physical devices** for real geofence crossings or vehicle trips; the OS can delay or drop background events.
+Reminders › *Your automatic adhkar* shows each one as on, off, needs setup, needs permission, paused by the phone or not available, with a **test** that only previews the notification (marked “Test”; never recorded as a detection, cooldowns untouched). The rules engine (`src/adhkar.ts`) applies cooldowns, the 5-minute bounce rule at a place's edge, one reminder per journey, once-per-day collections, grouping and the user's choices; the native engines in `plugins/smart-reminders` (Swift and Java) follow the same steps while the app is closed. Saved places and detections stay on the device and are excluded from exports; no network request is made. **Not yet verified on physical devices** for real geofence crossings or vehicle trips; the OS can delay or drop background events.
 
 ### Athan
 
@@ -184,7 +185,7 @@ See `docs/ARCHITECTURE.md` for the exact scheduler, failure behavior, and migrat
 
 ## Verification included
 
-- **`npm test`: 312 Node tests pass** (`tests/*.test.mjs`, 2026-11-08): the corpus and translation checksums and verbatim text, every page of the Mushaf against the corpus, the learning engine and daily plan, migrations to schema v28, adhkar sources, the Salah tracker, prayer times for every method across DST and time-zone changes, the prayer day around midnight, high-latitude Isha, unique athan ids, the Ayah of the Moment across DST, and the widget's verse pool.
+- **`npm test`: 333 Node tests pass** (`tests/*.test.mjs`, 2026-11-08): the corpus and translation checksums and verbatim text, every page of the Mushaf against the corpus, the learning engine and daily plan, migrations to schema v28, adhkar sources, the Salah tracker, prayer times for every method across DST and time-zone changes, the prayer day around midnight, high-latitude Isha, unique athan ids, the Ayah of the Moment across DST, and the widget's verse pool.
 - **Strict TypeScript build passes** (`npm run typecheck`).
 - **iOS:** Debug build for a physical iPhone succeeds; the development build is installed and launches (see `docs/RELEASE-CHECKLIST.md` for exactly what was and was not checked on the phone).
 - **Original v0.1 delivery only:** 11 browser integration checks (`evidence/browser-tests.json`) with a synthetic microphone stream; not re-run since.

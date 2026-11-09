@@ -3,6 +3,38 @@
 Status as of 2026-10-25, branch `feature/mushaf-design-locate`. Each tick names its evidence. Browser and unit tests do
 not stand in for native, simulator or device results, and nothing here is a store, privacy or accuracy certification.
 
+## Round 2026-11-08 (2): steps removed, smart adhkar, widget redesign (`feature/mushaf-reader-accuracy`)
+
+Same legend as below. Simulator = iPhone 16 Pro, iOS 18.6, Debug build of `f8e0d92` or later. Commits: `120ff12`
+(steps, schema v29), `1e562a7` (widget), `f8e0d92` (reminders), `beaa477` (Android colours).
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| `npm run typecheck`, `npm test`, `npm run build` | PASS | 333/333; new `steps-removed`, `widget-design`, `smart-moments` test files |
+| iOS simulator build and device build (development-signed, team KFHK4QSUC6) | PASS | BUILD SUCCEEDED; profile includes the owner's iPhone |
+| Android `assembleDebug` | PASS | `JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew --offline assembleDebug`: BUILD SUCCESSFUL, `app-debug.apk` 37 MB; merged manifest: no fitness permission, "AyahFlow · Daily moments" widget. **Correction:** the round below reported JDK 21 missing; Homebrew's `openjdk@21` was installed, only `/Library/Java` had been checked |
+| Android on an emulator or phone | BLOCKED | no device attached; both AVD images still lack `system.img` (repair is a download needing owner approval) |
+| Steps removed (screen, Home card, settings, widgets, pedometer, StepLog) | PASS | unit tests; simulator Home and widget; APK manifest |
+| Migration v28 → v29 (unit) | PASS | every other field kept; backups with any step settings (including malformed) import |
+| Migration v28 → v29 (simulator, existing data) | PASS | dry run on the pre-update snapshot changes only `version`, `health`; after the first real save the store is v29 without `health` |
+| Migration on the owner's data | PASS (dry run, install) / NOT TESTED (first launch) | backup `~/AyahFlow-iPhone-backups/iphone-backup-20261108-215238` (50 files, SHA-256 verified, second copy of the save byte-identical); dry run v28 → v29 changes only `version`, `health` (steps were on, goal 5,000); in-place install; save identical to the backup afterwards. The app could not be launched remotely (phone locked), so the v29 write happens at the owner's next use |
+| Widget: five pages switch in place (Prayer, Upcoming, Dhikr, Moments, Quran) | PASS (simulator) | each tab tapped on the Home Screen; the app did not open |
+| Widget: saved page kept across reinstall; old Steps selection → Moments | PASS (simulator) / unit | the chosen page was kept across the reinstalls of this session; raw value 2 is now `moments` |
+| Widget: after Isha shows tomorrow's times, Fajr highlighted, "Tomorrow" | PASS (simulator) | `evidence/widget-2026-11-08/after-1-prayer.jpg` at 21:3x |
+| Widget near midnight, at other times of day, across a reboot | NOT TESTED | timeline logic unchanged apart from the shown day; simulator clock not moved |
+| Widget: light, dark, tinted | PASS (simulator) | `after-prayer-dark.jpg`, `after-prayer-tinted.jpg` (fills become outlines) |
+| Widget: Arabic right to left | PASS (simulator), **defect fixed** | tabs did not respond in a right-to-left environment; row now laid out left to right with the order reversed. Letter spacing removed from Arabic; times in the app locale |
+| Widget: real counts | PASS (simulator) | 3 istighfar taps in the app → widget 3 / 100 |
+| Widget: Moments links | PASS (simulator) | "Leaving home" opened that adhkar with its source and "I recited it" |
+| Language change updates widget and reminder texts | PASS (simulator), **defect fixed** | they kept the old language until the next launch |
+| Test notification is a preview only | PASS (simulator), **defect fixed** | "Test · Leaving home" shown; afterwards no native log, history or detection |
+| One riding reminder per journey | PASS (unit) / NOT TESTED (real trip) | 2-hour drive reported every 4 min → 1 reminder; Swift/Java mirror compiled |
+| Leaving / entering home on a real crossing | NOT TESTED | needs the owner on the iPhone with Location Always |
+| Bedtime by the clock across a time-zone change | PASS (unit) / NOT TESTED (device) | calendar trigger (`on`) for sleep only |
+| Status per automatic reminder | PASS (unit, simulator) | Reminders › Your automatic adhkar |
+| VoiceOver on the widget and the new screens | NOT TESTED | labels set on every tab and row (static) |
+| Physical iPhone UI of this round | NOT TESTED | installed and data verified; the phone could not be driven |
+
 ## Beta round 2026-11-08 (`feature/mushaf-reader-accuracy`, phases 3–9)
 
 PASS = run and passed, with the evidence named; FAIL = run and failed; BLOCKED = could not be run here (reason given);

@@ -4,7 +4,7 @@ Preserve the approved charcoal/gold design and local-first core. Do not rewrite 
 
 ## Product truth
 
-This is a v0.1 prototype, not a shipped native product. The current library is eight complete surahs / 37 ayahs. Four Tajweed lessons are drafts awaiting a qualified teacher. Never silently remove those limitations or their in-app labels.
+This is a beta candidate (1.0 build 1), not a shipped store product. The library is the complete Quran (Tanzil Uthmani 1.1, 6,236 ayahs, checksum-pinned; 604 Madani page boundaries). Four Tajweed lessons are drafts awaiting a qualified teacher, and adhkar wording and sources await scholarly review. Never silently remove those limitations or their in-app labels. The step tracker was removed in schema v29 at the owner's request; do not reintroduce fitness tracking.
 
 Recognition, self-assessed recall, rule knowledge, speech recognition, and pronunciation verification are different evidence types. Never fabricate scores, heatmaps, model confidence, teacher approval, streaks, or user activity. Do not turn speech-to-text correctness into a Tajweed verdict.
 
