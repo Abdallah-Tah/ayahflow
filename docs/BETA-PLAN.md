@@ -69,18 +69,30 @@ Still to run: the same checks in an Android WebView and on a physical iPhone.
   iOS WKWebView does not follow Dynamic Type for these. The Quran text has its own size controls (Settings, reader).
   A full rem conversion is a broad layout change, left for after the beta.
 
-## E. Native audit (section 6 of the brief) — to do, item by item, with platform labels
+## E. Native audit (phase 6) — results in `RELEASE-CHECKLIST.md`, "Beta round 2026-11-08"
 
-Microphone permission and interruption; local playback and saved recordings; prayer times and athan; notification
-scheduling and cancellation; background reminders; widgets; Salah tracking persistence; Qibla; backgrounding, restart,
-upgrade; offline; export/restore/delete. Each gets iOS and Android status separately.
+| Area | iOS | Android |
+| --- | --- | --- |
+| Microphone: asked on tap; stops on background | PASS simulator | NOT RUN (code shared) |
+| Practice reminder, days off, permission on tap | PASS simulator | NOT RUN (`weekday` schedule, same plugin) |
+| Upgrade with existing data (v27 → v28) | PASS simulator and owner's iPhone | NOT RUN |
+| Restart / force-quit keeps memorisation | PASS simulator | NOT RUN |
+| Deep links from widgets and reminders | PASS simulator | **Defect fixed**: the link filter took only `/moment`, so the prayer, du'a, istighfar, steps and Jumu'ah widgets opened nothing. Not run |
+| Widgets | NOT TESTED this round | NOT RUN |
+| Fajr alarm | AlarmKit (unchanged) | notification fallback only (says so) |
+| Qibla live compass | iPhone only (unchanged) | bearing and distance only (says so) |
+| Place reminders | unchanged | needs the Play background-location declaration |
+| Offline | static only | static only |
+
+Android is BLOCKED on this Mac (JDK 21, emulator images).
 
 ## F. Needs an external decision or a physical device
 
-- **Voice model distribution.** Tilawa Zipformer and its phoneme corpus are NPL-1.2. Downloading them on demand means
-  either the app fetches the upstream GitHub release (a new third-party network endpoint) or the owner hosts a copy
-  (redistribution under NPL-1.2 terms). Both need the owner's decision after the licence review; until then the
-  feature stays off with an accurate explanation.
+- **Voice model: decided 2026-11-08, not in the beta.** No model is included or downloaded; optional AI downloads and
+  LLM features are postponed. Settings, the privacy policy and the iOS microphone string say so. Revisit only after
+  the NPL-1.2 licence is resolved for store distribution.
 - Apple Background Assets vs an in-app download: needs current Apple documentation and an App Store review stance.
 - Physical iPhone and Android phone runs; VoiceOver and TalkBack; qualified review of Tajweed drafts and adhkar.
-- Push, merge, TestFlight, store submission: owner approval.
+- Push, merge, TestFlight, store submission: owner approval. The beta pack (store text, privacy answers, permission
+  justifications, screenshots, build commands) is in `BETA-RELEASE.md`.
+- Android toolchain: JDK 21 and working emulator images, or an Android phone.

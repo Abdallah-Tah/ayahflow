@@ -3,6 +3,41 @@
 Status as of 2026-10-25, branch `feature/mushaf-design-locate`. Each tick names its evidence. Browser and unit tests do
 not stand in for native, simulator or device results, and nothing here is a store, privacy or accuracy certification.
 
+## Beta round 2026-11-08 (`feature/mushaf-reader-accuracy`, phases 3–9)
+
+PASS = run and passed, with the evidence named; FAIL = run and failed; BLOCKED = could not be run here (reason given);
+NOT TESTED = not attempted in this round. Simulator = iPhone 16 Pro, iOS 18.6, Debug build of the commit under test.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| `npm run typecheck` | PASS | strict TS, app and voice worker |
+| `npm test` | PASS | 314/314 (`tests/*.test.mjs`) |
+| `npm run build`, `native:prepare`, `cap sync ios`, iOS simulator and device builds | PASS | BUILD SUCCEEDED; `codesign --verify --deep --strict` OK |
+| Quran corpus and checksums | PASS | `quran-uthmani.xml` c5052534…81244, `quran-data.xml` 8867c1d8…c5c7a; `content/` and fonts unchanged vs `4fc670e` and `origin/main`; all 604 pages equal the corpus |
+| Migration v27 → v28 (unit) | PASS | `tests/daily.test.mjs`: every v27 field kept; bad sessions and days off rejected, not reset |
+| Migration v27 → v28 (simulator, existing data) | PASS | after the first save only `version`, `hifz`, `daysOff` differ from the pre-update snapshot |
+| Migration v27 → v28 (owner's iPhone, real data) | PASS | backup copied and SHA-256-verified first; dry run on that data; after the in-place install the save is v28 with cards, attempts, bookmarks, khatm, places, reminder, counts, adhkar log and 191 Salah records identical; downloaded athan files byte-identical. `detections` changed by one new wake event (a rolling 50-entry log) |
+| Daily plan: reading, memorisation, due reviews, difficult ayahs, today's records | PASS | unit tests; Chromium 320/375 px en + ar RTL; simulator |
+| Memorisation saved and resumed after force-quit | PASS | simulator: `simctl terminate` → relaunch shows "Continue memorising" at the saved ayah; browser reload resumes at ayah 2 of 3 |
+| Hifz answers are self-assessed recall, idempotent; revealing words saves nothing | PASS | unit tests; browser: one attempt `hifz:<session>:88`, evidence `self-assessed` |
+| Practice reminder on weekdays (days off) | PASS (simulator) | Saturday off → weekday schedule; fired 19:29 Sunday with "A few minutes with the Quran today." Skipping on the day off itself: unit test only |
+| Notification permission only after a tap | PASS (simulator) | prompt appeared on "Set reminder" |
+| Microphone: no request before a tap; backgrounding stops recording and keeps the clip | PASS (simulator) | record → Home button → back: idle mic, "Your recording" listed |
+| Deep links (`ayahflow://counter/…`, `/ayah/…`, `/home`) on iOS | PASS (simulator) | each opened the right screen |
+| Android widget links (`/prayer`, `/ayah`, `/counter`, `/steps`, `/home`) | FIXED, NOT RUN | the manifest filter accepted only `/moment`; widened (static evidence, regression test) |
+| Unreadable save can be copied out before reset | PASS (browser) | version-99 save: exported file identical, store untouched |
+| Privacy policy and permission strings match the beta | PASS | voice following described as not included; OS backups disclosed; mic string updated; tests in `privacy.test.mjs` |
+| Dependency audit | PASS (runtime) / NOTE (dev) | `npm audit --omit=dev`: 0. Dev tooling (Capacitor CLI → xcode → uuid; glob/minimatch/rimraf): 6 moderate, not shipped; `npm audit fix` left for a separate change |
+| Secrets in the repository | PASS | pattern scan of tracked files: none |
+| App icon | PASS | 1024 px, no alpha; Android mipmaps incl. adaptive |
+| Android build, emulator or phone | BLOCKED | Gradle needs JDK 21 (JDK 17 installed); both AVD images lack `system.img`; emulator lacks a Qt library. Downloads need owner approval |
+| VoiceOver / TalkBack | NOT TESTED | Accessibility Inspector access was declined earlier; no device session |
+| iOS Dynamic Type for interface text | FAIL (known gap) | UI sizes are fixed px; documented in `BETA-PLAN.md` |
+| Widgets after this update (iOS, Android) | NOT TESTED | |
+| Offline (airplane mode) on a device | NOT TESTED | static: no network call except opt-in recitation audio and athan downloads |
+| Physical-iPhone UI checks of this round's features | NOT TESTED | installed and data verified; UI not driven (devicectl cannot tap) |
+| 6.9" App Store screenshots | BLOCKED | simulator-panel access not granted for the Pro Max simulator; 6.3" set in `evidence/beta-2026-11-08/` |
+
 ## 1. Automated tests (done)
 
 - [x] `npm run typecheck` (strict TypeScript, app and voice worker) passes.
