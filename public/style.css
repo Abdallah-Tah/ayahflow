@@ -578,10 +578,13 @@ html[data-quran-font=amiri]{--quran-face:'AyahFlow Quran Amiri'}html[data-quran-
 /* Today's Quran plan (Home) */
 .plan-card{border:1px solid rgb(var(--tint) / .28);border-radius:var(--r-lg);background:var(--panel);padding:16px 15px 14px}
 .plan-steps{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
-.plan-step{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md, 12px);background:rgb(var(--tint) / .03);text-align:start}
+.plan-step{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:rgb(var(--tint) / .03);text-align:start}
 .plan-step strong{display:block;font:17px var(--serif)}.plan-step .grow{min-width:0}.plan-step .tiny{display:block;overflow-wrap:anywhere}
 .plan-step.done{border-color:rgb(var(--tint) / .35)}.plan-step.done strong{color:var(--muted)}
 .plan-card.rest .plan-step{opacity:.8}
-.days-off button{min-width:44px}
+.days-off-title{font:600 var(--fs-sm) var(--ui);margin:18px 0 8px}
+.days-off{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-bottom:6px}
+.days-off button{min-height:44px;padding:0 2px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:var(--fs-xs);color:var(--muted);background:transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.days-off button.active{color:var(--gold);border-color:rgb(var(--tint) / .55);background:rgb(var(--tint) / .1)}
 .hifz-verse{border-top:1px solid var(--line);padding:10px 0}.hifz-verse.current{border-top-color:rgb(var(--tint) / .45)}
 .hifz-verse .row.wrap{flex-wrap:wrap}

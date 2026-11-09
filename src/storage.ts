@@ -97,6 +97,13 @@ export async function exportProgress(s: AppState, name = 'ayahflow-progress.json
     await nativeBridge.exportFile(text, name);
     return;
 } downloadBlob(new Blob([text], { type: 'application/json' }), name); }
+/** The stored save exactly as it is on disk, exported as a file without reading or changing it: the way out when a save
+ * cannot be opened (a failed migration, a damaged file). Returns false when nothing is stored. */
+export async function exportRawState(name: string): Promise<boolean> { requireNativeStorage(); const raw = temporary ? temporaryState : nativeBridge ? await nativeBridge.load() : localStorage.getItem(STORAGE_KEY); if (!raw)
+    return false; if (nativeBridge)
+    await nativeBridge.exportFile(raw, name);
+else
+    downloadBlob(new Blob([raw], { type: 'application/json' }), name); return true; }
 export function downloadBlob(blob: Blob, name: string): void { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
 export async function shareAudio(r: Recording): Promise<void> { requireNativeStorage(); if (nativeBridge) {
     await nativeBridge.shareRecording(r);
