@@ -128,7 +128,8 @@ public class SmartRemindersPlugin extends Plugin {
     public void simulate(PluginCall call) {
         String event = call.getString("event");
         if (event == null) { call.reject("event required"); return; }
-        List<String> moments = SmartEngine.handle(getContext(), Collections.singletonList(event), System.currentTimeMillis());
+        // A preview: never the real engine, so a test leaves cooldowns and history as they were.
+        List<String> moments = SmartEngine.preview(getContext(), event);
         JSObject o = new JSObject();
         o.put("moments", new JSArray(new ArrayList<>(moments)));
         call.resolve(o);

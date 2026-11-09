@@ -14,6 +14,8 @@ export interface SmartBridge {
     requestMotion(): Promise<SmartStatus>;
     configure(config: NativeConfig): Promise<SmartStatus>;
     takeEvents(): Promise<{ event: Detection['event']; at: number; moments: Moment[]; detail?: string }[]>;
+    /** Posts the notification a reminder for `event` would show, marked "Test", and records nothing: no cooldown, no
+     * history, no detection log, no timed reminder cancelled. Resolves the moments it showed. */
     simulate(event: SmartEvent): Promise<Moment[]>;
     reset(): Promise<void>;
     openSettings(): Promise<void>;
@@ -64,11 +66,13 @@ export interface NativeConfig {
     location: boolean;
     vehicle: boolean;
     regions: { id: string; lat: number; lng: number; radius: number }[];
-    rules: { event: SmartEvent; moments: Moment[]; cooldownMinutes: number; quietAfter?: { moment: Moment; minutes: number } }[];
+    rules: { event: SmartEvent; moments: Moment[]; cooldownMinutes: number; quietAfter?: { moment: Moment; minutes: number }; sameJourneyMinutes?: number }[];
     oncePerDay: Moment[];
     windows: { day: string; morning: [number, number] | null; evening: [number, number] | null }[];
     /** `general`: no narrated du'a of its own, so a grouped notification takes its text from another moment. */
     copy: Record<string, { title: string; body: string; general?: boolean }>;
+    /** Put before the title of a test notification (Reminders › Test), so it never reads as a real detection. */
+    testPrefix?: string;
     enabled: Moment[];
     completedDay: Partial<Record<Moment, string>>;
     timedIds: Partial<Record<Moment, Record<string, number>>>;
@@ -241,7 +245,7 @@ export function nativeConfig(state: AppState, copy: (m: Moment) => { title: stri
     for (const m of ['morning', 'evening', 'sleep'] as Moment[]) timedIds[m] = Object.fromEntries(days.map(d => [dayKey(d.getTime()), timedId(m, dayKey(d.getTime()))]));
     return {
         location: state.smart.location, vehicle: state.smart.vehicle, regions,
-        rules: RULES.map(r => ({ event: r.event, moments: [...r.moments], cooldownMinutes: r.cooldownMinutes, ...(r.quietAfter ? { quietAfter: { ...r.quietAfter } } : {}) })),
+        rules: RULES.map(r => ({ event: r.event, moments: [...r.moments], cooldownMinutes: r.cooldownMinutes, ...(r.quietAfter ? { quietAfter: { ...r.quietAfter } } : {}), ...(r.sameJourneyMinutes !== undefined ? { sameJourneyMinutes: r.sameJourneyMinutes } : {}) })),
         oncePerDay: [...ONCE_PER_DAY],
         windows: days.map(d => { const w = windowsFor(state, d); return { day: w.day, morning: w.morning, evening: w.evening }; }),
         copy: Object.fromEntries(MOMENTS.map(m => [m, GENERAL_MOMENTS.includes(m) ? { ...copy(m), general: true } : copy(m)])),
@@ -325,6 +329,39 @@ export function groupedBody(moments: readonly Moment[], copy: NativeConfig['copy
  * after "Change to Only While Using"): nothing can be detected until Location is set to Always again. */
 export function backgroundBlocked(state: AppState, status: SmartStatus | null): boolean {
     return (state.smart.location || state.smart.vehicle) && !!status && status.location !== 'always';
+}
+/** How each automatic adhkar reminder stands, from the saved settings and what the phone reports, so the Reminders
+ * screen can say plainly which ones work and why the others do not. `on` means set up and allowed, never that delivery
+ * is guaranteed: iOS and Android may delay or drop background events. */
+export type AutoState = 'on' | 'off' | 'setup' | 'permission' | 'paused' | 'unavailable';
+export interface AutoStatus { moment: Moment; state: AutoState; reason: string }
+export const AUTO_MOMENTS = ['vehicle', 'leave_home', 'enter_home', 'sleep'] as const satisfies readonly Moment[];
+export function autoStatus(state: AppState, status: SmartStatus | null, notifications: 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale' | null, native: boolean): AutoStatus[] {
+    return AUTO_MOMENTS.map(moment => {
+        const s = (st: AutoState, reason: string): AutoStatus => ({ moment, state: st, reason });
+        if (!native) return s('unavailable', 'autoWebOnly');
+        if (!state.smart.moments.includes(moment)) return s('off', 'autoMomentOff');
+        if (moment === 'sleep') {
+            if (!state.smart.timed) return s('off', 'autoTimedOff');
+            if (!state.smart.sleepTime) return s('setup', 'autoNeedBedtime');
+        } else if (moment === 'vehicle') {
+            if (!state.smart.vehicle) return s('off', 'autoVehicleOff');
+        } else {
+            if (!state.smart.location) return s('off', 'autoPlacesOff');
+            if (!state.places.home) return s('setup', 'autoNeedHome');
+        }
+        if (notifications !== 'granted') return s('permission', 'autoNeedNotifications');
+        if (moment === 'sleep') return s('on', 'autoOnBedtime');
+        if (!status) return s('unavailable', 'autoNoStatus');
+        if (status.location !== 'always') return s('permission', 'autoNeedAlways');
+        if (status.backgroundRefresh === 'off' || status.backgroundRefresh === 'restricted') return s('paused', 'autoBackgroundRefresh');
+        if (moment === 'vehicle') {
+            if (status.vehicleWatch === false) return s('unavailable', 'autoNoVehicleWatch');
+            return s('on', status.motion === 'granted' ? 'autoOnVehicle' : 'autoOnSpeedOnly');
+        }
+        if (status.monitoring && !status.monitoring.includes('home')) return s('unavailable', 'autoNotWatchingHome');
+        return s('on', 'autoOnPlace');
+    });
 }
 export function mergeDetections(existing: Detection[], events: { event: Detection['event']; at: number; detail?: string; moments?: Moment[] }[]): Detection[] {
     const seen = new Set(existing.map(d => `${d.event}@${d.at}`));

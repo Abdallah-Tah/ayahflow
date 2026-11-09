@@ -103,6 +103,10 @@ public final class SmartEngine {
             SharedPreferences p = prefs(c);
             JSONObject history = new JSONObject(p.getString(HISTORY, "{\"last\":{},\"lastDay\":{}}"));
             JSONObject last = history.getJSONObject("last"), lastDay = history.getJSONObject("lastDay");
+            // When each event was last detected, reminder or not (history saved by earlier builds has none).
+            JSONObject seen = history.optJSONObject("seen");
+            if (seen == null) { seen = new JSONObject(); history.put("seen", seen); }
+            boolean seenChanged = false;
             String day = dayKey(now);
             JSONObject windows = null;
             JSONArray ws = cfg.optJSONArray("windows");
@@ -114,6 +118,13 @@ public final class SmartEngine {
                 for (int i = 0; rules != null && i < rules.length(); i++) {
                     JSONObject rule = rules.getJSONObject(i);
                     if (!event.equals(rule.optString("event"))) continue;
+                    // The same journey: evidence again within the gap keeps the journey going and stays quiet.
+                    if (rule.has("sameJourneyMinutes")) {
+                        boolean had = seen.has(event);
+                        double prev = seen.optDouble(event, now), gap = rule.optDouble("sameJourneyMinutes") * 60000;
+                        seen.put(event, Math.max((double) now, prev)); seenChanged = true;
+                        if (had && now >= prev && now - prev < gap) continue;
+                    }
                     // A crossing this soon after the opposite reminder is location jitter at the edge of the place.
                     JSONObject quiet = rule.optJSONObject("quietAfter");
                     if (quiet != null && last.has(quiet.optString("moment"))) { double l = last.optDouble(quiet.optString("moment")); if (now >= l && now - l < quiet.optDouble("minutes") * 60000) continue; }
@@ -131,10 +142,8 @@ public final class SmartEngine {
             for (String e : events) log.put(new JSONObject().put("event", e).put("at", now).put("moments", new JSONArray(moments)));
             while (log.length() > 50) log.remove(0);
             SharedPreferences.Editor edit = p.edit().putString(LOG, log.toString());
-            if (!moments.isEmpty()) {
-                for (String m : moments) { last.put(m, now); lastDay.put(m, day); }
-                edit.putString(HISTORY, history.toString());
-            }
+            if (!moments.isEmpty()) for (String m : moments) { last.put(m, now); lastDay.put(m, day); }
+            if (!moments.isEmpty() || seenChanged) edit.putString(HISTORY, history.toString());
             edit.apply();
             if (!moments.isEmpty()) post(c, cfg, moments);
         } catch (JSONException ignored) { }
@@ -156,7 +165,24 @@ public final class SmartEngine {
         return out;
     }
 
-    private static void post(Context c, JSONObject cfg, List<String> moments) {
+    /** The notification a reminder for `event` would show, posted now with "Test" before its title. Nothing is recorded:
+     * no cooldown, no history, no log entry. A test is not a detection. */
+    static synchronized List<String> preview(Context c, String event) {
+        List<String> moments = new ArrayList<>();
+        JSONObject cfg = config(c);
+        if (cfg == null) return moments;
+        JSONArray rules = cfg.optJSONArray("rules");
+        for (int i = 0; rules != null && i < rules.length(); i++) {
+            JSONObject rule = rules.optJSONObject(i);
+            if (rule != null && event.equals(rule.optString("event"))) moments.addAll(strings(rule.optJSONArray("moments")));
+        }
+        if (!moments.isEmpty()) post(c, cfg, moments, true);
+        return moments;
+    }
+
+    private static void post(Context c, JSONObject cfg, List<String> moments) { post(c, cfg, moments, false); }
+
+    private static void post(Context c, JSONObject cfg, List<String> moments, boolean test) {
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null)
             nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Adhkar reminders", NotificationManager.IMPORTANCE_DEFAULT));
@@ -169,11 +195,11 @@ public final class SmartEngine {
         PendingIntent tap = PendingIntent.getActivity(c, (int) (System.currentTimeMillis() % 100000), open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder b = new NotificationCompat.Builder(c, CHANNEL)
             .setSmallIcon(c.getResources().getIdentifier("ic_stat_ayahflow", "drawable", c.getPackageName()))
-            .setContentTitle(String.join(" · ", titles))
+            .setContentTitle(test ? cfg.optString("testPrefix", "Test") + " · " + String.join(" · ", titles) : String.join(" · ", titles))
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setAutoCancel(true).setContentIntent(tap);
-        try { NotificationManagerCompat.from(c).notify((int) (System.currentTimeMillis() % Integer.MAX_VALUE), b.build()); } catch (SecurityException ignored) { }
+        try { NotificationManagerCompat.from(c).notify(test ? 23000003 : (int) (System.currentTimeMillis() % Integer.MAX_VALUE), b.build()); } catch (SecurityException ignored) { }
     }
 
     /** Same as src/smart.ts groupedBody: each moment with a narrated du'a of its own under its title when there are several

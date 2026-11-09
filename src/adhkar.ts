@@ -48,9 +48,14 @@ export function sourceUrl(s: HadithSource): string { const c = s.ref.split(':')[
 export type SmartEvent = 'EXIT_HOME' | 'ENTER_HOME' | 'ENTER_WORK' | 'EXIT_WORK' | 'ENTER_MOSQUE' | 'EXIT_MOSQUE' | 'ENTER_VEHICLE' | 'MORNING' | 'EVENING' | 'SLEEP';
 /** `quietAfter`: the event is taken as a boundary bounce (location jitter at the edge of a saved place) and stays quiet
  * when the opposite reminder was sent less than `minutes` ago, so "Leaving home" is not followed by "Entering home". */
-export interface Rule { event: SmartEvent; moments: Moment[]; cooldownMinutes: number; quietAfter?: { moment: Moment; minutes: number } }
+/** `sameJourneyMinutes`: evidence of the same event this soon after the previous evidence (not the previous reminder)
+ * belongs to the same journey and stays quiet, so a long drive, which iOS reports again at each significant location
+ * change, gets one riding reminder. A gap that long without evidence starts a new journey. */
+export interface Rule { event: SmartEvent; moments: Moment[]; cooldownMinutes: number; quietAfter?: { moment: Moment; minutes: number }; sameJourneyMinutes?: number }
 /** Minutes after leaving or entering a saved place during which the opposite crossing is taken as location jitter. */
 export const BOUNCE_MINUTES = 5;
+/** Minutes without vehicle evidence after which the next evidence is a new journey (a stop for fuel or prayer is not). */
+export const JOURNEY_GAP_MINUTES = 30;
 /** Event → reminder. Cooldowns stop repeated alerts when a boundary is crossed several times. */
 export const RULES: readonly Rule[] = [
     { event: 'EXIT_HOME', moments: ['leave_home'], cooldownMinutes: 45, quietAfter: { moment: 'enter_home', minutes: BOUNCE_MINUTES } },
@@ -59,7 +64,7 @@ export const RULES: readonly Rule[] = [
     { event: 'EXIT_WORK', moments: ['work_leave'], cooldownMinutes: 240 },
     { event: 'ENTER_MOSQUE', moments: ['mosque_enter'], cooldownMinutes: 30, quietAfter: { moment: 'mosque_leave', minutes: BOUNCE_MINUTES } },
     { event: 'EXIT_MOSQUE', moments: ['mosque_leave'], cooldownMinutes: 30, quietAfter: { moment: 'mosque_enter', minutes: BOUNCE_MINUTES } },
-    { event: 'ENTER_VEHICLE', moments: ['vehicle'], cooldownMinutes: 60 },
+    { event: 'ENTER_VEHICLE', moments: ['vehicle'], cooldownMinutes: 30, sameJourneyMinutes: JOURNEY_GAP_MINUTES },
     { event: 'MORNING', moments: ['morning'], cooldownMinutes: 0 },
     { event: 'EVENING', moments: ['evening'], cooldownMinutes: 0 },
     { event: 'SLEEP', moments: ['sleep'], cooldownMinutes: 0 },
@@ -68,8 +73,9 @@ export const RULES: readonly Rule[] = [
 export const ONCE_PER_DAY: readonly Moment[] = ['morning', 'evening', 'sleep'];
 /** Time windows for one local day (epoch ms). Morning and evening are reminders, not rulings. */
 export interface DayWindows { day: string; morning: [number, number] | null; evening: [number, number] | null }
-export interface ReminderHistory { last: Partial<Record<Moment, number>>; lastDay: Partial<Record<Moment, string>>; completedDay: Partial<Record<Moment, string>> }
-export const emptyHistory = (): ReminderHistory => ({ last: {}, lastDay: {}, completedDay: {} });
+/** `seen`: when each event was last detected, reminder or not (history kept by earlier builds has none). */
+export interface ReminderHistory { last: Partial<Record<Moment, number>>; lastDay: Partial<Record<Moment, string>>; completedDay: Partial<Record<Moment, string>>; seen?: Partial<Record<SmartEvent, number>> }
+export const emptyHistory = (): ReminderHistory => ({ last: {}, lastDay: {}, completedDay: {}, seen: {} });
 export interface Decision { moments: Moment[]; url: string }
 const inWindow = (w: [number, number] | null, at: number) => !!w && at >= w[0] && at < w[1];
 /** Decide what (if anything) to remind for an event. Deterministic; the native plugins implement the same steps.
@@ -87,7 +93,10 @@ export function decide(event: SmartEvent, at: number, windows: DayWindows, histo
         return last !== undefined && at - last < cooldown * 60000 && at >= last;
     };
     const q = rule.quietAfter, bounce = q && history.last[q.moment] !== undefined && at >= history.last[q.moment]! && at - history.last[q.moment]! < q.minutes * 60000;
-    const moments = bounce ? [] : rule.moments.filter(m => !blocked(m, rule.cooldownMinutes));
+    const prev = history.seen?.[event], sameJourney = rule.sameJourneyMinutes !== undefined && prev !== undefined && at >= prev && at - prev < rule.sameJourneyMinutes * 60000;
+    // The evidence is noted whether or not a reminder follows, so the journey stays one journey while it lasts.
+    const seen = rule.sameJourneyMinutes !== undefined ? { ...history.seen, [event]: Math.max(at, prev ?? at) } : history.seen;
+    const moments = bounce || sameJourney ? [] : rule.moments.filter(m => !blocked(m, rule.cooldownMinutes));
     // Grouping: a location or vehicle event inside an open morning/evening window carries that collection too,
     // so the user gets one reminder, not two. Morning remains available even if the user never leaves home.
     if (!['MORNING', 'EVENING', 'SLEEP'].includes(event) && moments.length) {
@@ -95,8 +104,8 @@ export function decide(event: SmartEvent, at: number, windows: DayWindows, histo
         if (inWindow(windows.evening, at) && !blocked('evening', 0)) moments.push('evening');
     }
     if (!moments.length)
-        return { decision: null, history };
-    const next: ReminderHistory = { last: { ...history.last }, lastDay: { ...history.lastDay }, completedDay: { ...history.completedDay } };
+        return { decision: null, history: seen === history.seen ? history : { ...history, seen } };
+    const next: ReminderHistory = { last: { ...history.last }, lastDay: { ...history.lastDay }, completedDay: { ...history.completedDay }, ...(seen ? { seen } : {}) };
     for (const m of moments) { next.last[m] = at; next.lastDay[m] = windows.day; }
     return { decision: { moments, url: momentUrl(moments) }, history: next };
 }

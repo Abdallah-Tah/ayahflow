@@ -23,6 +23,8 @@ async function shareFile(name, data, encoding) { if (!/^[\w.-]+$/.test(name))
 const ADHKAR_SOUND = Capacitor.getPlatform() === 'ios' ? { sound: 'public/sounds/adhkar-chime.caf' } : {};
 /** Native geofence / vehicle / notification engine (plugins/smart-reminders). */
 const Smart = registerPlugin('AyahFlowSmart');
+/** The local date and time of `at` as calendar fields (Capacitor's `on`), for a reminder tied to the clock. */
+export const wallClock = (at) => { const d = new Date(at); return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), hour: d.getHours(), minute: d.getMinutes() }; };
 /** Timed reminder ids: moment code * 1e6 + yymmdd (morning 1, evening 2, sleep 3). Kept clear of other ids. */
 const TIMED = (id) => id >= 1000000 && id < 4000000;
 /** Athan ids: prayer code (4-8) * 1e6 + yymmdd. */
@@ -167,7 +169,10 @@ export const bridge = {
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });
             if (!list.length) return;
             if ((await LocalNotifications.checkPermissions()).display !== 'granted') throw Error('Notification permission was not granted');
-            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, ...ADHKAR_SOUND, schedule: { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, actionTypeId: DHIKR_ACTIONS, smallIcon: 'ic_stat_ayahflow' })) });
+            // Bedtime is a time on the clock, not a moment in absolute time: a calendar trigger follows the phone into a new
+            // time zone (iOS), so the reminder still comes at the chosen bedtime. Morning and evening follow the prayer
+            // times of the saved place, which are instants.
+            await LocalNotifications.schedule({ notifications: list.filter(n => TIMED(n.id) && n.at > Date.now()).map(n => ({ id: n.id, title: n.title, body: n.body, largeBody: n.body, ...ADHKAR_SOUND, schedule: n.moment === 'sleep' ? { on: wallClock(n.at), allowWhileIdle: true } : { at: new Date(n.at), allowWhileIdle: true }, extra: { url: n.url }, actionTypeId: DHIKR_ACTIONS, smallIcon: 'ic_stat_ayahflow' })) });
         },
     },
     /** Replaces pending athan alerts. iOS plays a ≤30 s sound from Library/Sounds (copied there by the plugin);

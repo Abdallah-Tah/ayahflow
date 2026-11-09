@@ -102,7 +102,8 @@ public class SmartRemindersPlugin: CAPPlugin, CAPBridgedPlugin {
     /// Runs the real decision and notification path for an event, so the user can check their setup.
     @objc func simulate(_ call: CAPPluginCall) {
         guard let event = call.getString("event") else { call.reject("event required"); return }
-        DispatchQueue.main.async { call.resolve(["moments": self.engine.handle([event])]) }
+        // A preview: never the real engine, so a test leaves cooldowns, history and timed reminders as they were.
+        DispatchQueue.main.async { call.resolve(["moments": self.engine.preview(event)]) }
     }
 
     @objc func reset(_ call: CAPPluginCall) { DispatchQueue.main.async { self.engine.reset(); call.resolve() } }

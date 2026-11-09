@@ -10,7 +10,8 @@ public struct SmartConfig: Codable {
     public struct Region: Codable { let id: String; let lat: Double; let lng: Double; let radius: Double }
     public struct Quiet: Codable { let moment: String; let minutes: Double }
     /// `quietAfter`: a crossing this soon after the opposite reminder is location jitter at the edge of the place.
-    public struct Rule: Codable { let event: String; let moments: [String]; let cooldownMinutes: Double; let quietAfter: Quiet? }
+    /// `sameJourneyMinutes`: evidence this soon after the previous evidence of the event is the same journey (no reminder).
+    public struct Rule: Codable { let event: String; let moments: [String]; let cooldownMinutes: Double; let quietAfter: Quiet?; let sameJourneyMinutes: Double? }
     public struct Window: Codable { let day: String; let morning: [Double]?; let evening: [Double]? }
     public struct Copy: Codable { let title: String; let body: String; let general: Bool? }
     var location: Bool
@@ -30,11 +31,23 @@ public struct SmartConfig: Codable {
     /// Planned timed reminder times by moment and day (ms): once delivered, the collection is not grouped in again that day.
     /// Optional so configurations saved by earlier builds still decode.
     var timedAt: [String: [String: Double]]?
+    /// Put before the title of a test notification so it never reads as a real detection (optional, as above).
+    var testPrefix: String?
 }
 
 private struct History: Codable {
     var last: [String: Double] = [:]
     var lastDay: [String: String] = [:]
+    /// When each event was last detected, reminder or not (for the same-journey rule).
+    var seen: [String: Double] = [:]
+    init() {}
+    /// History saved by earlier builds has no `seen`: it still decodes, so cooldowns are kept across the update.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        last = try c.decodeIfPresent([String: Double].self, forKey: .last) ?? [:]
+        lastDay = try c.decodeIfPresent([String: String].self, forKey: .lastDay) ?? [:]
+        seen = try c.decodeIfPresent([String: Double].self, forKey: .seen) ?? [:]
+    }
 }
 
 public struct LoggedEvent: Codable { let event: String; let at: Double; let moments: [String]; var detail: String? = nil }
@@ -376,6 +389,12 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         var moments: [String] = []
         for event in events {
             guard let rule = cfg.rules.first(where: { $0.event == event }) else { continue }
+            // The same journey: evidence again within the gap keeps the journey going and stays quiet.
+            if let gap = rule.sameJourneyMinutes {
+                let prev = history.seen[event]
+                history.seen[event] = max(now, prev ?? now)
+                if let prev, now >= prev, now - prev < gap * 60000 { continue }
+            }
             if let q = rule.quietAfter, let last = history.last[q.moment], now >= last, now - last < q.minutes * 60000 { continue }
             for m in rule.moments where !blocked(m, rule.cooldownMinutes) && !moments.contains(m) { moments.append(m) }
         }
@@ -387,7 +406,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         var log = (defaults.data(forKey: logKey)).flatMap { try? JSONDecoder().decode([LoggedEvent].self, from: $0) } ?? []
         log.append(contentsOf: events.map { LoggedEvent(event: $0, at: now, moments: moments) })
         defaults.set(try? JSONEncoder().encode(Array(log.suffix(50))), forKey: logKey)
-        guard !moments.isEmpty else { return [] }
+        guard !moments.isEmpty else { defaults.set(try? JSONEncoder().encode(history), forKey: historyKey); return [] }
         for m in moments { history.last[m] = now; history.lastDay[m] = day }
         defaults.set(try? JSONEncoder().encode(history), forKey: historyKey)
         // A grouped morning/evening replaces today's timed reminder for it.
@@ -397,9 +416,18 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         return moments
     }
 
-    private func post(_ moments: [String], _ cfg: SmartConfig) {
+    /// The notification a reminder for `event` would show, posted now with "Test" before its title. Nothing is recorded:
+    /// no cooldown, no history, no log entry, no timed reminder cancelled. A test is not a detection.
+    func preview(_ event: String) -> [String] {
+        guard let cfg = config, let rule = cfg.rules.first(where: { $0.event == event }) else { return [] }
+        post(rule.moments, cfg, test: true)
+        return rule.moments
+    }
+
+    private func post(_ moments: [String], _ cfg: SmartConfig, test: Bool = false) {
         let content = UNMutableNotificationContent()
-        content.title = moments.compactMap { cfg.copy[$0]?.title }.joined(separator: " · ")
+        let title = moments.compactMap { cfg.copy[$0]?.title }.joined(separator: " · ")
+        content.title = test ? "\(cfg.testPrefix ?? "Test") · \(title)" : title
         content.body = SmartReminders.groupedBody(moments, cfg.copy)
         // The bundled adhkar chime (scripts/make-chime.mjs); iOS falls back to the default sound if it is missing.
         content.sound = UNNotificationSound(named: UNNotificationSoundName("public/sounds/adhkar-chime.caf"))
@@ -408,7 +436,7 @@ public struct LoggedEvent: Codable { let event: String; let at: Double; let mome
         content.categoryIdentifier = "ayahflow-dhikr"
         // Read by @capacitor/local-notifications' tap handler and forwarded to the web layer.
         content.userInfo = ["cap_extra": ["url": "ayahflow://moment/" + moments.joined(separator: "+")]]
-        let request = UNNotificationRequest(identifier: "ayahflow.smart.\(Int(Date().timeIntervalSince1970))", content: content, trigger: nil)
+        let request = UNNotificationRequest(identifier: test ? "ayahflow.smart.test" : "ayahflow.smart.\(Int(Date().timeIntervalSince1970))", content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
 
