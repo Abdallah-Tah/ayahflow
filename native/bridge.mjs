@@ -11,6 +11,8 @@ const index = async () => JSON.parse((await Preferences.get({ key: INDEX })).val
 const saveIndex = async (rows) => Preferences.set({ key: INDEX, value: JSON.stringify(rows) });
 function audioPath(id) { if (!/^[a-zA-Z0-9-]{1,80}$/.test(id))
     throw Error('Invalid recording id'); return `ayahflow/audio/${id}.bin`; }
+/** Daily practice reminder ids: 701 every day, 702–708 one per weekday. */
+const PRACTICE_IDS = [701, 702, 703, 704, 705, 706, 707, 708];
 function base64(blob) { return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result).split(',')[1]); r.onerror = () => reject(r.error); r.readAsDataURL(blob); }); }
 function blob64(text, type) { const raw = atob(text), bytes = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i++)
     bytes[i] = raw.charCodeAt(i); return new Blob([bytes], { type }); }
@@ -221,7 +223,7 @@ export const bridge = {
     async recordings() { const rows = await index(); return Promise.all(rows.map(async (r) => { const { data } = await Filesystem.readFile({ path: audioPath(r.id), directory: Directory.Data }); return { ...r, blob: data instanceof Blob ? data : blob64(data, r.mime) }; })); },
     async putRecording(r) { const { blob, ...meta } = r; await Filesystem.writeFile({ path: audioPath(r.id), directory: Directory.Data, data: await base64(blob), recursive: true }); const rows = await index(); await saveIndex([...rows.filter(x => x.id !== r.id), meta]); },
     async deleteRecording(id) { const rows = await index(); await Filesystem.deleteFile({ path: audioPath(id), directory: Directory.Data }); await saveIndex(rows.filter(x => x.id !== id)); },
-    async clear() { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); await bridge.smart.scheduleIstighfar([]).catch(() => { }); await bridge.smart.scheduleRotation([]).catch(() => { }); await bridge.smart.scheduleSalah([]).catch(() => { }); await bridge.smart.scheduleBefore([]).catch(() => { }); await LocalNotifications.cancel({ notifications: [{ id: 23000001 }, { id: 23000002 }] }).catch(() => { }); await bridge.scheduleAthan([]).catch(() => { }); await bridge.deleteCustomAthan().catch(() => { }); await Filesystem.rmdir({ path: 'ayahflow/athan', directory: Directory.Data, recursive: true }).catch(() => { }); await bridge.setWidgetData(null).catch(() => { }); try {
+    async clear() { await LocalNotifications.cancel({ notifications: PRACTICE_IDS.map(id => ({ id })) }); await Smart.reset().catch(() => { }); await bridge.smart.scheduleTimed([]).catch(() => { }); await bridge.smart.scheduleIstighfar([]).catch(() => { }); await bridge.smart.scheduleRotation([]).catch(() => { }); await bridge.smart.scheduleSalah([]).catch(() => { }); await bridge.smart.scheduleBefore([]).catch(() => { }); await LocalNotifications.cancel({ notifications: [{ id: 23000001 }, { id: 23000002 }] }).catch(() => { }); await bridge.scheduleAthan([]).catch(() => { }); await bridge.deleteCustomAthan().catch(() => { }); await Filesystem.rmdir({ path: 'ayahflow/athan', directory: Directory.Data, recursive: true }).catch(() => { }); await bridge.setWidgetData(null).catch(() => { }); try {
         await Filesystem.rmdir({ path: 'ayahflow', directory: Directory.Data, recursive: true });
     }
     catch (e) {
@@ -236,9 +238,11 @@ export const bridge = {
     } await Preferences.remove({ key: STATE }); await Preferences.remove({ key: INDEX }); },
     async exportFile(text, name) { await shareFile(name, text, Encoding.UTF8); },
     async shareRecording(r) { const ext = r.mime.includes('mp4') ? 'm4a' : r.mime.includes('ogg') ? 'ogg' : 'webm'; await shareFile(`ayahflow-${r.surah}-${r.ayah}.${ext}`, await base64(r.blob)); },
-    async remind(time) { await LocalNotifications.cancel({ notifications: [{ id: 701 }] }); if (time === null)
+    /** The daily practice reminder: every day (id 701), or on the chosen weekdays only (702–708, Sunday first) when the
+     * learner keeps days off. `text` is in the app's language. Cancels whatever was scheduled before. */
+    async remind(time, days, text) { await LocalNotifications.cancel({ notifications: PRACTICE_IDS.map(id => ({ id })) }); if (time === null)
         return; const permission = await LocalNotifications.requestPermissions(); if (permission.display !== 'granted')
-        throw Error('Notification permission was not granted'); const [hour, minute] = time.split(':').map(Number); await LocalNotifications.schedule({ notifications: [{ id: 701, title: 'AyahFlow', body: 'A few minutes of Quran practice. Your next review is ready.', schedule: { on: { hour, minute }, repeats: true }, smallIcon: 'ic_stat_ayahflow' }] }); },
+        throw Error('Notification permission was not granted'); const [hour, minute] = time.split(':').map(Number); const on = Array.isArray(days) && days.length < 7 ? days : null; const note = (id, schedule) => ({ id, title: text?.title || 'AyahFlow', body: text?.body || 'A few minutes with the Quran today.', schedule, smallIcon: 'ic_stat_ayahflow' }); await LocalNotifications.schedule({ notifications: on ? on.map(d => note(702 + d, { on: { weekday: d + 1, hour, minute }, repeats: true })) : [note(701, { on: { hour, minute }, repeats: true })] }); },
     haptic() { Haptics.impact({ style: ImpactStyle.Light }).catch(() => { }); }
 };
 await App.addListener('appStateChange', ({ isActive }) => { if (!isActive)

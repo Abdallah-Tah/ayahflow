@@ -20,7 +20,7 @@ interface NativeBridge {
     shareRecording: (r: Recording) => Promise<void>;
     shareText: (title: string, text: string) => Promise<void>;
     shareImage: (base64: string, name: string) => Promise<void>;
-    remind: (time: string | null) => Promise<void>;
+    remind: (time: string | null, days?: number[], text?: { title: string; body: string }) => Promise<void>;
     haptic: () => void;
     smart: SmartBridge;
     scheduleAthan: (list: AthanAlert[]) => Promise<void>;
@@ -124,8 +124,9 @@ export async function shareText(title: string, text: string): Promise<'shared' |
     await navigator.share({ title, text });
     return 'shared';
 } await navigator.clipboard.writeText(text); return 'copied'; }
-export async function setReminder(time: string | null): Promise<void> { if (!nativeBridge)
-    throw new Error('nativeOnly'); await nativeBridge.remind(time); }
+/** The daily practice reminder at `time`, on `days` (weekdays 0–6; all seven when there are no days off). */
+export async function setReminder(time: string | null, days: number[] = [0, 1, 2, 3, 4, 5, 6], text?: { title: string; body: string }): Promise<void> { if (!nativeBridge)
+    throw new Error('nativeOnly'); await nativeBridge.remind(time, days, text); }
 export function haptic(): void { nativeBridge?.haptic(); }
 
 /** Native smart-reminder engine, or null on the web (where automatic detection is not available). */

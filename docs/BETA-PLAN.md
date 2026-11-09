@@ -40,13 +40,21 @@ social features, accounts and sync.
 
 Still to run: the same checks in an Android WebView and on a physical iPhone.
 
-## D. Missing, approved for this release
+## D. Approved for this release
 
-- Daily Quran plan on Home connecting Continue reading, memorisation, due reviews, difficult verses and today's
-  progress, with an adjustable daily time (the existing 3/7/10-minute goal), reusing the existing scheduler.
-- Hifz: saved session (continue where you stopped), reveal one word / one verse at a time, repeat selected verses,
-  practise verses marked difficult; self-assessment recorded as `recall` evidence in the existing engine, never as a
-  recognition or Tajweed result.
+- **Done (phase 3, schema v28):** "Today's Quran" plan first on Home (`src/daily.ts`). It shows continue reading or
+  today's khatm portion, the memorisation session, due reviews (engine `dueItems`), memorised ayahs due outside the
+  chosen surahs, and difficult ayahs (engine `weakItems`). Today's line counts only saved records. The plan uses the
+  existing 3/7/10-minute goal and the learner's days off; it schedules nothing itself.
+- **Done:** the memorisation session is saved (`state.hifz`) and resumes after closing the app. One ayah at a time
+  (or the whole passage); reveal one word or the whole ayah; repeat one ayah ×N with audio. "Remembered" / "Needs
+  practice" is recorded through `applyAnswer` as self-assessed `recall` evidence, idempotent per session and ayah.
+  Revealing words saves nothing.
+- **Done:** days off (Settings › Daily goal). The practice reminder is scheduled only on the days the learner keeps.
+  Its text is in the app's language and no longer claims "your next review is ready" when nothing is due.
+- **Fixed (defect found in phase 3):** "Recite this surah from memory" on any surah over 15 ayahs saved a session
+  the next launch rejected ("saved data could not be opened"). The limit is now 286 (Al-Baqarah); regression test in
+  `tests/daily.test.mjs`.
 - Optional recitation-following pack: not in the base app, downloaded on request with manifest, SHA-256, progress,
   atomic activation, removal and storage check. **Blocked on a licence and hosting decision** (section F).
 - UI: Quran and learning first on Home; secondary features (steps, bead designs, Zakat, Eid, libraries) one level
