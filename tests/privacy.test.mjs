@@ -21,3 +21,11 @@ test('The privacy manifest is a resource of the App target, so it ships inside A
     assert.match(pbx, /PrivacyInfo\.xcprivacy in Resources/);
     assert.match(read('ios/App/App/PrivacyInfo.xcprivacy'), /<key>NSPrivacyTracking<\/key><false\/>/);
 });
+
+test('Beta: voice following is described as not included, in the app and in the privacy policy', () => {
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8'), policy = readFileSync(new URL('../site/privacy/index.html', import.meta.url), 'utf8');
+    assert.match(app, /\$\{voiceAvailable \? `<label class="setting-row">[^`]*voice-toggle[^`]*` : `<div class="setting-row">[^`]*voiceNotIncluded/, 'without the model, Settings explains why instead of hiding it');
+    assert.doesNotMatch(policy, /voice-following model are all inside the app/);
+    assert.match(policy, /not included in this version/);
+    assert.match(policy, /iCloud Backup on iPhone, Google backup on Android/, 'OS backups are disclosed');
+});

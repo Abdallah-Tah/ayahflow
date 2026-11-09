@@ -92,7 +92,9 @@ The rules engine (`src/adhkar.ts`) applies cooldowns, once-per-day collections, 
 
 Five openly licensed recordings are bundled (Wikimedia Commons; credits and licences in the app and in `docs/THIRD-PARTY-NOTICES.md`), with a separate Fajr choice. Six well-known recordings from AlAdhan (Islamic Network) — three by Mishary Rashid Alafasy, Mansour Al-Zahrani, Hafiz Mustafa Özcan and Ahmad al-Nafees (Fajr) — can be streamed to preview and downloaded on request; they are not bundled. Users can also import their own recording. iOS plays a 28 s alert (44.1 kHz PCM; iOS caps notification sounds at 30 s); Android plays the full recording. None of the recordings has yet been checked by listening for this app.
 
-### Voice following (experimental)
+### Voice following (experimental, not in the beta)
+
+**Beta decision (2026-11-08): the model is not included or distributed** until its NPL-1.2 licence is resolved for store distribution. Beta builds are made without `npm run voice:fetch`; Settings says the feature is not included in this version. Optional model downloads and LLM features are postponed.
 
 In the reader, **Follow my recitation** listens (after an explicit tap and a one-time consent) and highlights the ayah and word you are reciting, scrolling with you. Recognition runs fully on the device with [Tilawa](https://github.com/yazinsai/tilawa) (`@tilawa/core`, MIT) and ONNX Runtime Web. Audio is not stored or uploaded, and nothing is added to your progress. It follows your place only: it is not a pronunciation or Tajweed check and can be wrong.
 
@@ -182,7 +184,7 @@ See `docs/ARCHITECTURE.md` for the exact scheduler, failure behavior, and migrat
 
 ## Verification included
 
-- **`npm test`: 115 Node tests pass** (`tests/*.test.mjs`): the corpus and translation checksums and verbatim text, the learning engine, migrations to schema v13, adhkar sources, the Salah tracker, prayer times for every method across DST and time-zone changes, the prayer day around midnight, high-latitude Isha, unique athan ids, the Ayah of the Moment across DST, and the widget's verse pool.
+- **`npm test`: 312 Node tests pass** (`tests/*.test.mjs`, 2026-11-08): the corpus and translation checksums and verbatim text, every page of the Mushaf against the corpus, the learning engine and daily plan, migrations to schema v28, adhkar sources, the Salah tracker, prayer times for every method across DST and time-zone changes, the prayer day around midnight, high-latitude Isha, unique athan ids, the Ayah of the Moment across DST, and the widget's verse pool.
 - **Strict TypeScript build passes** (`npm run typecheck`).
 - **iOS:** Debug build for a physical iPhone succeeds; the development build is installed and launches (see `docs/RELEASE-CHECKLIST.md` for exactly what was and was not checked on the phone).
 - **Original v0.1 delivery only:** 11 browser integration checks (`evidence/browser-tests.json`) with a synthetic microphone stream; not re-run since.
