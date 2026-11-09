@@ -36,7 +36,10 @@ const manifest = 'android/app/src/main/AndroidManifest.xml';
 if (await exists(manifest)) {
     let s = await readFile(manifest, 'utf8');
     if (!s.includes('android:scheme="ayahflow"'))
-        s = s.replace(/(<category android:name="android.intent.category.LAUNCHER" \/>\s*<\/intent-filter>)/, '$1\n            <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="ayahflow" android:host="moment" />\n            </intent-filter>');
+        s = s.replace(/(<category android:name="android.intent.category.LAUNCHER" \/>\s*<\/intent-filter>)/, '$1\n            <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="ayahflow" />\n            </intent-filter>');
+    // Widgets and notifications open ayahflow://prayer, /ayah/…, /counter/…, /steps, /home as well as /moment/…: the
+    // whole scheme, as on iOS. Earlier versions of this helper limited it to the moment host.
+    s = s.replace('<data android:scheme="ayahflow" android:host="moment" />', '<data android:scheme="ayahflow" />');
     if (!s.includes('android.permission.RECORD_AUDIO'))
         s = s.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <application');
     await writeFile(manifest, s);
