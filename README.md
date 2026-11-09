@@ -4,7 +4,7 @@
 
 ![Actual AyahFlow prototype screens](evidence/showcase.png)
 
-A local-first mobile app with a charcoal-and-gold interface: the whole Quran, daily adhkar, prayer times with a Salah tracker, and iOS widgets. Written in strict TypeScript with a small web runtime and a Capacitor 8 native adapter for iOS and Android.
+A local-first mobile app in deep emerald, warm cream and soft gold (the same identity as its widgets; light and dark appearances share the emerald page, with cream cards in light mode): the whole Quran, daily adhkar, prayer times with a Salah tracker, and iOS widgets. Written in strict TypeScript with a small web runtime and a Capacitor 8 native adapter for iOS and Android.
 
 **Status: beta candidate (1.0 build 1), not an App Store / Google Play release.** What has and has not been verified, by kind of evidence (2026-11-08):
 

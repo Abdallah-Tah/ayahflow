@@ -3,6 +3,20 @@
 Status as of 2026-10-25, branch `feature/mushaf-design-locate`. Each tick names its evidence. Browser and unit tests do
 not stand in for native, simulator or device results, and nothing here is a store, privacy or accuracy certification.
 
+## Round 2026-11-08 (3): app-wide emerald identity
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| `npm run typecheck`, `npm test` (337), iOS simulator build | PASS | new `tests/emerald-theme.test.mjs`: tokens, paper scope, ornaments as vectors, contrast ≥ 4.5:1 for every text token on every surface |
+| Home matches the approved mockup (simulator, real data) | PASS | `evidence/app-theme-2026-11-08/after-home-light.jpg` (before: `before-home-dark.jpg`) |
+| Adhkar, Quran, Prayers, Memorise, Progress, Settings, Reminders, reader | PASS (simulator + Chromium 402 px) | same folder; the Mushaf page and its reading themes are unchanged |
+| Light and dark appearances | PASS | both emerald; cream cards in light, deep-green cards in dark |
+| Arabic right to left | PASS (Chromium) | layout mirrored; mosque ornaments move to the start side |
+| Landscape (874×402) and tablet (768×1024) | PASS (Chromium) | centred column, 600 px from 700 px wide |
+| Contrast | PASS (computed) | two cream tokens darkened (soft, gold) and one dark token lightened after measuring |
+| VoiceOver / Dynamic Type | NOT TESTED / FAIL (known gap, unchanged) | no markup semantics changed except decorative classes |
+| Android WebView | NOT RUN | no device (see round 2) |
+
 ## Round 2026-11-08 (2): steps removed, smart adhkar, widget redesign (`feature/mushaf-reader-accuracy`)
 
 Same legend as below. Simulator = iPhone 16 Pro, iOS 18.6, Debug build of `f8e0d92` or later. Commits: `120ff12`

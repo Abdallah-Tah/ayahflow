@@ -1619,12 +1619,15 @@ function welcomeCard(): string {
 /** Today's Quran: reading, memorisation, reviews and difficult ayahs, from src/daily.ts. Every status is a saved record. */
 function planCard(): string {
     const p = dailyPlan(state), c = chapter(p.read.surah), name = (x: typeof c) => escapeHtml(state.locale === 'ar' ? x.ar : x.name);
-    const step = (action: string, extra: string, icon: string, title: string, sub: string, done: string) => `<li><button class="plan-step ${done ? 'done' : ''}" data-action="${action}" ${extra}><span class="gold">${ic(done ? 'check' : icon, 20)}</span><span class="grow"><strong>${title}</strong><span class="tiny muted">${sub}</span></span>${done ? `<span class="tiny gold">${done}</span>` : ic('chevron', 14)}</button></li>`;
-    const k = p.read.khatm;
-    const read = k ? step('nav', 'data-view="khatm"', 'book', t('planRead'), `${t('khatmTitle')} · ${t('planPages').replace('{a}', num(k.from)).replace('{b}', num(k.to))} · ${khatmStatus(k)}`, k.reached >= k.to ? t('planDone') : '')
-        : step('read-last', '', 'book', t('lastRead'), `${name(c)} <bdi dir="ltr">${p.read.surah}:${p.read.ayah}</bdi>`, p.read.opened ? t('planOpened') : '');
+    // The step to do next is drawn as the emerald "primary" tile: the memorisation session under way, else the first
+    // step not yet done. Purely visual; every step keeps its action.
+    let primaryLeft = 1;
+    const step = (action: string, extra: string, icon: string, title: string, sub: string, done: string, primary = false) => { const p1 = primary && primaryLeft-- > 0; return `<li><button class="plan-step ${done ? 'done' : ''} ${p1 ? 'primary' : ''}" data-action="${action}" ${extra}><span class="plan-ico">${ic(done ? 'check' : icon, 20)}</span><span class="grow"><strong>${title}</strong><span class="tiny muted">${sub}</span></span>${done ? `<span class="tiny gold plan-done">${done}</span>` : ic('chevron', 14)}</button></li>`; };
+    const k = p.read.khatm, hifzActive = !!p.memorise.session && !p.memorise.session.done;
+    const read = k ? step('nav', 'data-view="khatm"', 'book', t('planRead'), `${t('khatmTitle')} · ${t('planPages').replace('{a}', num(k.from)).replace('{b}', num(k.to))} · ${khatmStatus(k)}`, k.reached >= k.to ? t('planDone') : '', !hifzActive && k.reached < k.to)
+        : step('read-last', '', 'book', t('lastRead'), `${name(c)} <bdi dir="ltr">${p.read.surah}:${p.read.ayah}</bdi>`, p.read.opened ? t('planOpened') : '', !hifzActive && !p.read.opened);
     const h = p.memorise.session, hc = h ? chapter(h.surah) : null;
-    const memorise = step('nav', 'data-view="hifz"', 'loop', t(h && !h.done ? 'hifzContinue' : 'planMemorise'), h && hc ? `${name(hc)} <bdi dir="ltr">${h.surah}:${h.from}${h.to > h.from ? `–${h.to}` : ''}</bdi> · ${h.done ? t('hifzDoneShort') : t('hifzAtVerse').replace('{n}', num(h.at))}` : t('hifzShort'), p.memorise.recitedToday ? t('planAyahsToday').replace('{n}', num(p.memorise.recitedToday)) : '');
+    const memorise = step('nav', 'data-view="hifz"', 'loop', t(h && !h.done ? 'hifzContinue' : 'planMemorise'), h && hc ? `${name(hc)} <bdi dir="ltr">${h.surah}:${h.from}${h.to > h.from ? `–${h.to}` : ''}</bdi> · ${h.done ? t('hifzDoneShort') : t('hifzAtVerse').replace('{n}', num(h.at))}` : t('hifzShort'), p.memorise.recitedToday ? t('planAyahsToday').replace('{n}', num(p.memorise.recitedToday)) : '', hifzActive);
     const due = p.review.due + p.review.memorisedDue.length;
     const review = state.session ? step('resume', '', 'play', t('planReviewResume'), t('planReviewSub').replace('{m}', num(p.minutes)), '')
         : due ? step('daily', '', 'layers', t('planReview'), `${t('planDue').replace('{n}', num(due))} · ${t('planReviewSub').replace('{m}', num(p.minutes))}`, '')
@@ -1632,12 +1635,12 @@ function planCard(): string {
     const memoDue = !state.session && p.review.memorisedDue.length ? step('plan-memorised-due', '', 'loop', t('planMemorisedDue'), t('planDue').replace('{n}', num(p.review.memorisedDue.length)), '') : '';
     const hard = p.difficult.length ? step('practise-difficult', '', 'flag', t('difficultTitle'), p.difficult.slice(0, 4).map(x => `<bdi dir="ltr">${x.surah}:${x.ayah}</bdi>`).join(' · '), '') : '';
     const counts = [p.read.opened ? t('planOpened') : '', p.review.answeredToday ? t('planAnswered').replace('{n}', num(p.review.answeredToday)) : '', p.memorise.recitedToday ? t('planAyahsToday').replace('{n}', num(p.memorise.recitedToday)) : ''].filter(Boolean);
-    const head = `<div class="row between"><h2 class="section-title">${t('planTitle')}</h2><button class="text-button tiny" data-action="nav" data-view="settings">${t('planMinutes').replace('{m}', num(p.minutes))}</button></div>`;
+    const head = `<div class="row between"><h2 class="section-title">${ic('book', 24)}${t('planTitle')}</h2><button class="text-button tiny plan-minutes" data-action="nav" data-view="settings">${ic('clock', 13)} ${t('planMinutes').replace('{m}', num(p.minutes))}</button></div>`;
     const rest = p.rest ? `<p class="small muted mt8">${ic('leaf', 14)} ${t('planRest')}</p>` : '';
     return `<section class="section plan-card ${p.rest ? 'rest' : ''}" aria-label="${t('planTitle')}">${head}${rest}<ol class="plan-steps">${read}${memorise}${review}${memoDue}${hard}</ol><p class="tiny muted mt8">${counts.length ? `${t('planToday')} ${counts.join(' · ')}` : t('planNothingYet')}</p></section>`;
 }
 function homeView(): string {
-    return `${dateLine()}${watchCard()}${welcomeCard()}${planCard()}${fridayCard()}${ramadanCard()}${occasionCard()}${nextPrayerWidget()}${trackerWidget()}${nowCard()}${quickDhikrWidget()}${ayahWidget()}${qiblaTile()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
+    return `<div class="home-band">${dateLine()}</div>${watchCard()}${welcomeCard()}${planCard()}${fridayCard()}${ramadanCard()}${occasionCard()}${nextPrayerWidget()}${trackerWidget()}${nowCard()}${quickDhikrWidget()}${ayahWidget()}${qiblaTile()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
 }
 /** Status choices for one prayer: completed, missed (only the user says so), made up later, or not confirmed. */
 function chooseStatus(prayer: PrayerName, day: string, current: SalahStatus | null): Promise<SalahStatus | null | undefined> {
