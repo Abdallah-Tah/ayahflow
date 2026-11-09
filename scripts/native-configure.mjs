@@ -10,7 +10,7 @@ const plist = 'ios/App/App/Info.plist';
 if (await exists(plist)) {
     let s = await readFile(plist, 'utf8');
     if (!s.includes('NSMicrophoneUsageDescription')) {
-        s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>NSMicrophoneUsageDescription</key><string>AyahFlow uses the microphone to record your practice and, only when you turn on Follow my recitation, to follow your place in the text. Everything stays on this device; nothing is uploaded.</string>\n</dict>\n</plist>');
+        s = s.replace(/<\/dict>\s*<\/plist>\s*$/, '<key>NSMicrophoneUsageDescription</key><string>AyahFlow uses the microphone only after you tap to start, to record your recitation practice. Audio stays on this device and is never uploaded.</string>\n</dict>\n</plist>');
         await writeFile(plist, s);
     }
     // Smart reminders: location/motion purpose strings and the ayahflow:// link scheme (added once; edits are preserved).

@@ -29,3 +29,12 @@ test('Beta: voice following is described as not included, in the app and in the 
     assert.match(policy, /not included in this version/);
     assert.match(policy, /iCloud Backup on iPhone, Google backup on Android/, 'OS backups are disclosed');
 });
+
+test('The iOS microphone purpose string matches the beta: started by a tap, recording only, nothing uploaded', () => {
+    for (const p of ['ios/App/App/Info.plist', 'scripts/native-configure.mjs']) {
+        const m = /NSMicrophoneUsageDescription<\/key><string>([^<]*)</.exec(read(p));
+        assert.ok(m, p);
+        assert.match(m[1], /only after you tap/); assert.match(m[1], /never uploaded/);
+        assert.doesNotMatch(m[1], /Follow my recitation/, `${p} must not promise a feature this build lacks`);
+    }
+});
