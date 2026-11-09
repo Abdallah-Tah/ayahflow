@@ -10,7 +10,7 @@ const copy = { jumuah: { title: 'J', body: '' }, fast: () => ({ title: 'F', body
 const withOcc = (o) => { const s = initialState(); s.calendar = { ...s.calendar, occasions: { ...s.calendar.occasions, ...o } }; return s; };
 
 test('v22 saves move to v23 with every occasion reminder off; bad values are rejected', () => {
-    assert.equal(STATE_VERSION, 28);
+    assert.equal(STATE_VERSION, 29);
     const v22 = JSON.parse(JSON.stringify(initialState())); v22.version = 22; delete v22.calendar.occasions; v22.calendar.jumuah = true; v22.xp = 9;
     const m = validateState(v22);
     assert.deepEqual(m.calendar, { jumuah: true, fasting: false, suhoor: false, iftar: false, occasions: { arafah: false, ashura: false, dhulHijjah: false, eidEve: false } });

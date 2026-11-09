@@ -5,7 +5,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 const P = 'plugins/smart-reminders/android/src/main';
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
-test('Du\'a, dhikr, steps and Jumu\'ah-and-fasts widgets are declared, described and refreshed', () => {
+test('Du\'a, dhikr, daily moments and Jumu\'ah-and-fasts widgets are declared, described and refreshed', () => {
     const manifest = read(`${P}/AndroidManifest.xml`), strings = read(`${P}/res/values/ayahflow_widget_strings.xml`);
     for (const [cls, n] of [['DuaWidgetProvider', 'dua'], ['DhikrWidgetProvider', 'dhikr'], ['StepsWidgetProvider', 'steps'], ['UpcomingWidgetProvider', 'upcoming']]) {
         assert.ok(existsSync(new URL(`../${P}/java/app/ayahflow/smart/${cls}.java`, import.meta.url)), cls);
@@ -16,6 +16,13 @@ test('Du\'a, dhikr, steps and Jumu\'ah-and-fasts widgets are declared, described
     }
     const plugin = read(`${P}/java/app/ayahflow/smart/SmartRemindersPlugin.java`);
     assert.equal(plugin.split('SimpleWidget.refreshAll(getContext());').length - 1, 2, 'refreshed on save and on reset');
+    // The step widget became Daily moments (v29) under its old class name, so a widget already placed keeps loading.
+    const moments = read(`${P}/java/app/ayahflow/smart/StepsWidgetProvider.java`);
+    assert.match(moments, /k\.url = "ayahflow:\/\/adhkar";/); assert.doesNotMatch(moments, /optJSONObject\("steps"\)|progress/);
+    assert.match(manifest, /StepsWidgetProvider" android:exported="false" android:label="AyahFlow · Daily moments"/);
+    assert.ok(!existsSync(new URL(`../${P}/java/app/ayahflow/smart/StepLog.java`, import.meta.url)), 'no step counter left');
+    assert.doesNotMatch(plugin, /TYPE_STEP_COUNTER|public void steps\(/);
+    assert.match(plugin, /prefs\(getContext\(\)\)\.edit\(\)\.remove\("steps"\)\.apply\(\);/, 'the old step log is dropped');
     const dua = read(`${P}/java/app/ayahflow/smart/DuaWidgetProvider.java`);
     assert.match(dua, /k\.title = a\.optString\("text"\); k\.rtl = true;/, 'the Quran text as shared, right to left');
 });
@@ -29,5 +36,5 @@ test('Every ayahflow:// link a widget or reminder opens matches the Android link
     const dir = new URL('../plugins/smart-reminders/android/src/main/java/app/ayahflow/smart/', import.meta.url);
     const hosts = new Set();
     for (const f of readdirSync(dir)) for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/"ayahflow:\/\/([a-z-]+)/g)) hosts.add(m[1]);
-    assert.ok(['prayer', 'counter', 'ayah', 'steps', 'home', 'moment'].every(h => hosts.has(h)), `widgets open ${[...hosts].join(', ')}`);
+    assert.ok(['prayer', 'counter', 'ayah', 'adhkar', 'home', 'moment'].every(h => hosts.has(h)), `widgets open ${[...hosts].join(', ')}`);
 });

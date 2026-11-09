@@ -35,8 +35,6 @@ export interface SmartBridge {
     notificationCheck(sounds: string[]): Promise<NotificationCheck>;
     /** The sound file name the notification will ask for, or null for none (Android: the channel's). */
     soundFor(n: TestNotification): string | null;
-    /** Steps per local day from the device pedometer, read live and never saved by the app. */
-    steps(days: number): Promise<StepReading>;
     /** Replaces the pending Jumu'ah and voluntary-fast reminders (src/calendar.ts). */
     scheduleCalendar(list: { id: number; at: number; title: string; body: string; url: string }[]): Promise<void>;
     /** Compass heading while the Qibla screen is open: `onHeading` gets degrees from true north (magnetic when true north
@@ -62,9 +60,6 @@ export interface AlarmPlan { alarms: { uuid: string; at: number }[]; snoozes: nu
 export interface TestNotification { id: number; kind: 'before' | 'athan'; title: string; body: string; reciter: string | null; customVersion: number | null; homeOnly?: boolean }
 type Setting = 'on' | 'off' | 'unsupported';
 export interface NotificationCheck { authorization?: 'granted' | 'provisional' | 'ephemeral' | 'denied' | 'prompt'; alert?: Setting; sound?: Setting; lockScreen?: Setting; files?: Record<string, 'library' | 'bundle' | 'missing'> }
-/** iOS: CMPedometer (up to 7 days of history, kept by the system). Android: the step-counter sensor, sampled when the app
- * reads it, so a day only counts from the first reading and steps since the last reading are given to today (approximate). */
-export interface StepReading { available: boolean; permission: 'granted' | 'denied' | 'prompt' | 'unavailable'; approximate: boolean; days: { day: string; steps: number }[] }
 export interface NativeConfig {
     location: boolean;
     vehicle: boolean;
@@ -399,8 +394,8 @@ export function beforeSchedule(state: AppState, label: (p: PrayerName, minutes: 
         .map(p => ({ id: beforeId(p.prayer, p.day), at: p.at - lead, prayer: p.prayer, day: p.day, ...label(p.prayer, b.minutes) }));
 }
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
-/** Today's dhikr counts, adhkar progress and (only when the step tracker is on) the latest step reading, for the widget. */
-export interface WidgetDaily { day: string; counters: { id: string; label: string; n: number; total: number; atLeast: boolean; perPrayer: boolean }[]; adhkar: { key: Moment; label: string; done: number; total: number }[]; steps: { today: number; goal: number; at: number } | null }
+/** Today's dhikr counts and adhkar progress, for the widget (self-reported taps and confirmations only). */
+export interface WidgetDaily { day: string; counters: { id: string; label: string; n: number; total: number; atLeast: boolean; perPrayer: boolean }[]; adhkar: { key: Moment; label: string; done: number; total: number }[] }
 export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number; day: string }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string>; daily: WidgetDaily | null; ayahs: ReturnType<typeof dailyAyahs>; worship?: WidgetWorship; upcoming?: { at: number; day: string; kind: 'jumuah' | 'fast' | 'ramadan' | 'occasion'; title: string; sub: string; short?: string }[]; ramadan?: { start: number; eid: number } | null }
 /** Prayers the user confirmed (today and yesterday, so midnight does not blank them) and the Ayah of the Moment for the
  * next half-hour slots, so the widget can follow without the app (within the system's refresh limits). */
@@ -411,7 +406,7 @@ export function widgetData(state: AppState, label: (key: string) => string, now 
         v: 1, updatedAt: now, rtl: state.locale === 'ar', locale: state.locale,
         prayers: prayersFrom(state, now).map(p => ({ key: p.prayer, label: label('p_' + p.prayer), at: p.at, day: p.day })),
         windows: days.map(d => { const w = windowsFor(state, d); return { morning: w.morning, evening: w.evening }; }),
-        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), stepsTab: label('steps'), rounds: label('rounds'), stepsOff: label('widgetStepsOff'), toGo: label('toGo'), goalReached: label('goalReached'), updated: label('widgetUpdated'), ayahTab: label('ayahOfDay'), surahRef: label('surahRef'), ayahEmpty: label('ayahWidgetEmpty'), momentTab: label('ayahMoment'), prayed: label('widgetPrayed'), readAyah: label('readInContext'), ...extra },
+        labels: { next: label('nextPrayer'), noPlace: label('widgetNoPlace'), stale: label('widgetStale'), morning: label('m_morning'), evening: label('m_evening'), today: label('prayerTimes'), app: 'AyahFlow', prayerTab: label('widgetPrayer'), dhikrTab: label('widgetDhikr'), momentsTab: label('widgetMoments'), momentsTitle: label('widgetMomentsTitle'), m_vehicle: label('m_vehicle'), m_leave_home: label('m_leave_home'), m_enter_home: label('m_enter_home'), m_sleep: label('m_sleep'), todaysAdhkar: label('widgetTodaysAdhkar'), rounds: label('rounds'), updated: label('widgetUpdated'), ayahTab: label('ayahOfDay'), surahRef: label('surahRef'), ayahEmpty: label('ayahWidgetEmpty'), momentTab: label('ayahMoment'), prayed: label('widgetPrayed'), readAyah: label('readInContext'), ...extra },
         daily,
         ayahs: dailyAyahs(now),
         ...(worship ? { worship } : {}),

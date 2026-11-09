@@ -34,8 +34,10 @@ export const READER_SCALE = [0.85, 0.95, 1.05, 1.2, 1.35, 1.55, 1.8] as const;
  * v25 → v26 added Tajweed colouring in the reader (`tajweedColours`, off);
  * v26 → v27 added the Night beads look: a fourth tasbih look and its choices (`worship.prefs.nightBeads`), with the look a save already had left unchanged;
  * v27 → v28 added the saved memorisation session (`hifz`, none: earlier builds kept it in memory only) and the learner's
- * days off (`daysOff`, none). Nothing earlier is changed. */
-export const STATE_VERSION = 28;
+ * days off (`daysOff`, none). Nothing earlier is changed;
+ * v28 → v29 removed the step tracker (owner decision 2026-11-08): its two settings (`health`: on/off and goal) are dropped.
+ * No step count was ever saved, so no recorded activity is lost; everything else is kept as it was. */
+export const STATE_VERSION = 29;
 /** Days added to the Umm al-Qura date to match local moon sighting. */
 export const HIJRI_OFFSETS = [-1, 0, 1] as const;
 import ATHAN_DATA from './athan-data.js';
@@ -84,11 +86,12 @@ export interface AdhkarCompletion { id: string; entry: string; moment: Moment; a
 /** `moments`: what the reminder for this event carried (absent when none was sent, and in records saved by earlier builds). */
 export interface Detection { event: SmartEvent | 'WAKE' | 'LEFT_CHECK' | 'TRIP_START' | 'TRIP_END' | 'WATCH_OFF' | 'WATCH_ON'; at: number; detail?: string; moments?: Moment[] }
 export const defaultSmart = (): SmartSettings => ({ location: false, vehicle: false, timed: false, method: 'MuslimWorldLeague', hanafi: false, span: 'broad', sleepTime: null, moments: [...MOMENTS] });
-/** A dhikr count the user tapped on one local day (self-reported, like a tasbih). Steps are never stored: they are read
- * live from the device pedometer. */
+/** A dhikr count the user tapped on one local day (self-reported, like a tasbih). */
 export interface CounterCount { id: string; day: string; n: number }
-export interface HealthSettings { steps: boolean; stepGoal: number }
-export const defaultHealth = (): HealthSettings => ({ steps: false, stepGoal: 8000 });
+/** Step-tracker settings saved by v9–v28 (on/off and a goal). The step tracker was removed in v29 (owner decision
+ * 2026-11-08): older saves and backups that carry them still import and the settings are dropped. They held no recorded
+ * activity: step counts were never stored. */
+type LegacyHealthSettings = unknown;
 export const MAX_COUNT = 100000;
 /** Daily counts kept (older days are folded into Worship.archive). */
 export const MAX_COUNTS = 3000;
@@ -293,7 +296,7 @@ export interface HifzSession { id: string; surah: number; from: number; to: numb
 /** The longest session queue a save may hold: a whole-surah recall (Al-Baqarah has 286 verses). */
 export const SESSION_MAX = 286;
 export interface AppState {
-    version: 28;
+    version: 29;
     /** The memorisation session to continue, or null. */
     hifz: HifzSession | null;
     /** Weekdays (0 Sunday … 6 Saturday) the learner keeps free of the daily plan and its reminder. */
@@ -320,7 +323,6 @@ export interface AppState {
     detections: Detection[];
     athan: AthanSettings;
     counts: CounterCount[];
-    health: HealthSettings;
     myCounters: CustomCounter[];
     worship: Worship;
     /** A few istighfar reminders a day until the target is reached. */
@@ -354,7 +356,7 @@ export interface AppState {
     completedSessions: number;
     recallSelfChecks: number;
 }
-export function initialState(): AppState { return { version: 28, hifz: null, daysOff: [], tajweedColours: false, hijriOffset: 0, quranFont: 'madina', khatm: null, fajrAlarm: defaultFajrAlarm(), calendar: defaultCalendar(), highlightReviews: [], readingTheme: 'auto', readerSize: 2, highlights: [], notes: [], worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], health: defaultHealth(), myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
+export function initialState(): AppState { return { version: 29, hifz: null, daysOff: [], tajweedColours: false, hijriOffset: 0, quranFont: 'madina', khatm: null, fajrAlarm: defaultFajrAlarm(), calendar: defaultCalendar(), highlightReviews: [], readingTheme: 'auto', readerSize: 2, highlights: [], notes: [], worship: defaultWorship(), rotation: defaultRotation(), athan: defaultAthan(), counts: [], myCounters: [], istighfarReminder: false, locale: 'en', theme: 'system', arabicSize: 'm', readingLayout: 'cards', voiceFollowConsent: false, places: { home: null, work: null, mosque: null }, smart: defaultSmart(), adhkarLog: [], detections: [], goal: 7, selectedSurahs: [112, 113, 114], cards: {}, attempts: [], days: {}, xp: 0, bookmarks: [], readPosition: { surah: 112, ayah: 1 }, lessonChecks: [], lessonHistory: [], session: null, audioConsent: false, reducedMotion: false, reminder: null, completedSessions: 0, recallSelfChecks: 0 }; }
 export function dayKey(time = Date.now()): string { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function calendarDistance(a: string, b: string): number { return Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000); }
 export function streak(days: Record<string, number>, now = Date.now()): number { let cursor = new Date(now); if (!days[dayKey(now)])
@@ -489,8 +491,8 @@ function validHifz(h: unknown): h is HifzSession | null {
 export function validateState(raw: unknown): AppState {
     if (!raw || typeof raw !== 'object')
         throw new Error('Invalid save');
-    const s = raw as Omit<AppState, 'quranFont' | 'khatm' | 'fajrAlarm' | 'calendar' | 'highlightReviews' | 'readingTheme' | 'readerSize' | 'highlights' | 'notes' | 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; quranFont?: QuranFont; khatm?: Khatm | null; fajrAlarm?: FajrAlarm; calendar?: CalendarReminders; highlightReviews?: HighlightReview[]; readingTheme?: ReadingTheme; readerSize?: number; highlights?: Highlight[]; notes?: VerseNote[]; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: HealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
+    const s = raw as Omit<AppState, 'quranFont' | 'khatm' | 'fajrAlarm' | 'calendar' | 'highlightReviews' | 'readingTheme' | 'readerSize' | 'highlights' | 'notes' | 'version' | 'theme' | 'arabicSize' | 'readingLayout' | 'voiceFollowConsent' | 'places' | 'smart' | 'adhkarLog' | 'detections' | 'athan' | 'counts' | 'health' | 'myCounters' | 'istighfarReminder' | 'rotation' | 'worship'> & { version: number; quranFont?: QuranFont; khatm?: Khatm | null; fajrAlarm?: FajrAlarm; calendar?: CalendarReminders; highlightReviews?: HighlightReview[]; readingTheme?: ReadingTheme; readerSize?: number; highlights?: Highlight[]; notes?: VerseNote[]; worship?: Worship; rotation?: DhikrRotation; istighfarReminder?: boolean; counts?: CounterCount[]; health?: LegacyHealthSettings; myCounters?: CustomCounter[]; athan?: AthanSettings; theme?: Theme; arabicSize?: ArabicSize; readingLayout?: ReadingLayout; voiceFollowConsent?: boolean; places?: AppState['places']; smart?: SmartSettings; adhkarLog?: AdhkarCompletion[]; detections?: Detection[] };
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29].includes(s.version) || !['en', 'fr', 'ar'].includes(s.locale) || ![3, 7, 10].includes(s.goal))
         throw new Error('Unsupported save format');
     if (s.version >= 2 && !['system', 'light', 'dark'].includes(s.theme!))
         throw new Error('Invalid theme');
@@ -554,11 +556,11 @@ export function validateState(raw: unknown): AppState {
             throw new Error('Invalid custom counters');
     }
     if (s.version >= 9) {
-        const c = s.counts, h = s.health, ids = counterIds(s);
+        const c = s.counts, ids = counterIds(s);
         if (!Array.isArray(c) || c.length > MAX_COUNTS || c.some(x => !x || !ids.has(x.id) || !/^\d{4}-\d{2}-\d{2}$/.test(x.day) || !Number.isSafeInteger(x.n) || x.n < 0 || x.n > MAX_COUNT) || new Set(c.map(x => `${x.id}@${x.day}`)).size !== c.length)
             throw new Error('Invalid dhikr counts');
-        if (!h || typeof h.steps !== 'boolean' || !Number.isSafeInteger(h.stepGoal) || h.stepGoal < 1000 || h.stepGoal > 50000)
-            throw new Error('Invalid step settings');
+        // v9–v28 also carried step-tracker settings (`health`). The tracker was removed in v29: they are ignored and
+        // dropped below, so an old backup is never refused over a setting the app no longer has.
     }
     if (!Array.isArray(s.selectedSurahs) || s.selectedSurahs.length === 0 || s.selectedSurahs.some(x => !SURAH_DATA.some(y => y.id === x)))
         throw new Error('Invalid practice range');
@@ -629,7 +631,8 @@ export function validateState(raw: unknown): AppState {
         if (!Array.isArray(off) || off.length > 6 || new Set(off).size !== off.length || off.some(d => !Number.isInteger(d) || d < 0 || d > 6))
             throw new Error('Invalid days off');
     }
-    return structuredClone({ ...s, version: 28, hifz: s.version < 28 ? null : (s as { hifz?: HifzSession | null }).hifz!, daysOff: s.version < 28 ? [] : (s as { daysOff?: number[] }).daysOff!, tajweedColours: s.version < 26 ? false : (s as { tajweedColours?: boolean }).tajweedColours!, hijriOffset: s.version < 25 ? 0 : (s as { hijriOffset?: AppState['hijriOffset'] }).hijriOffset!, quranFont: s.version < 22 ? 'madina' : s.quranFont!, khatm: s.version < 20 ? null : s.khatm!, fajrAlarm: s.version < 19 ? defaultFajrAlarm() : s.fajrAlarm!, calendar: s.version < 18 ? defaultCalendar() : s.version < 21 ? { ...s.calendar!, suhoor: false, iftar: false, occasions: defaultOccasions() } : s.version < 23 ? { ...s.calendar!, occasions: defaultOccasions() } : s.calendar!, highlightReviews: s.version < 18 ? [] : s.highlightReviews!, readingTheme: s.version < 17 ? 'auto' : s.readingTheme!, readerSize: s.version < 17 ? 2 : s.readerSize!, highlights: s.version < 16 ? [] : s.highlights!, notes: s.version < 16 ? [] : s.notes!, worship: s.version < 13 ? defaultWorship() : s.version < 27 ? { ...s.worship!, prefs: { ...s.worship!.prefs, tasbihTheme: s.version < 24 ? 'ring' : s.worship!.prefs.tasbihTheme, nightBeads: defaultNightBeads() } } : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, health: s.version < 9 ? defaultHealth() : s.health!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
+    const { health: _legacySteps, ...kept } = s;
+    return structuredClone({ ...kept, version: 29, hifz: s.version < 28 ? null : (s as { hifz?: HifzSession | null }).hifz!, daysOff: s.version < 28 ? [] : (s as { daysOff?: number[] }).daysOff!, tajweedColours: s.version < 26 ? false : (s as { tajweedColours?: boolean }).tajweedColours!, hijriOffset: s.version < 25 ? 0 : (s as { hijriOffset?: AppState['hijriOffset'] }).hijriOffset!, quranFont: s.version < 22 ? 'madina' : s.quranFont!, khatm: s.version < 20 ? null : s.khatm!, fajrAlarm: s.version < 19 ? defaultFajrAlarm() : s.fajrAlarm!, calendar: s.version < 18 ? defaultCalendar() : s.version < 21 ? { ...s.calendar!, suhoor: false, iftar: false, occasions: defaultOccasions() } : s.version < 23 ? { ...s.calendar!, occasions: defaultOccasions() } : s.calendar!, highlightReviews: s.version < 18 ? [] : s.highlightReviews!, readingTheme: s.version < 17 ? 'auto' : s.readingTheme!, readerSize: s.version < 17 ? 2 : s.readerSize!, highlights: s.version < 16 ? [] : s.highlights!, notes: s.version < 16 ? [] : s.notes!, worship: s.version < 13 ? defaultWorship() : s.version < 27 ? { ...s.worship!, prefs: { ...s.worship!.prefs, tasbihTheme: s.version < 24 ? 'ring' : s.worship!.prefs.tasbihTheme, nightBeads: defaultNightBeads() } } : s.worship!, rotation: s.version < 12 ? defaultRotation() : s.rotation!, istighfarReminder: s.version < 11 ? false : s.istighfarReminder!, myCounters: s.version < 10 ? [] : s.myCounters!, counts: s.version < 9 ? [] : s.counts!, athan: s.version < 6 ? defaultAthan() : { ...(s.version < 7 ? { ...s.athan!, reciter: ATHAN_RECITERS[0]!, fajrReciter: ATHAN_RECITERS[0]!, custom: null, downloads: [], before: defaultBefore() } : s.version < 8 ? { ...s.athan!, downloads: [], before: defaultBefore() } : s.version < 14 ? { ...s.athan!, before: defaultBefore() } : s.athan!), awayChime: s.version < 15 ? false : s.athan!.awayChime }, places: s.version < 5 ? { home: null, work: null, mosque: null } : s.places!, smart: s.version < 5 ? defaultSmart() : s.smart!, adhkarLog: s.version < 5 ? [] : s.adhkarLog!, detections: s.version < 5 ? [] : s.detections!, voiceFollowConsent: s.version < 4 ? false : s.voiceFollowConsent!, theme: s.version === 1 ? 'system' : s.theme!, arabicSize: s.version < 3 ? 'm' : s.arabicSize!, readingLayout: s.version < 3 ? 'cards' : s.readingLayout! });
 }
 
 /** Every ayah (as "surah:ayah") whose comparison key matches this one's, e.g. 109:3 and 109:5. */

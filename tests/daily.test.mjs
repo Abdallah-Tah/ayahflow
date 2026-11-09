@@ -11,9 +11,9 @@ const NOW = new Date(2026, 10, 9, 10).getTime(); // a Monday
 const v27 = () => { const s = structuredClone(initialState()); s.version = 27; delete s.hifz; delete s.daysOff; s.xp = 40; s.goal = 10; s.bookmarks = ['2:255']; return s; };
 
 test('v27 saves move to v28 with no memorisation session and no days off; nothing else changes', () => {
-    assert.equal(STATE_VERSION, 28);
+    assert.equal(STATE_VERSION, 29);
     const old = v27(), m = validateState(JSON.parse(JSON.stringify(old)));
-    assert.equal(m.version, 28); assert.equal(m.hifz, null); assert.deepEqual(m.daysOff, []);
+    assert.equal(m.version, 29); assert.equal(m.hifz, null); assert.deepEqual(m.daysOff, []);
     assert.equal(m.xp, 40); assert.equal(m.goal, 10); assert.deepEqual(m.bookmarks, ['2:255']);
     const { version: _a, hifz: _b, daysOff: _c, ...rest } = m, { version: _d, ...before } = old;
     assert.deepEqual(rest, before, 'every v27 field is kept as it was');

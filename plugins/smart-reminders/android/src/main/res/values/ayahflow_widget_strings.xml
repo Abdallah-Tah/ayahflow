@@ -3,6 +3,6 @@
     <string name="ayahflow_widget_description">The next prayer time with a countdown, and the adhkar for the moment.</string>
     <string name="ayahflow_widget_dua_description">Today\'s Quranic du\'a, from the Quran text in the app.</string>
     <string name="ayahflow_widget_dhikr_description">Today\'s istighfar count against your target.</string>
-    <string name="ayahflow_widget_steps_description">Today\'s steps against your goal, as last read by AyahFlow.</string>
+    <string name="ayahflow_widget_steps_description">Adhkar for driving, leaving and entering home, and before sleep.</string>
     <string name="ayahflow_widget_upcoming_description">The next Friday, voluntary fast days and the start of Ramadan.</string>
 </resources>

@@ -11,7 +11,7 @@ const app = read('../src/app.ts'), module_ = read('../src/night-beads.ts'), css 
 const withNight = v => { const s = initialState(); return { ...s, worship: { ...s.worship, prefs: { ...s.worship.prefs, nightBeads: { ...s.worship.prefs.nightBeads, ...v } } } }; };
 
 test('v26 saves move to v27 keeping their look, counts and settings; Night beads starts with the approved defaults', () => {
-    assert.equal(STATE_VERSION, 28);
+    assert.equal(STATE_VERSION, 29);
     assert.deepEqual([...TASBIH_THEMES], ['ring', 'thread', 'plain', 'night']);
     assert.equal(initialState().worship.prefs.tasbihTheme, 'ring');
     assert.deepEqual(defaultNightBeads(), { design: 'amber', shape: 'round', sky: 'auto', phonetic: true });
@@ -19,7 +19,7 @@ test('v26 saves move to v27 keeping their look, counts and settings; Night beads
         const v26 = JSON.parse(JSON.stringify(initialState())); v26.version = 26; delete v26.worship.prefs.nightBeads;
         v26.worship.prefs.tasbihTheme = look; v26.worship.prefs.haptics = false; v26.counts = [{ day: '2026-11-01', id: 'istighfar', n: 57 }];
         const m = validateState(v26);
-        assert.equal(m.version, 28); assert.equal(m.worship.prefs.tasbihTheme, look); assert.equal(m.worship.prefs.haptics, false);
+        assert.equal(m.version, 29); assert.equal(m.worship.prefs.tasbihTheme, look); assert.equal(m.worship.prefs.haptics, false);
         assert.deepEqual(m.counts, v26.counts); assert.deepEqual(m.worship.prefs.nightBeads, defaultNightBeads());
     }
     const v23 = JSON.parse(JSON.stringify(initialState())); v23.version = 23; delete v23.worship.prefs.nightBeads; delete v23.worship.prefs.tasbihTheme;

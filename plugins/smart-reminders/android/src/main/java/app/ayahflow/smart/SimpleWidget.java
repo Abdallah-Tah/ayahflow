@@ -15,7 +15,7 @@ import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** One-card widgets (du'a, dhikr, steps, Jumu'ah and fasts) drawn from the timeline the app shares for the prayer
+/** One-card widgets (du'a, dhikr, daily moments, Jumu'ah and fasts) drawn from the timeline the app shares for the prayer
  * widget (src/smart.ts widgetData). Each subclass fills a label, a title and a line underneath; nothing is computed
  * here that the app did not share, and nothing leaves the device. */
 public abstract class SimpleWidget extends AppWidgetProvider {

@@ -12,11 +12,11 @@ const css = read('public/style.css').toString(), notices = read('docs/THIRD-PART
 const FILES = { madina: 'AyahFlowQuran-Regular.ttf', amiri: 'AyahFlowQuranAmiri-Regular.ttf', 'me-quran': 'me_quran.ttf' };
 
 test('v21 saves move to v22 with the font they already showed; nothing else changes', () => {
-    assert.equal(STATE_VERSION, 28);
+    assert.equal(STATE_VERSION, 29);
     assert.equal(initialState().quranFont, 'madina');
     const v21 = JSON.parse(JSON.stringify(initialState())); v21.version = 21; delete v21.quranFont; delete v21.calendar.occasions; v21.xp = 33; v21.arabicSize = 'l';
     const m = validateState(v21);
-    assert.equal(m.version, 28); assert.equal(m.quranFont, 'madina'); assert.equal(m.xp, 33); assert.equal(m.arabicSize, 'l');
+    assert.equal(m.version, 29); assert.equal(m.quranFont, 'madina'); assert.equal(m.xp, 33); assert.equal(m.arabicSize, 'l');
     for (const id of QURAN_FONT_IDS) assert.equal(validateState({ ...initialState(), quranFont: id }).quranFont, id);
     assert.throws(() => validateState({ ...initialState(), quranFont: 'uthman-taha' }), /Quran font/);
 });

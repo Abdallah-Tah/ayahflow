@@ -79,7 +79,6 @@ export const bridge = {
         openSettings: () => Smart.openSettings(),
         /** Registers the reminder button in the app's language (iOS and Android keep the last registration). */
         async setDhikrAction(title) { try { await LocalNotifications.registerActionTypes({ types: [{ id: DHIKR_ACTIONS, actions: [{ id: 'recited', title, foreground: true }] }] }); } catch { } },
-        steps: (days) => Smart.steps({ days }),
         async scheduleCalendar(list) {
             const pending = (await LocalNotifications.getPending()).notifications.filter(n => CALENDAR(Number(n.id)));
             if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: Number(n.id) })) });

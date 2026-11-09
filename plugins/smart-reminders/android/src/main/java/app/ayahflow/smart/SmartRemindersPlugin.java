@@ -35,7 +35,11 @@ import org.json.JSONObject;
 )
 public class SmartRemindersPlugin extends Plugin {
     @Override
-    public void load() { SmartEngine.apply(getContext()); }
+    public void load() {
+        // The step tracker was removed (schema v29): drop the step log earlier builds kept in these preferences.
+        SmartEngine.prefs(getContext()).edit().remove("steps").apply();
+        SmartEngine.apply(getContext());
+    }
 
     private JSObject statusObject() {
         JSObject s = new JSObject();
@@ -201,45 +205,6 @@ public class SmartRemindersPlugin extends Plugin {
             } catch (Exception e) { call.reject("download failed"); }
             finally { if (conn != null) conn.disconnect(); }
         }).start();
-    }
-
-    /** Steps for the last 7 days from the step-counter sensor (see StepLog). Needs ACTIVITY_RECOGNITION on Android 10+,
-     * which the app requests through requestMotion when the user turns the step tracker on. */
-    @PluginMethod
-    public void steps(PluginCall call) {
-        android.hardware.SensorManager sm = (android.hardware.SensorManager) getContext().getSystemService(android.content.Context.SENSOR_SERVICE);
-        android.hardware.Sensor sensor = sm == null ? null : sm.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_COUNTER);
-        if (sensor == null) { call.resolve(stepResult(new JSONObject(), "unavailable", false)); return; }
-        if (Build.VERSION.SDK_INT >= 29 && !SmartEngine.activityRecognition(getContext())) {
-            call.resolve(stepResult(StepLog.read(getContext(), System.currentTimeMillis()), getPermissionState("activity") == PermissionState.DENIED ? "denied" : "prompt", true));
-            return;
-        }
-        android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
-        final boolean[] done = { false };
-        android.hardware.SensorEventListener listener = new android.hardware.SensorEventListener() {
-            @Override public void onSensorChanged(android.hardware.SensorEvent e) {
-                if (done[0]) return;
-                done[0] = true; sm.unregisterListener(this);
-                call.resolve(stepResult(StepLog.record(getContext(), (long) e.values[0], System.currentTimeMillis()), "granted", true));
-            }
-            @Override public void onAccuracyChanged(android.hardware.Sensor s, int a) { }
-        };
-        sm.registerListener(listener, sensor, android.hardware.SensorManager.SENSOR_DELAY_NORMAL);
-        // Some sensors report only on the next step: answer with what is already logged after a short wait.
-        main.postDelayed(() -> {
-            if (done[0]) return;
-            done[0] = true; sm.unregisterListener(listener);
-            call.resolve(stepResult(StepLog.read(getContext(), System.currentTimeMillis()), "granted", true));
-        }, 3000);
-    }
-
-    private JSObject stepResult(JSONObject days, String permission, boolean available) {
-        JSObject o = new JSObject();
-        o.put("available", available && !permission.equals("unavailable"));
-        o.put("permission", permission);
-        o.put("approximate", true);
-        try { o.put("days", new JSArray(days.optJSONArray("days") == null ? "[]" : days.getJSONArray("days").toString())); } catch (JSONException e) { o.put("days", new JSArray()); }
-        return o;
     }
 
     @PluginMethod
