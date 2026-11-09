@@ -50,12 +50,11 @@ test('Prayer widget: Ramadan chip in the header, next occasion on the date row, 
     for (const k of ['wRamadanDay', 'wEidIn', 'wSighting', 'wSightingLong', 'wIftar', 'wDay1', 'wDay2', 'wDayFew', 'wDayMany', 'wOf2930', 'wOddNight', 'wRamadanBegins', 'upcomingPage']) assert.match(app, new RegExp(`${k}: t\\(`), k);
     const swift = readFileSync(new URL('../ios/App/AyahFlowWidget/AyahFlowWidget.swift', import.meta.url), 'utf8');
     assert.match(swift, /let ramadan: RamadanSpan\?/, 'optional, so older shared data still decodes');
-    assert.match(swift, /let short: String\? \}/);
-    assert.match(swift, /case prayer, dhikr, steps, ayah, upcoming\n/, 'new page appended so saved page numbers keep their meaning');
-    assert.match(swift, /static let order: \[WidgetPage\] = \[\.prayer, \.upcoming, \.dhikr, \.steps, \.ayah\]/);
-    assert.match(swift, /if phase != nil \{ ramadanChip\.layoutPriority\(0\.5\) \} else \{ dateHeader\(\)\.layoutPriority\(0\) \}/, 'the duplicate header date becomes the chip');
-    assert.match(swift, /ViewThatFits\(in: \.horizontal\) \{\s*HStack[\s\S]*?dateHeader\(short: true, fixed: true\)[\s\S]*?dateHeader\(\)\s*\}/, 'the occasion line steps down, then hides rather than squeezing');
-    assert.match(swift, /if let \(d, e\) = during \{[\s\S]*?ramadanStrip\(d\)/, 'strip only during Ramadan');
+    assert.match(swift, /let short: String\?; var lunar: Bool\? = nil \}/, 'optional fields, so older shared data still decodes');
+    assert.match(swift, /case prayer, dhikr, moments, ayah, upcoming\n/, 'pages appended only, so saved page numbers keep their meaning');
+    assert.match(swift, /static let order: \[WidgetPage\] = \[\.prayer, \.upcoming, \.dhikr, \.moments, \.ayah\]/);
+    assert.match(swift, /func ramadanText\(short: Bool\) -> String\?/, 'the chip has a long and a short form');
+    assert.match(swift, /if case let \.during\(d, e\) = info\.phase \{ during = \(d, e\) \}[\s\S]*?ForEach\(1\.\.\.30/, 'the 30-day strip only during Ramadan');
     assert.match(swift, /wSightingLong/);
     assert.match(swift, /StaticConfiguration\(kind: "AyahFlowUpcoming"[\s\S]*?configurationDisplayName\("Jumu'ah and fasts"\)/, 'the separate widget keeps its earlier look');
 });

@@ -719,7 +719,7 @@ function widgetDaily(): WidgetDaily {
     return {
         day: dayKey(),
         counters: counterDefs().map(c => ({ id: c.id, label: c.name, n: count(c.id), total: c.total, atLeast: !!c.atLeast, perPrayer: !!c.perPrayer })),
-        adhkar: (['morning', 'evening', 'sleep'] as const).map(m => { const [done, total] = momentProgress(m); return { key: m, label: t('m_' + m), done, total }; }),
+        adhkar: (['morning', 'evening', 'sleep', 'vehicle', 'leave_home', 'enter_home'] as const).map(m => { const [done, total] = momentProgress(m); return { key: m, label: t('m_' + m), labelAr: tr('m_' + m, 'ar'), done, total }; }),
     };
 }
 function widgetWorship(now = Date.now()) {
@@ -733,7 +733,7 @@ async function pushWidget(): Promise<void> {
     try {
         const upcoming = [...upcomingDays({ jumuah: t('widgetJumuah'), jumuahSub: t('jumuahCard'), fast: t('widgetFast'), why: fastWhy, ramadan: t('widgetRamadan'), ramadanSub: t('fastingHijriNote') }).filter(u => u.kind !== 'ramadan'), ...upcomingOccasions(k => t(`occ_${k}`), t('occSighting'))].sort((a, b) => a.at - b.at).slice(0, 6).map(({ occ, ...u }: UpcomingItem) => ({ ...u, short: u.kind === 'jumuah' ? t('wsJumuah') : u.kind === 'fast' ? t('wsFast') : occ ? t(`ws_${occ}`) : u.title }));
         const ramadan = ramadanSpan();
-        await setWidgetData({ ...widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0', upcomingTab: t('widgetUpcoming'), upcomingEmpty: t('widgetUpcomingEmpty'), todayWord: t('today'), wRamadanUntil: t('wRamadanUntil'), wRamadanDay: t('wRamadanDay'), wEidIn: t('wEidIn'), wSighting: t('wSighting'), wIftar: t('wIftar'), wSuhoor: t('wSuhoor'), wDayWord: t('wDayWord'), wOf2930: t('wOf2930'), hijriOffset: String(state.hijriOffset), wSightingLong: t('wSightingLong'), wOddNight: t('wOddNight'), wToday: t('occToday'), wTomorrow: t('occTomorrow'), wRamadanBegins: t('widgetRamadan'), upcomingPage: t('widgetUpcoming'), wDay1: t('wDay1'), wDay2: t('wDay2'), wDayFew: t('wDayFew'), wDayMany: t('wDayMany') }, widgetDaily(), widgetWorship()), upcoming, ramadan });
+        await setWidgetData({ ...widgetData(state, t, Date.now(), { athan: state.athan.enabled ? (state.athan.sound === 'chime' ? t('soundChime') : reciterName(state.athan.reciter)) : t('athanOffShort'), athanOn: state.athan.enabled ? '1' : '0', upcomingTab: t('widgetUpcoming'), upcomingEmpty: t('widgetUpcomingEmpty'), todayWord: t('today'), wRamadanUntil: t('wRamadanUntil'), wRamadanDay: t('wRamadanDay'), wEidIn: t('wEidIn'), wSighting: t('wSighting'), wIftar: t('wIftar'), wSuhoor: t('wSuhoor'), wDayWord: t('wDayWord'), wOf2930: t('wOf2930'), hijriOffset: String(state.hijriOffset), wSightingLong: t('wSightingLong'), wOddNight: t('wOddNight'), wToday: t('occToday'), wTomorrow: t('occTomorrow'), wRamadanBegins: t('widgetRamadan'), upcomingPage: t('widgetUpcoming'), wDay1: t('wDay1'), wDay2: t('wDay2'), wDayFew: t('wDayFew'), wDayMany: t('wDayMany'), sleepAt: state.smart.sleepTime ?? '' }, widgetDaily(), widgetWorship()), upcoming, ramadan });
         widgetError = null;
     }
     catch (e) {
@@ -2329,6 +2329,8 @@ async function handleAction(el: HTMLElement): Promise<void> {
         case 'language':
             await commit({ ...state, locale: d.locale as Locale });
             render();
+            // Widgets and pending reminders carry text in the app's language: re-plan them now, not at the next launch.
+            void syncSmart();
             break;
         case 'follow': {
             if (followingActive())

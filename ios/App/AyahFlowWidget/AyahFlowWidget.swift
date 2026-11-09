@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import UIKit
 import Security
 import os
 #if canImport(AppIntents)
@@ -20,7 +21,8 @@ struct SharedTimeline: Decodable {
     private(set) var prayers: [Prayer]
     let windows: [Window]
     let labels: [String: String]
-    /// Today's dhikr counts, adhkar progress and the latest step reading (src/smart.ts WidgetDaily).
+    /// Today's dhikr counts and adhkar progress (src/smart.ts WidgetDaily). Builds before v29 also sent a step reading,
+    /// which is ignored.
     let daily: Daily?
     /** The next days' Quranic du'as (src/smart.ts dailyAyahs): the Arabic is the corpus text as it is. */
     let ayahs: [Ayah]?
@@ -28,7 +30,8 @@ struct SharedTimeline: Decodable {
     let worship: Worship?
     /// Fridays, voluntary-fast days and the start of Ramadan in the next two weeks (src/calendar.ts upcomingDays).
     let upcoming: [Upcoming]?
-    struct Upcoming: Decodable { let at: Double; let day: String; let kind: String; let title: String; let sub: String; let short: String? }
+    /// `lunar`: an Umm al-Qura date local sighting may move by a day (absent from data shared by older builds).
+    struct Upcoming: Decodable { let at: Double; let day: String; let kind: String; let title: String; let sub: String; let short: String?; var lunar: Bool? = nil }
     /// The current or next Ramadan (src/calendar.ts ramadanSpan): local midnights of 1 Ramadan and of Eid al-Fitr.
     let ramadan: RamadanSpan?
     struct RamadanSpan: Decodable { let start: Double; let eid: Double }
@@ -44,12 +47,11 @@ struct SharedTimeline: Decodable {
 
     struct Daily: Decodable {
         struct Counter: Decodable { let id: String; let label: String; let n: Int; let total: Int; let atLeast: Bool; let perPrayer: Bool }
-        struct Adhkar: Decodable { let key: String; let label: String; let done: Int; let total: Int }
-        struct Steps: Decodable { let today: Int; let goal: Int; let at: Double }
+        /// `done` counts only adhkar the user confirmed today; `labelAr` is the collection's Arabic name.
+        struct Adhkar: Decodable { let key: String; let label: String; var labelAr: String? = nil; let done: Int; let total: Int }
         let day: String
         let counters: [Counter]
         let adhkar: [Adhkar]
-        let steps: Steps?
     }
 
     static func load() -> SharedTimeline? {
@@ -89,7 +91,7 @@ struct PrayerEntry: TimelineEntry {
     let labels: [String: String]
     let rtl: Bool
     let locale: Locale
-    /// Today's dhikr and steps, or nil when the app has not shared any for today (counts start again at midnight).
+    /// Today's dhikr and adhkar, or nil when the app has not shared any for today (counts start again at midnight).
     var daily: SharedTimeline.Daily? = nil
     var page: WidgetPage = .prayer
     /// Today's du'a from the Quran, if the app has shared it.
@@ -104,33 +106,6 @@ struct PrayerEntry: TimelineEntry {
     var upcoming: [SharedTimeline.Upcoming] = []
 }
 
-/// The pages of the medium widget. The chosen page is kept in the widget extension's own defaults.
-enum WidgetPage: Int, CaseIterable {
-    // Raw values are saved (the chosen page), so a new page is added at the end; `order` is how the tabs are shown.
-    case prayer, dhikr, steps, ayah, upcoming
-    static let order: [WidgetPage] = [.prayer, .upcoming, .dhikr, .steps, .ayah]
-    static var current: WidgetPage { WidgetPage(rawValue: UserDefaults.standard.integer(forKey: "widgetPage")) ?? .prayer }
-    var symbol: String { switch self { case .prayer: return "moon.stars"; case .dhikr: return "circle.dotted"; case .steps: return "figure.walk"; case .ayah: return "book"; case .upcoming: return "moon.circle" } }
-    func label(_ labels: [String: String]) -> String {
-        switch self { case .prayer: return labels["prayerTab"] ?? "Prayer"; case .dhikr: return labels["dhikrTab"] ?? "Dhikr"; case .steps: return labels["stepsTab"] ?? "Steps"; case .ayah: return labels["ayahTab"] ?? "Du'a"; case .upcoming: return labels["upcomingPage"] ?? "Coming up" }
-    }
-}
-
-#if canImport(AppIntents)
-/// Tapping a tab in the widget switches page without opening the app (iOS 17 interactive widgets).
-@available(iOS 17.0, *)
-struct ShowWidgetPage: AppIntent {
-    static var title: LocalizedStringResource = "Show widget page"
-    static var isDiscoverable = false
-    @Parameter(title: "Page") var page: Int
-    init() {}
-    init(_ page: WidgetPage) { self.page = page.rawValue }
-    func perform() async throws -> some IntentResult {
-        UserDefaults.standard.set(page, forKey: "widgetPage")
-        return .result()
-    }
-}
-#endif
 
 private func dayKey(_ date: Date) -> String {
     let f = DateFormatter()
@@ -142,7 +117,7 @@ struct Provider: TimelineProvider {
     private static func sample() -> PrayerEntry {
         let now = Date(), at = { (h: Double) in now.addingTimeInterval(h * 3600).timeIntervalSince1970 * 1000 }
         let today: [SharedTimeline.Prayer] = [.init(key: "fajr", label: "Fajr", at: at(-8)), .init(key: "dhuhr", label: "Dhuhr", at: at(-2)), .init(key: "asr", label: "Asr", at: at(1.4)), .init(key: "maghrib", label: "Maghrib", at: at(4)), .init(key: "isha", label: "Isha", at: at(5.3))]
-        let daily = SharedTimeline.Daily(day: dayKey(now), counters: [.init(id: "istighfar", label: "Istighfar", n: 64, total: 100, atLeast: false, perPrayer: false), .init(id: "istighfar-tawbah", label: "Istighfar and tawbah", n: 20, total: 70, atLeast: true, perPrayer: false), .init(id: "tasbih-prayer", label: "Tasbih after prayer", n: 200, total: 100, atLeast: false, perPrayer: true)], adhkar: [.init(key: "morning", label: "Morning adhkar", done: 4, total: 5), .init(key: "evening", label: "Evening adhkar", done: 0, total: 5)], steps: .init(today: 5840, goal: 8000, at: now.timeIntervalSince1970 * 1000))
+        let daily = SharedTimeline.Daily(day: dayKey(now), counters: [.init(id: "istighfar", label: "Istighfar", n: 64, total: 100, atLeast: false, perPrayer: false), .init(id: "istighfar-tawbah", label: "Istighfar and tawbah", n: 20, total: 70, atLeast: true, perPrayer: false), .init(id: "tasbih-prayer", label: "Tasbih after prayer", n: 200, total: 100, atLeast: false, perPrayer: true)], adhkar: [.init(key: "morning", label: "Morning adhkar", labelAr: "أذكار الصباح", done: 4, total: 5), .init(key: "evening", label: "Evening adhkar", labelAr: "أذكار المساء", done: 0, total: 5)])
         return PrayerEntry(date: now, state: .ready, next: today[2], since: today[1].date, today: today, moment: nil, labels: ["next": "Next prayer", "athan": "Athan", "athanOn": "1"], rtl: false, locale: .current, daily: daily, page: .current, ayah: .init(day: dayKey(now), surah: 37, ayah: 100, to: 100, ref: "37:100", text: "رَبِّ هَبْ لِى مِنَ ٱلصَّـٰلِحِينَ", name: "As-Saaffaat", nameAr: "الصافات"), ramadan: SharedTimeline.load()?.ramadan, upcoming: SharedTimeline.load()?.upcoming ?? [])
     }
 
@@ -179,8 +154,9 @@ struct Provider: TimelineProvider {
         let dayStart = Calendar.current.startOfDay(for: date)
         let since = index > 0 ? data.prayers[index - 1].date : dayStart
         let dayEnd = nextDay(dayStart)
-        // The day shown: today, or yesterday while its Isha is still to come after midnight (high latitudes in summer).
-        let shownDay = next.day.map { $0 < dayKey(date) ? $0 : dayKey(date) } ?? dayKey(date)
+        // The day shown is the next prayer's: yesterday while its Isha is still to come after midnight (high latitudes in
+        // summer), tomorrow once today's Isha has passed (the app's Home card does the same, src/smart.ts prayerDayView).
+        let shownDay = next.day ?? dayKey(date)
         let today = data.prayers.contains { $0.day != nil } ? data.prayers.filter { $0.day == shownDay } : data.prayers.filter { $0.date >= dayStart && $0.date < dayEnd }
         let keptShown = Set(data.worship?.salah.first { $0.day == shownDay }?.kept ?? [])
         let inside = { (w: [Double]?) in w.map { $0.count == 2 && ms >= $0[0] && ms < $0[1] } ?? false }
@@ -262,29 +238,218 @@ struct MomentProvider: TimelineProvider {
     }
 }
 
+// MARK: - Design system (approved 2026-11-08: deep emerald, warm cream, soft gold)
+
+private extension UIColor {
+    convenience init(rgb: UInt32) { self.init(red: CGFloat((rgb >> 16) & 0xFF) / 255, green: CGFloat((rgb >> 8) & 0xFF) / 255, blue: CGFloat(rgb & 0xFF) / 255, alpha: 1) }
+}
+/// A colour for each appearance: warm cream in light mode, a deep green-black in dark mode, so the widget sits well on
+/// either Home Screen. Resolved by WidgetKit with the widget's own colour scheme.
+private func tone(_ light: UInt32, _ dark: UInt32) -> Color { Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(rgb: dark) : UIColor(rgb: light) }) }
+
 private enum Palette {
-    static let bg = Color(red: 16 / 255, green: 20 / 255, blue: 17 / 255)
-    static let panel = Color(red: 33 / 255, green: 38 / 255, blue: 29 / 255)
-    static let line = Color(red: 50 / 255, green: 54 / 255, blue: 43 / 255)
-    static let gold = Color(red: 217 / 255, green: 187 / 255, blue: 121 / 255)
-    static let goldBright = Color(red: 239 / 255, green: 220 / 255, blue: 173 / 255)
-    static let text = Color(red: 243 / 255, green: 240 / 255, blue: 231 / 255)
-    static let muted = Color(red: 167 / 255, green: 173 / 255, blue: 159 / 255)
-    static let green = Color(red: 166 / 255, green: 197 / 255, blue: 165 / 255)
+    /// The page: cream / green-black.
+    static let bg = tone(0xF6EEDC, 0x0F1712)
+    /// Raised cream (the Today's adhkar strip) / raised dark.
+    static let panel = tone(0xFBF6EA, 0x18221B)
+    static let line = tone(0xDCCFB2, 0x2B3A2F)
+    /// Gold for text and marks, darker on cream so it keeps its contrast.
+    static let gold = tone(0x93692A, 0xD9BB79)
+    static let goldBright = tone(0x7A5518, 0xEFDCAD)
+    static let text = tone(0x1C2A21, 0xF3F0E7)
+    static let muted = tone(0x5F6A5B, 0xA7AD9F)
+    static let green = tone(0x2F6B45, 0xA6C5A5)
+    /// The next prayer's row.
+    static let highlight = tone(0xDCE4C8, 0x23402F)
+    // The emerald header and arch panels look the same in both appearances.
+    static let emerald = Color(UIColor(rgb: 0x0F3D2E))
+    static let emeraldDeep = Color(UIColor(rgb: 0x082519))
+    static let onEmerald = Color(UIColor(rgb: 0xF4ECD8))
+    static let onEmeraldMuted = Color(UIColor(rgb: 0xB7C2AF))
+    static let leaf = Color(UIColor(rgb: 0xD8B56C))
+    static let leafLight = Color(UIColor(rgb: 0xEFD293))
+    static let ink = Color(UIColor(rgb: 0x1B271E))
+}
+
+private extension View {
+    /// Marks the part that takes the accent colour in the tinted look (iOS 16+).
+    @ViewBuilder func accent() -> some View { if #available(iOSApplicationExtension 16.0, *) { self.widgetAccentable() } else { self } }
 }
 
 private func number(_ n: Int, _ locale: Locale) -> String { let f = NumberFormatter(); f.locale = locale; f.numberStyle = .decimal; return f.string(from: NSNumber(value: n)) ?? String(n) }
+
+/// True when the widget is drawn in full colour; false for the tinted and clear looks (iOS 18+), where filled panels
+/// are left out and only outlines, text and accents remain.
+private struct FullColor<Content: View>: View {
+    @ViewBuilder let content: (Bool) -> Content
+    var body: some View {
+        if #available(iOSApplicationExtension 16.0, *) { Reader(content: content) } else { content(true) }
+    }
+    @available(iOSApplicationExtension 16.0, *)
+    private struct Reader: View {
+        @Environment(\.widgetRenderingMode) var mode
+        let content: (Bool) -> Content
+        var body: some View { content(mode == .fullColor) }
+    }
+}
+
+/// The system's content margins (iOS 17+), or the classic 16 pt.
+private struct Margins<Content: View>: View {
+    @ViewBuilder let content: (EdgeInsets) -> Content
+    var body: some View {
+        if #available(iOSApplicationExtension 17.0, *) { Reader(content: content) } else { content(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)) }
+    }
+    @available(iOSApplicationExtension 17.0, *)
+    private struct Reader: View {
+        @Environment(\.widgetContentMargins) var margins
+        let content: (EdgeInsets) -> Content
+        var body: some View { content(margins) }
+    }
+}
+
+/// A mosque arch: straight sides, rounded shoulders rising to a gentle point.
+private struct ArchShape: Shape {
+    var shoulder: CGFloat = 0.3
+    func path(in r: CGRect) -> Path {
+        let s = min(r.height * shoulder, r.width * 0.55), mid = r.midX
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.minY + s))
+        p.addCurve(to: CGPoint(x: mid, y: r.minY), control1: CGPoint(x: r.minX, y: r.minY + s * 0.35), control2: CGPoint(x: mid - r.width * 0.18, y: r.minY + s * 0.12))
+        p.addCurve(to: CGPoint(x: r.maxX, y: r.minY + s), control1: CGPoint(x: mid + r.width * 0.18, y: r.minY + s * 0.12), control2: CGPoint(x: r.maxX, y: r.minY + s * 0.35))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// Eight-pointed stars on a square lattice: the faint geometric pattern of the header band.
+private struct StarLattice: Shape {
+    var cell: CGFloat = 18
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        let k = cell * 0.22
+        var y = r.minY + cell / 2
+        while y < r.maxY + cell {
+            var x = r.minX + cell / 2
+            while x < r.maxX + cell {
+                p.addRect(CGRect(x: x - k, y: y - k, width: 2 * k, height: 2 * k))
+                p.addPath(Path(CGRect(x: -k, y: -k, width: 2 * k, height: 2 * k)).applying(CGAffineTransform(rotationAngle: .pi / 4).concatenating(CGAffineTransform(translationX: x, y: y))))
+                x += cell
+            }
+            y += cell
+        }
+        return p
+    }
+}
+
+/// A crescent: a disc with a smaller offset disc taken out.
+private struct Crescent: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path(ellipseIn: r)
+        p.addPath(Path(ellipseIn: r.offsetBy(dx: r.width * 0.3, dy: -r.height * 0.12).insetBy(dx: r.width * 0.06, dy: r.height * 0.06)))
+        return p
+    }
+}
+
+/// A mosque silhouette: a dome on a hall, two minarets.
+private struct MosqueShape: Shape {
+    func path(in r: CGRect) -> Path {
+        let w = r.width, h = r.height
+        var p = Path()
+        let hall = CGRect(x: r.minX + w * 0.2, y: r.minY + h * 0.55, width: w * 0.6, height: h * 0.45)
+        p.addRect(hall)
+        p.addEllipse(in: CGRect(x: r.minX + w * 0.3, y: r.minY + h * 0.2, width: w * 0.4, height: h * 0.55))
+        p.addRect(CGRect(x: r.minX + w * 0.49, y: r.minY + h * 0.08, width: w * 0.02, height: h * 0.14))
+        for x in [w * 0.04, w * 0.88] {
+            p.addRect(CGRect(x: r.minX + x, y: r.minY + h * 0.18, width: w * 0.08, height: h * 0.82))
+            p.addEllipse(in: CGRect(x: r.minX + x - w * 0.005, y: r.minY + h * 0.1, width: w * 0.09, height: h * 0.12))
+        }
+        return p
+    }
+}
+
+/// The Kaaba: a block with its gold band.
+private struct KaabaArt: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 1.5).fill(Color.black.opacity(0.85))
+            Rectangle().fill(Palette.leaf).frame(height: 2.5).padding(.top, 5)
+        }.frame(width: 26, height: 24)
+    }
+}
+
+/// Prayer beads in a ring.
+private struct BeadsArt: View {
+    var body: some View {
+        ZStack {
+            ForEach(0..<16, id: \.self) { i in
+                Circle().fill(Palette.leaf).frame(width: 4.2, height: 4.2)
+                    .offset(x: 12 * cos(Double(i) / 16 * 2 * .pi), y: 12 * sin(Double(i) / 16 * 2 * .pi))
+            }
+            Capsule().fill(Palette.leaf).frame(width: 2.5, height: 9).offset(y: 17)
+        }.frame(width: 30, height: 36)
+    }
+}
+
+/// The arch panel on the leading side of each page: emerald, a gold outline, a small ornament at the apex and the
+/// page's own illustration, drawn natively (no bitmaps).
+private struct ArchPanel<Content: View>: View {
+    var width: CGFloat
+    @ViewBuilder let content: () -> Content
+    var body: some View {
+        FullColor { full in
+            ZStack {
+                if full {
+                    ArchShape().fill(LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .top, endPoint: .bottom))
+                    ArchShape().stroke(Palette.leaf.opacity(0.75), lineWidth: 1).padding(3)
+                } else {
+                    ArchShape().stroke(Palette.leaf.opacity(0.6), lineWidth: 1)
+                }
+                content().padding(.horizontal, 6).padding(.top, 12).padding(.bottom, 6)
+            }
+        }.frame(width: width)
+    }
+}
+
+/// "—◆—", the gold mark under the apex.
+private struct Ornament: View {
+    var crescent = false
+    var body: some View {
+        HStack(spacing: 3) {
+            Rectangle().fill(Palette.leaf.opacity(0.7)).frame(width: 12, height: 0.8)
+            if crescent { Crescent().fill(Palette.leaf, style: FillStyle(eoFill: true)).frame(width: 8, height: 8) }
+            else { Rectangle().fill(Palette.leaf).frame(width: 4, height: 4).rotationEffect(.degrees(45)) }
+            Rectangle().fill(Palette.leaf.opacity(0.7)).frame(width: 12, height: 0.8)
+        }.accessibilityHidden(true)
+    }
+}
+
+/// A small progress ring for the Dhikr rows.
+private struct MiniRing: View {
+    let value: Double
+    var done = false
+    var size: CGFloat = 15
+    var body: some View {
+        ZStack {
+            Circle().stroke(Palette.line, lineWidth: 2.2)
+            if value > 0 || done { Circle().trim(from: 0, to: done ? 1 : min(1, value)).stroke(done ? Palette.green : Palette.gold, style: StrokeStyle(lineWidth: 2.2, lineCap: .round)).rotationEffect(.degrees(-90)) }
+            if done { Image(systemName: "checkmark").font(.system(size: size * 0.45, weight: .bold)).foregroundColor(Palette.green) }
+        }.frame(width: size, height: size).accessibilityHidden(true)
+    }
+}
 
 /// A progress ring with content in the middle.
 private struct Ring<Inner: View>: View {
     let value: Double
     var color: Color = Palette.gold
+    var track: Color = Palette.line
     var width: CGFloat = 6
     @ViewBuilder let inner: () -> Inner
     var body: some View {
         ZStack {
-            Circle().stroke(Palette.line, lineWidth: width)
-            Circle().trim(from: 0, to: max(0.001, min(1, value))).stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round)).rotationEffect(.degrees(-90))
+            Circle().stroke(track, lineWidth: width)
+            if value > 0 { Circle().trim(from: 0, to: min(1, value)).stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round)).rotationEffect(.degrees(-90)) }
             inner()
         }
     }
@@ -298,40 +463,583 @@ private func formatted(_ date: Date, _ locale: Locale, hijri: Bool) -> String {
     return f.string(from: date)
 }
 
+// MARK: - Shared reading of the entry
+
+/// What every page derives from the entry: Ramadan, occasions, today's adhkar, counters. Nothing is computed that the
+/// app did not share, apart from the day arithmetic.
+private struct EntryInfo {
+    let entry: PrayerEntry
+    var l: [String: String] { entry.labels }
+    var phase: RamadanPhase? { RamadanPhase.of(entry.ramadan, on: entry.date) }
+    func num(_ n: Int) -> String { number(n, entry.locale) }
+    /// "day" / "days", with the Arabic forms for 1, 2, 3-10 and 11+.
+    func dayWord(_ n: Int) -> String {
+        let ar = entry.locale.identifier.hasPrefix("ar")
+        return n == 1 ? (l["wDay1"] ?? "day") : ar && n == 2 ? (l["wDay2"] ?? "days") : ar && n <= 10 ? (l["wDayFew"] ?? "days") : (l["wDayMany"] ?? "days")
+    }
+    func daysFrom(_ ms: Double) -> Int { let c = Calendar.current; return c.dateComponents([.day], from: c.startOfDay(for: entry.date), to: c.startOfDay(for: Date(timeIntervalSince1970: ms / 1000))).day ?? 0 }
+    func inDays(_ n: Int) -> String { n <= 0 ? (l["wToday"] ?? "Today") : n == 1 ? (l["wTomorrow"] ?? "Tomorrow") : "\(num(n)) \(dayWord(n))" }
+    var iftar: String? {
+        guard let m = entry.today.first(where: { $0.key == "maghrib" }), Calendar.current.isDate(m.date, inSameDayAs: entry.date) else { return nil }
+        let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("jmm"); return f.string(from: m.date)
+    }
+    var coming: [SharedTimeline.Upcoming] { let start = Calendar.current.startOfDay(for: entry.date).timeIntervalSince1970 * 1000; return entry.upcoming.filter { $0.at >= start }.sorted { $0.at < $1.at } }
+    /// Header chip: the days until Ramadan, or the day of Ramadan with today's iftar (long) or alone (short).
+    func ramadanText(short: Bool) -> String? {
+        guard let p = phase else { return nil }
+        switch p {
+        case let .before(n, _): return short ? "\(num(n)) \(dayWord(n))" : "\(l["wRamadanDay"] ?? "Ramadan") · \(num(n)) \(dayWord(n))"
+        case let .during(d, _): return "\(l["wDayWord"] ?? "Day") \(num(d))" + (short ? "" : iftar.map { " · \(l["wIftar"] ?? "Iftar") \($0)" } ?? "")
+        }
+    }
+    func counter(_ id: String) -> SharedTimeline.Daily.Counter? { entry.daily?.counters.first { $0.id == id } }
+    func adhkar(_ key: String) -> SharedTimeline.Daily.Adhkar? { entry.daily?.adhkar.first { $0.key == key } }
+    /// The adhkar of the moment: the open morning or evening window; else before sleep from the chosen sleep time until
+    /// 03:00; else morning before noon and evening after.
+    var adhkarKey: String {
+        if let m = entry.moment { return m.key }
+        let c = Calendar.current, h = c.component(.hour, from: entry.date), minutes = h * 60 + c.component(.minute, from: entry.date)
+        if let at = l["sleepAt"], at.count == 5, let sh = Int(at.prefix(2)), let sm = Int(at.suffix(2)), minutes >= sh * 60 + sm || h < 3 { return "sleep" }
+        return h < 12 ? "morning" : "evening"
+    }
+}
+
+// MARK: - Medium widget: five pages under one row of tabs
+
+/// The pages of the medium widget. The chosen page is kept in the widget extension's own defaults.
+enum WidgetPage: Int, CaseIterable {
+    // Raw values are saved (the chosen page), so a page is only ever added at the end; `order` is how the tabs are shown.
+    // 2 was the step page until the step tracker was removed (v29): a widget left on it now shows Daily moments.
+    case prayer, dhikr, moments, ayah, upcoming
+    static let order: [WidgetPage] = [.prayer, .upcoming, .dhikr, .moments, .ayah]
+    static var current: WidgetPage { WidgetPage(rawValue: UserDefaults.standard.integer(forKey: "widgetPage")) ?? .prayer }
+    var symbol: String { switch self { case .prayer: return "moon.stars"; case .upcoming: return "clock"; case .dhikr: return "circle.dotted"; case .moments: return "door.left.hand.open"; case .ayah: return "book" } }
+    func label(_ labels: [String: String]) -> String {
+        switch self {
+        case .prayer: return labels["prayerTab"] ?? "Prayer"
+        case .upcoming: return labels["upcomingShort"] ?? "Upcoming"
+        case .dhikr: return labels["dhikrTab"] ?? "Dhikr"
+        case .moments: return labels["momentsTab"] ?? "Moments"
+        case .ayah: return labels["quranTab"] ?? "Quran"
+        }
+    }
+}
+
+#if canImport(AppIntents)
+/// Tapping a tab in the widget switches page without opening the app (iOS 17 interactive widgets).
+@available(iOS 17.0, *)
+struct ShowWidgetPage: AppIntent {
+    static var title: LocalizedStringResource = "Show widget page"
+    static var isDiscoverable = false
+    @Parameter(title: "Page") var page: Int
+    init() {}
+    init(_ page: WidgetPage) { self.page = page.rawValue }
+    func perform() async throws -> some IntentResult {
+        UserDefaults.standard.set(page, forKey: "widgetPage")
+        return .result()
+    }
+}
+#endif
+
+/// The emerald band across the top: brand, the Ramadan chip and the tabs. Each layout is tried whole, widest first, so
+/// the selected tab's label is never cut: the wordmark and the chip give way first.
+private struct HeaderBar: View {
+    let info: EntryInfo
+    var tabs = true
+    var trailing: AnyView? = nil
+    private var page: WidgetPage { info.entry.page }
+    var body: some View {
+        if #available(iOSApplicationExtension 16.0, *) {
+            // The wordmark comes before the Ramadan chip, which also shows on the Upcoming page.
+            ViewThatFits(in: .horizontal) {
+                row(mark: true, chip: false, divider: true)
+                row(mark: true, chip: true, divider: true)
+                row(mark: true, chip: true, divider: false)
+                row(mark: true, chip: nil, divider: false)
+                row(mark: false, chip: true, divider: false)
+                row(mark: false, chip: nil, divider: false)
+            }
+        } else { row(mark: true, chip: nil, divider: false) }
+    }
+    /// `chip`: false = the long text, true = the short one, nil = no chip.
+    private func row(mark: Bool, chip: Bool?, divider: Bool) -> some View {
+        HStack(spacing: 6) {
+            if mark { wordmark }
+            if let chip, let text = info.ramadanText(short: chip) { ramadanChip(text) }
+            Spacer(minLength: 2)
+            if divider && tabs { Rectangle().fill(Palette.leaf.opacity(0.35)).frame(width: 0.8, height: 16).accessibilityHidden(true) }
+            if tabs { tabRow } else if let trailing { trailing }
+        }
+    }
+    private var wordmark: some View {
+        (Text("Ayah").foregroundColor(Palette.onEmerald) + Text("Flow").foregroundColor(Palette.leafLight))
+            .font(.system(size: 14.5, weight: .semibold, design: .serif)).lineLimit(1).fixedSize()
+            .accessibilityLabel("AyahFlow")
+    }
+    private func ramadanChip(_ text: String) -> some View {
+        HStack(spacing: 3) { Image(systemName: "moon").font(.system(size: 8.5, weight: .semibold)); Text(text) }
+            .font(.system(size: 9.5, weight: .semibold)).foregroundColor(Palette.leafLight).lineLimit(1).fixedSize()
+            .padding(.horizontal, 6).padding(.vertical, 3).overlay(Capsule().stroke(Palette.leaf.opacity(0.55), lineWidth: 0.8))
+            .accessibilityElement(children: .ignore).accessibilityLabel("\(info.ramadanText(short: false) ?? text). \(info.l["wSighting"] ?? "Umm al-Qura")")
+    }
+    @ViewBuilder private var tabRow: some View {
+        #if canImport(AppIntents)
+        if #available(iOSApplicationExtension 17.0, *) {
+            // Laid out left to right with the order reversed for Arabic: the same look as a mirrored row, but the tap
+            // targets stay where the tabs are drawn (in a right-to-left environment the buttons did not respond).
+            HStack(spacing: 2) {
+                ForEach(info.entry.rtl ? WidgetPage.order.reversed() : WidgetPage.order, id: \.rawValue) { p in
+                    let on = p == page
+                    Button(intent: ShowWidgetPage(p)) {
+                        // Full colour: a gold capsule with dark text. Tinted or clear: an outline, so the label stays readable.
+                        FullColor { full in
+                            HStack(spacing: 3) {
+                                // The row is laid out left to right (see above), so the icon goes after the label in Arabic.
+                                if on && info.entry.rtl { Text(p.label(info.l)).font(.system(size: 10, weight: .semibold)).lineLimit(1).fixedSize() }
+                                Image(systemName: p.symbol).font(.system(size: 10, weight: .semibold))
+                                if on && !info.entry.rtl { Text(p.label(info.l)).font(.system(size: 10, weight: .semibold)).lineLimit(1).fixedSize() }
+                            }
+                            .foregroundColor(on ? (full ? Palette.ink : Palette.onEmerald) : Palette.onEmeraldMuted)
+                            .padding(.horizontal, on ? 7 : 0).frame(minWidth: 21, minHeight: 21)
+                            .background(Group {
+                                if on && full { Capsule().fill(LinearGradient(colors: [Palette.leafLight, Palette.leaf], startPoint: .top, endPoint: .bottom)) }
+                                else if on { Capsule().stroke(Palette.onEmerald, lineWidth: 1.2) }
+                                else { Capsule().fill(Color.white.opacity(0.07)) }
+                            })
+                            .widgetAccentable(on)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(p.label(info.l))
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }.fixedSize().environment(\.layoutDirection, .leftToRight)
+        }
+        #endif
+    }
+}
+
+/// The emerald band with its faint star lattice (left out in the tinted and clear looks).
+private struct Band: View {
+    var body: some View {
+        FullColor { full in
+            if full {
+                ZStack {
+                    LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    StarLattice().stroke(Palette.leaf.opacity(0.09), lineWidth: 0.6)
+                    VStack { Spacer(); Rectangle().fill(Palette.leaf.opacity(0.55)).frame(height: 0.8) }
+                }.clipped()
+            } else {
+                VStack { Spacer(); Rectangle().fill(Palette.leaf.opacity(0.5)).frame(height: 0.8) }
+            }
+        }.accessibilityHidden(true)
+    }
+}
+
+struct MediumWidget: View {
+    let entry: PrayerEntry
+    private var info: EntryInfo { EntryInfo(entry: entry) }
+    var body: some View {
+        Margins { m in
+            VStack(spacing: 0) {
+                HeaderBar(info: info, tabs: tabsAvailable)
+                    .padding(.leading, max(12, m.leading - 2)).padding(.trailing, max(10, m.trailing - 6))
+                    .padding(.top, max(8, m.top * 0.55)).padding(.bottom, 6)
+                    .background(Band())
+                page
+                    .padding(.leading, m.leading).padding(.trailing, m.trailing)
+                    .padding(.top, 7).padding(.bottom, max(8, m.bottom * 0.6))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+        }
+    }
+    private var tabsAvailable: Bool { if #available(iOSApplicationExtension 17.0, *) { return true }; return false }
+    @ViewBuilder private var page: some View {
+        switch tabsAvailable ? entry.page : .prayer {
+        case .prayer: PrayerPage(info: info)
+        case .upcoming: UpcomingPage(info: info)
+        case .dhikr: DhikrPage(info: info)
+        case .moments: MomentsPage(info: info)
+        case .ayah: QuranPage(entry: entry)
+        }
+    }
+}
+
+// MARK: Page 1: Prayer
+
+private struct PrayerPage: View {
+    let info: EntryInfo
+    var large = false
+    private var entry: PrayerEntry { info.entry }
+    var body: some View {
+        if entry.state != .ready || entry.next == nil {
+            HStack(spacing: 10) {
+                ArchPanel(width: 92) { VStack(spacing: 6) { Ornament(); Crescent().fill(Palette.leaf, style: FillStyle(eoFill: true)).frame(width: 18, height: 18); Spacer(minLength: 0); MosqueShape().fill(Palette.leaf.opacity(0.35)).frame(width: 56, height: 30) } }
+                Text(entry.state == .stale ? (info.l["stale"] ?? "Open AyahFlow to refresh prayer times.") : (info.l["noPlace"] ?? "Save Home in AyahFlow to see prayer times."))
+                    .font(.system(size: 12)).foregroundColor(Palette.muted).frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else if let next = entry.next {
+            HStack(alignment: .top, spacing: 10) {
+                nextPanel(next)
+                if #available(iOSApplicationExtension 16.0, *) {
+                    ViewThatFits(in: .vertical) {
+                        VStack(spacing: large ? 8 : 3) { rows(next); AdhkarStrip(info: info) }
+                        rows(next)
+                    }
+                } else { rows(next) }
+            }
+        }
+    }
+    private func nextPanel(_ next: SharedTimeline.Prayer) -> some View {
+        ArchPanel(width: large ? 128 : 112) {
+            VStack(spacing: large ? 4 : 1) {
+                if tomorrow(next) {
+                    Text(info.l["wTomorrow"] ?? "Tomorrow").font(.system(size: 8, weight: .semibold)).foregroundColor(Palette.leaf).lineLimit(1)
+                } else { Ornament(crescent: true) }
+                Text((info.l["next"] ?? "Next prayer").uppercased()).font(.system(size: 7.5, weight: .semibold)).kerning(info.entry.rtl ? 0 : 1.1).foregroundColor(Palette.leafLight).lineLimit(1).minimumScaleFactor(0.8)
+                Text(next.label).font(.system(size: large ? 30 : 21, weight: .regular, design: .serif)).foregroundColor(Palette.onEmerald).lineLimit(1).minimumScaleFactor(0.7).accent()
+                Text(next.date, style: .time).font(.system(size: large ? 19 : 14, weight: .semibold, design: .serif)).foregroundColor(Palette.leafLight).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
+                Text(next.date, style: .timer).font(.system(size: 9.5).monospacedDigit()).foregroundColor(Palette.onEmeraldMuted).multilineTextAlignment(.center).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .background(alignment: .bottom) { MosqueShape().fill(Palette.leaf.opacity(0.11)).frame(width: 78, height: 30).offset(y: 6).accessibilityHidden(true) }
+        }
+        .accessibilityElement(children: .combine)
+    }
+    /// After Isha the next prayer is tomorrow's Fajr, and the list shows tomorrow's times (as the app's Home card does).
+    private func tomorrow(_ next: SharedTimeline.Prayer) -> Bool { (next.day ?? dayKey(next.date)) > dayKey(entry.date) }
+    private func rows(_ next: SharedTimeline.Prayer) -> some View {
+        let shownDay = entry.today.first?.day ?? dayKey(entry.date)
+        return VStack(spacing: large ? 5 : 0.5) {
+            ForEach(entry.today, id: \.at) { p in
+                let isNext = p.at == next.at, past = p.date <= entry.date
+                HStack(spacing: 4) {
+                    Text(p.label).fontWeight(isNext ? .semibold : .regular).foregroundColor(isNext ? Palette.text : Palette.text.opacity(past ? 0.5 : 0.85))
+                    if entry.kept.contains(p.key) && (p.day ?? dayKey(p.date)) == shownDay {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 9)).foregroundColor(Palette.green).accessibilityLabel(info.l["prayed"] ?? "prayed")
+                    }
+                    Spacer(minLength: 4)
+                    Text(p.date, style: .time).monospacedDigit().fontWeight(isNext ? .semibold : .regular).foregroundColor(isNext ? Palette.goldBright : Palette.muted.opacity(past ? 0.7 : 1))
+                }
+                .font(.system(size: large ? 15 : 11, design: large ? .serif : .default)).lineLimit(1)
+                .padding(.horizontal, 7).padding(.vertical, large ? 3 : 1)
+                .background(FullColor { full in
+                    if isNext { if full { Capsule().fill(Palette.highlight) } else { Capsule().stroke(Palette.text.opacity(0.6), lineWidth: 1) } }
+                })
+            }
+        }
+    }
+}
+
+/// "Today's adhkar": the collection for this moment, its confirmed progress, and its Arabic name; tapping opens it.
+private struct AdhkarStrip: View {
+    let info: EntryInfo
+    var body: some View {
+        let key = info.adhkarKey, a = info.adhkar(key)
+        let name = a?.label ?? info.l[key == "sleep" ? "m_sleep" : key] ?? (key == "morning" ? "Morning adhkar" : key == "evening" ? "Evening adhkar" : "Before sleep")
+        Link(destination: URL(string: "ayahflow://moment/\(key)")!) {
+            Group {
+                // Both names when they fit whole, else the name in the app's language alone: nothing is cut off.
+                if #available(iOSApplicationExtension 16.0, *), let ar = a?.labelAr, !info.entry.rtl {
+                    ViewThatFits(in: .horizontal) { line(key, name, a, arabic: ar); line(key, name, a, arabic: nil) }
+                } else { line(key, name, a, arabic: nil) }
+            }
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(FullColor { full in if full { RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Palette.panel) } })
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Palette.line, lineWidth: 0.7))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(info.l["todaysAdhkar"] ?? "Today's adhkar"): \(name)")
+    }
+    private func line(_ key: String, _ name: String, _ a: SharedTimeline.Daily.Adhkar?, arabic: String?) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: key == "morning" ? "sun.max" : key == "sleep" ? "moon.zzz" : "book").font(.system(size: 9, weight: .semibold)).foregroundColor(Palette.gold)
+                .frame(width: 16, height: 16).background(FullColor { full in if full { Circle().fill(Palette.bg) } }).accessibilityHidden(true)
+            Text(name).font(.system(size: 10.5, weight: .semibold, design: .serif)).foregroundColor(Palette.text).lineLimit(1).fixedSize()
+            Spacer(minLength: 2)
+            if let arabic { Text(arabic).font(.system(size: 11.5, weight: .medium)).foregroundColor(Palette.gold).lineLimit(1).fixedSize().environment(\.layoutDirection, .rightToLeft) }
+            if let a, a.total > 0 {
+                if a.done >= a.total { Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundColor(Palette.green) }
+                else if a.done > 0 { Text("\(info.num(a.done))/\(info.num(a.total))").font(.system(size: 9.5, weight: .medium).monospacedDigit()).foregroundColor(Palette.muted).fixedSize() }
+            }
+            Image(systemName: info.entry.rtl ? "chevron.left" : "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundColor(Palette.gold).accessibilityHidden(true)
+        }
+    }
+}
+
+// MARK: Page 2: Upcoming
+
+private struct UpcomingPage: View {
+    let info: EntryInfo
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ArchPanel(width: 86) {
+                VStack(spacing: 4) {
+                    Ornament()
+                    Text(info.l["upcomingTitle"] ?? "Upcoming in Islam").font(.system(size: 11.5, design: .serif)).foregroundColor(Palette.onEmerald).multilineTextAlignment(.center).lineLimit(3).minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
+                    KaabaArt().accessibilityHidden(true)
+                }
+            }
+            list.frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .widgetURL(URL(string: "ayahflow://occasions"))
+    }
+    private var rows: [(title: String, short: String, at: Double, kind: String, lunar: Bool)] {
+        var r = info.coming.map { (title: $0.title, short: $0.short ?? $0.title, at: $0.at, kind: $0.kind, lunar: $0.lunar ?? ($0.kind != "jumuah")) }
+        // Before Ramadan its first day is always the last row (it is usually further away than the rest).
+        if case let .before(_, start) = info.phase { let t = info.l["wRamadanBegins"] ?? "Ramadan begins"; r = Array(r.prefix(3)) + [(title: t, short: t, at: start.timeIntervalSince1970 * 1000, kind: "ramadan", lunar: true)] }
+        return r
+    }
+    private func symbol(_ kind: String) -> String { kind == "jumuah" ? "building.columns" : kind == "fast" ? "moon" : kind == "ramadan" ? "moon.stars" : "sparkles" }
+    private var list: some View {
+        var during: (Int, Int)? = nil
+        if case let .during(d, e) = info.phase { during = (d, e) }
+        let shown = Array(rows.prefix(during == nil ? 4 : 2))
+        return VStack(alignment: .leading, spacing: 3) {
+            if let (d, e) = during {
+                HStack {
+                    Text("\(info.l["wDayWord"] ?? "Day") \(info.num(d)) · \(info.l["wOf2930"] ?? "of 29 or 30")").font(.system(size: 12, design: .serif)).foregroundColor(Palette.goldBright)
+                    Spacer(minLength: 4)
+                    Text((info.l["wEidIn"] ?? "Eid al-Fitr in {n}").replacingOccurrences(of: "{n}", with: info.inDays(e))).font(.system(size: 9.5)).foregroundColor(Palette.muted)
+                }.lineLimit(1).minimumScaleFactor(0.8)
+                HStack(spacing: 1.5) {
+                    ForEach(1...30, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 1.5).fill(i < d ? Palette.gold : i == d ? Palette.goldBright : i >= 21 && i % 2 == 1 ? Palette.line.opacity(1.6) : Palette.line.opacity(0.6))
+                            .frame(height: i == d ? 6 : 4).opacity(i == 30 && d < 30 ? 0.5 : 1)
+                    }
+                }.accessibilityHidden(true)
+            }
+            if shown.isEmpty {
+                Text(info.l["upcomingEmpty"] ?? "No Friday or voluntary fast in the next two weeks.").font(.system(size: 11)).foregroundColor(Palette.muted)
+            }
+            ForEach(Array(shown.enumerated()), id: \.offset) { i, r in
+                row(r)
+                if i < shown.count - 1 { Rectangle().fill(Palette.line).frame(height: 0.6).accessibilityHidden(true) }
+            }
+            Spacer(minLength: 0)
+            if shown.contains(where: { $0.lunar }) || during != nil {
+                Text("≈ " + (info.l["wSightingLong"] ?? "Umm al-Qura · ±1 day. Local moon sighting may differ.")).font(.system(size: 8.5)).foregroundColor(Palette.muted).lineLimit(1).minimumScaleFactor(0.75)
+            }
+        }
+    }
+    @ViewBuilder private func row(_ r: (title: String, short: String, at: Double, kind: String, lunar: Bool)) -> some View {
+        let date = Date(timeIntervalSince1970: r.at / 1000), days = info.inDays(info.daysFrom(r.at)), mark = r.lunar ? "≈ " : ""
+        let long: DateFormatter = { let f = DateFormatter(); f.locale = info.entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM"); return f }()
+        let short: DateFormatter = { let f = DateFormatter(); f.locale = info.entry.locale; f.setLocalizedDateFormatFromTemplate("d MMM"); return f }()
+        let line = { (title: String, when: String) in
+            HStack(spacing: 5) {
+                Image(systemName: symbol(r.kind)).font(.system(size: 9.5)).foregroundColor(Palette.gold).frame(width: 12).accessibilityHidden(true)
+                Text(title).font(.system(size: 11.5)).foregroundColor(Palette.text).lineLimit(1).fixedSize()
+                Spacer(minLength: 4)
+                Text(when).font(.system(size: 9.5)).foregroundColor(Palette.muted).lineLimit(1).fixedSize()
+            }
+        }
+        if #available(iOSApplicationExtension 16.0, *) {
+            ViewThatFits(in: .horizontal) {
+                line(r.title, "\(mark)\(long.string(from: date)) · \(days)")
+                line(r.title, "\(mark)\(short.string(from: date)) · \(days)")
+                line(r.short, "\(mark)\(short.string(from: date)) · \(days)")
+                line(r.short, "\(mark)\(days)")
+            }
+            .accessibilityElement(children: .combine)
+        } else { line(r.short, "\(mark)\(days)") }
+    }
+}
+
+// MARK: Page 3: Dhikr
+
+private struct DhikrPage: View {
+    let info: EntryInfo
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            istighfar
+            rows.frame(maxWidth: .infinity)
+        }
+    }
+    /// Istighfar in the arch: the ring fills each hundred (or the chosen target) and the count is today's taps.
+    private var istighfar: some View {
+        let c = info.counter("istighfar"), n = c?.n ?? 0, total = max(1, c?.total ?? 100)
+        let met = n >= total, value = Double(n % total == 0 && n > 0 ? total : n % total) / Double(total)
+        return Link(destination: URL(string: "ayahflow://counter/istighfar")!) {
+            ArchPanel(width: 96) {
+                VStack(spacing: 3) {
+                    Text("أستغفر الله").font(.system(size: 10.5, weight: .medium)).foregroundColor(Palette.leafLight).lineLimit(1).environment(\.layoutDirection, .rightToLeft)
+                    Ring(value: value, color: met ? Palette.green : Palette.leaf, track: Color.white.opacity(0.14), width: 4.5) {
+                        VStack(spacing: -1) {
+                            Text(info.num(n)).font(.system(size: 19, design: .serif)).foregroundColor(Palette.onEmerald).monospacedDigit().minimumScaleFactor(0.5).lineLimit(1)
+                            Text("/ " + info.num(total)).font(.system(size: 8.5)).foregroundColor(Palette.onEmeraldMuted)
+                        }.padding(7)
+                    }.frame(width: 62, height: 62)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore).accessibilityLabel("\(c?.label ?? "Istighfar"): \(info.num(n)) / \(info.num(total))")
+    }
+    private func row(_ label: String, _ value: String, _ progress: Double, done: Bool, url: String) -> some View {
+        Link(destination: URL(string: url)!) {
+            HStack(spacing: 7) {
+                MiniRing(value: progress, done: done)
+                Text(label).font(.system(size: 11.5)).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.85)
+                Spacer(minLength: 3)
+                Text(value).font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundColor(done ? Palette.green : Palette.goldBright).lineLimit(1).fixedSize()
+            }
+            .padding(.vertical, 3.5)
+        }
+        .accessibilityElement(children: .combine)
+    }
+    private var rows: some View {
+        VStack(spacing: 0) {
+            if let t = info.counter("istighfar-tawbah") {
+                row(t.label, info.num(t.n) + " / " + info.num(t.total) + (t.atLeast ? "+" : ""), Double(t.n) / Double(max(1, t.total)), done: t.n >= t.total, url: "ayahflow://counter/\(t.id)")
+                divider
+            }
+            if let t = info.counter("tasbih-prayer") {
+                // Rounds of 33 · 33 · 34 completed today; the ring shows the round under way.
+                row(t.label, info.num(t.n / max(1, t.total)) + " " + (info.l["rounds"] ?? "rounds"), Double(t.n % max(1, t.total)) / Double(max(1, t.total)), done: false, url: "ayahflow://counter/\(t.id)")
+                divider
+            }
+            ForEach(["morning", "evening"], id: \.self) { key in
+                if let a = info.adhkar(key), a.total > 0 {
+                    row(a.label, info.num(a.done) + " / " + info.num(a.total), Double(a.done) / Double(a.total), done: a.done >= a.total, url: "ayahflow://moment/\(key)")
+                    if key == "morning" { divider }
+                }
+            }
+            if info.entry.daily == nil {
+                Text(info.l["ayahEmpty"] ?? "Open AyahFlow to update.").font(.system(size: 10)).foregroundColor(Palette.muted).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+    private var divider: some View { Rectangle().fill(Palette.line).frame(height: 0.6).accessibilityHidden(true) }
+}
+
+// MARK: Page 4: Moments (replaces Steps)
+
+/// Shortcuts to the adhkar of four daily moments. The widget detects nothing itself: automatic reminders stay with the
+/// reminder engine. A tick appears only when the user confirmed every dhikr of that moment today.
+private struct MomentsPage: View {
+    let info: EntryInfo
+    static let items: [(key: String, symbol: String, fallback: String)] = [("vehicle", "car.fill", "Riding or travelling"), ("leave_home", "door.left.hand.open", "Leaving home"), ("enter_home", "house.fill", "Entering home"), ("sleep", "moon.zzz.fill", "Before sleep")]
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ArchPanel(width: 86) {
+                VStack(spacing: 4) {
+                    Ornament()
+                    Text(info.l["momentsTitle"] ?? "Adhkar for daily moments").font(.system(size: 11.5, design: .serif)).foregroundColor(Palette.onEmerald).multilineTextAlignment(.center).lineLimit(3).minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
+                    Image(systemName: "house").font(.system(size: 18, weight: .light)).foregroundColor(Palette.leaf).accessibilityHidden(true)
+                }
+            }
+            VStack(spacing: 0) {
+                ForEach(Array(MomentsPage.items.enumerated()), id: \.offset) { i, m in
+                    Link(destination: URL(string: "ayahflow://moment/\(m.key)")!) {
+                        HStack(spacing: 8) {
+                            Image(systemName: m.symbol).font(.system(size: 10.5)).foregroundColor(Palette.gold).frame(width: 16).accessibilityHidden(true)
+                            Text(info.l["m_\(m.key)"] ?? m.fallback).font(.system(size: 11.5)).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.85)
+                            Spacer(minLength: 3)
+                            if let a = info.adhkar(m.key), a.total > 0, a.done >= a.total {
+                                Image(systemName: "checkmark.circle.fill").font(.system(size: 10.5)).foregroundColor(Palette.green).accessibilityLabel(info.l["prayed"] ?? "done")
+                            }
+                            Image(systemName: info.entry.rtl ? "chevron.left" : "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundColor(Palette.gold).accessibilityHidden(true)
+                        }.padding(.vertical, 4.5)
+                    }
+                    if i < MomentsPage.items.count - 1 { Rectangle().fill(Palette.line).frame(height: 0.6).accessibilityHidden(true) }
+                }
+                Spacer(minLength: 0)
+            }.frame(maxWidth: .infinity)
+        }
+    }
+}
+
+// MARK: Page 5: Du'a from the Quran
+
+/// The day's Quranic du'a, the corpus text as it is. Beside the arch while it fits at 14 pt or more; otherwise across the
+/// whole width (FittedAyah steps down to 11 pt, then points to the surah instead of cutting the text).
+private struct QuranPage: View {
+    let entry: PrayerEntry
+    var body: some View {
+        if let a = entry.ayah {
+            Link(destination: URL(string: "ayahflow://ayah/\(a.surah):\(a.ayah)")!) {
+                if #available(iOSApplicationExtension 16.0, *) {
+                    ViewThatFits(in: .vertical) {
+                        HStack(spacing: 10) {
+                            ArchPanel(width: 76) {
+                                VStack(spacing: 4) {
+                                    Ornament()
+                                    Text(entry.labels["ayahTab"] ?? "Du'a from the Quran").font(.system(size: 10.5, design: .serif)).foregroundColor(Palette.onEmerald).multilineTextAlignment(.center).lineLimit(3).minimumScaleFactor(0.8)
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "book").font(.system(size: 16, weight: .light)).foregroundColor(Palette.leaf).accessibilityHidden(true)
+                                }
+                            }
+                            VStack(spacing: 4) { lines([19, 16.5, 14]); reference(a) }
+                        }
+                        VStack(spacing: 4) {
+                            FittedAyah(text: a.text, sizes: FittedAyah.sizes(.systemMedium), caption: entry.labels["readAyah"] ?? "Read it in its surah")
+                                .foregroundColor(Palette.text).frame(maxWidth: .infinity, maxHeight: .infinity)
+                            reference(a)
+                        }
+                    }
+                } else { AyahBody(entry: entry, compact: true) }
+            }
+        } else {
+            Text(entry.labels["ayahEmpty"] ?? "Open AyahFlow to load the du'a of the day.").font(.caption).foregroundColor(Palette.muted)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+    /// The ayah at the first size that fits whole, never cut (the fallback above takes over when none does).
+    @available(iOSApplicationExtension 16.0, *)
+    private func lines(_ sizes: [CGFloat]) -> some View {
+        let text = entry.ayah?.text ?? ""
+        return ViewThatFits(in: .vertical) {
+            ForEach(sizes, id: \.self) { s in
+                Text(text).font(.quran(s)).foregroundColor(Palette.text).multilineTextAlignment(.center).lineSpacing(s * 0.12)
+                    .fixedSize(horizontal: false, vertical: true).environment(\.layoutDirection, .rightToLeft)
+            }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    private func reference(_ a: SharedTimeline.Ayah) -> some View {
+        HStack(spacing: 6) {
+            Text(a.nameAr).foregroundColor(Palette.gold)
+            Circle().fill(Palette.line).frame(width: 3, height: 3)
+            Text(a.ref).foregroundColor(Palette.muted).monospacedDigit()
+        }.font(.system(size: 10.5, weight: .medium)).lineLimit(1)
+    }
+}
+
+// MARK: - The prayer widget in every size
+
 struct PrayerWidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: PrayerEntry
+    private var info: EntryInfo { EntryInfo(entry: entry) }
 
     var body: some View {
         content
             .environment(\.layoutDirection, entry.rtl ? .rightToLeft : .leftToRight)
+            .environment(\.locale, entry.locale) // times and countdowns in the app's language, as the app shows them
             .widgetURL(URL(string: "ayahflow://prayer"))
-            .modifier(WidgetBackground())
+            .modifier(WidgetBackground(marginsOff: true))
     }
 
     @ViewBuilder var content: some View {
-        if family == .systemMedium && entry.page != .prayer { paged(entry.page == .dhikr ? AnyView(dhikrPage) : entry.page == .steps ? AnyView(stepsPage) : entry.page == .upcoming ? AnyView(upcomingPage) : AnyView(AyahBody(entry: entry, compact: true))) }
+        if family == .systemMedium { MediumWidget(entry: entry) }
+        else if family == .systemLarge { large }
         else if entry.state != .ready || entry.next == nil {
             VStack(alignment: .leading, spacing: 6) {
                 Text("AyahFlow").font(.system(.headline, design: .serif)).foregroundColor(Palette.gold)
                 Text(entry.state == .stale ? (entry.labels["stale"] ?? "Open AyahFlow to refresh prayer times.") : (entry.labels["noPlace"] ?? "Save Home in AyahFlow to see prayer times."))
                     .font(.caption).foregroundColor(Palette.muted)
-            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(family == .systemSmall ? 14 : 0)
         } else if let next = entry.next {
             switch family {
             case .accessoryInline: Text("\(next.label) \(next.date, style: .time)")
             case .accessoryCircular: circular(next)
             case .accessoryRectangular: rectangular(next)
-            case .systemMedium: paged(AnyView(medium(next)))
-            case .systemLarge: large(next)
             default: small(next)
             }
         }
-    }
-
-    // MARK: Pieces
-    private var eyebrow: some View {
-        Text((entry.labels["next"] ?? "Next prayer").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold)
     }
 
     @ViewBuilder private func progress(_ next: SharedTimeline.Prayer) -> some View {
@@ -341,301 +1049,62 @@ struct PrayerWidgetView: View {
         }
     }
 
-    private func nextBlock(_ next: SharedTimeline.Prayer, size: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            eyebrow
-            Text(next.label).font(.system(size: size, weight: .regular, design: .serif)).foregroundColor(Palette.text).minimumScaleFactor(0.6).lineLimit(1)
-            Text(next.date, style: .time).font(.system(size: size * 0.55, weight: .medium, design: .serif)).foregroundColor(Palette.goldBright).monospacedDigit()
-            Text(next.date, style: .timer).font(.caption.monospacedDigit()).foregroundColor(Palette.muted)
+    /// The small size: the next prayer in the arch, the countdown under it.
+    private func small(_ next: SharedTimeline.Prayer) -> some View {
+        Margins { m in
+            VStack(spacing: 3) {
+                Ornament()
+                Text((entry.labels["next"] ?? "Next prayer").uppercased()).font(.system(size: 9, weight: .semibold)).kerning(entry.rtl ? 0 : 1.2).foregroundColor(Palette.leafLight).lineLimit(1).minimumScaleFactor(0.8)
+                Text(next.label).font(.system(size: 26, design: .serif)).foregroundColor(Palette.onEmerald).lineLimit(1).minimumScaleFactor(0.6).accent()
+                Text(next.date, style: .time).font(.system(size: 16, weight: .semibold, design: .serif)).foregroundColor(Palette.leafLight).monospacedDigit()
+                Text(next.date, style: .timer).font(.system(size: 11).monospacedDigit()).foregroundColor(Palette.onEmeraldMuted).multilineTextAlignment(.center)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 16).padding(.horizontal, 8).padding(.bottom, 6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(FullColor { full in
+                ZStack {
+                    if full { ArchShape(shoulder: 0.26).fill(LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .top, endPoint: .bottom)) }
+                    ArchShape(shoulder: 0.26).stroke(Palette.leaf.opacity(0.7), lineWidth: 1).padding(full ? 3 : 0)
+                    VStack { Spacer(); MosqueShape().fill(Palette.leaf.opacity(0.14)).frame(width: 90, height: 34) }.accessibilityHidden(true)
+                }
+            })
+            .padding(EdgeInsets(top: m.top * 0.6, leading: m.leading * 0.6, bottom: m.bottom * 0.6, trailing: m.trailing * 0.6))
         }
     }
 
-    /// The date row of the Prayer page, with the next occasion at its end, whole or not at all: first with the full
-    /// date, then with a shorter Gregorian date, then the date alone (it never squeezes the date or the prayers).
-    @ViewBuilder private var dateRow: some View {
-        if let line = occasionLine, #available(iOSApplicationExtension 16.0, *) {
-            let tag = Text(line).font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.goldBright).lineLimit(1).fixedSize()
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 6) { dateHeader(fixed: true); Spacer(minLength: 6); tag }
-                HStack(spacing: 6) { dateHeader(short: true, fixed: true); Spacer(minLength: 6); tag }
-                HStack(spacing: 6) { dateHeader(short: true, noYear: true, fixed: true); Spacer(minLength: 6); tag }
-                dateHeader()
-            }
-        } else { dateHeader() }
-    }
-
-    private func dateHeader() -> some View { dateHeader(short: false, fixed: false) }
-    /// The day whose Umm al-Qura date is shown: the user's correction (Settings, ±1 day) shared by the app.
-    private var hijriDay: Date { Calendar.current.date(byAdding: .day, value: Int(entry.labels["hijriOffset"] ?? "0") ?? 0, to: entry.date) ?? entry.date }
-    private func dateHeader(short: Bool = false, noYear: Bool = false, fixed: Bool) -> some View {
-        let g: String = { if !short { return formatted(entry.date, entry.locale, hijri: false) }; let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM"); return f.string(from: entry.date) }()
-        return HStack(spacing: 6) {
-            Text(g).foregroundColor(Palette.muted)
-            Circle().fill(Palette.line).frame(width: 3, height: 3)
-            Text(noYear ? { let f = DateFormatter(); f.locale = entry.locale; f.calendar = Calendar(identifier: .islamicUmmAlQura); f.setLocalizedDateFormatFromTemplate("d MMMM"); return f.string(from: hijriDay) }() : formatted(hijriDay, entry.locale, hijri: true)).foregroundColor(Palette.gold)
-        }.font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(fixed ? 1 : 0.8).fixedSize(horizontal: fixed, vertical: false)
-    }
-
-
-    private func prayerRows(_ next: SharedTimeline.Prayer, spacing: CGFloat, font: Font) -> some View {
-        VStack(spacing: spacing) {
-            ForEach(entry.today, id: \.at) { p in
-                let isNext = p.at == next.at, past = p.date <= entry.date
-                HStack(spacing: 8) {
-                    Rectangle().fill(isNext ? Palette.gold : (past ? Palette.gold.opacity(0.5) : Palette.line)).frame(width: 6, height: 6).rotationEffect(.degrees(45))
-                    Text(p.label).foregroundColor(isNext ? Palette.gold : Palette.text)
-                    if entry.kept.contains(p.key) && (p.day ?? dayKey(p.date)) == (entry.today.first?.day ?? dayKey(entry.date)) {
-                        Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundColor(Palette.green).accessibilityLabel(entry.labels["prayed"] ?? "prayed")
-                    }
-                    Spacer(minLength: 4)
-                    Text(p.date, style: .time).monospacedDigit().foregroundColor(isNext ? Palette.goldBright : Palette.muted)
-                }.font(font).opacity(past && !isNext ? 0.55 : 1)
-            }
-        }
-    }
-
-    @ViewBuilder private func momentLink() -> some View {
-        if let m = entry.moment, let url = URL(string: "ayahflow://moment/\(m.key)") {
-            Link(destination: url) {
-                HStack(spacing: 5) { Image(systemName: m.key == "morning" ? "sun.max" : "moon.stars"); Text(m.label) }
-                    .font(.caption2.weight(.semibold)).foregroundColor(Palette.bg)
-                    .padding(.horizontal, 10).padding(.vertical, 5).background(Capsule().fill(Palette.gold))
+    /// The large size: the header band, the next prayer and today's five, today's adhkar and the dhikr counts.
+    private var large: some View {
+        Margins { m in
+            VStack(spacing: 0) {
+                HeaderBar(info: info, tabs: false, trailing: AnyView(athanStatus))
+                    .padding(.horizontal, m.leading).padding(.top, max(10, m.top * 0.7)).padding(.bottom, 9)
+                    .background(Band())
+                VStack(alignment: .leading, spacing: 10) {
+                    dateLine
+                    PrayerPage(info: info, large: true).frame(height: 178)
+                    if entry.daily != nil { DhikrPage(info: info).frame(maxHeight: .infinity) }
+                    else { Spacer(minLength: 0) }
+                }
+                .padding(.horizontal, m.leading).padding(.top, 10).padding(.bottom, max(10, m.bottom * 0.8))
             }
         }
     }
 
     private var athanStatus: some View {
         HStack(spacing: 4) { Image(systemName: entry.labels["athanOn"] == "1" ? "bell.fill" : "bell.slash"); Text(entry.labels["athan"] ?? "") }
-            .font(.system(size: 10, weight: .medium)).foregroundColor(entry.labels["athanOn"] == "1" ? Palette.gold : Palette.muted).lineLimit(1)
+            .font(.system(size: 10, weight: .medium)).foregroundColor(entry.labels["athanOn"] == "1" ? Palette.leafLight : Palette.onEmeraldMuted).lineLimit(1)
     }
 
-    // MARK: Pages
-    /// Tabs along the top of the medium widget; each one switches page in place (iOS 17+). Older iOS shows prayer times only.
-    @ViewBuilder private var tabs: some View {
-        #if canImport(AppIntents)
-        if #available(iOSApplicationExtension 17.0, *) {
-            HStack(spacing: 4) {
-                ForEach(WidgetPage.order, id: \.rawValue) { p in
-                    Button(intent: ShowWidgetPage(p)) {
-                        HStack(spacing: 3) { Image(systemName: p.symbol); if p == entry.page { Text(p.label(entry.labels)) } }
-                            .font(.system(size: 10, weight: .semibold)).lineLimit(1)
-                            .foregroundColor(p == entry.page ? Palette.bg : Palette.muted)
-                            .padding(.horizontal, p == entry.page ? 8 : 6).padding(.vertical, 4)
-                            .background(Capsule().fill(p == entry.page ? Palette.gold : Palette.line.opacity(0.6)))
-                    }.buttonStyle(.plain)
-                }
-            }
-        }
-        #endif
-    }
-
-    private func paged(_ page: AnyView) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: phase != nil ? 3 : 6) { if phase != nil { ramadanChip.layoutPriority(0.5) } else { dateHeader().layoutPriority(0) }; Spacer(minLength: phase != nil ? 0 : 4); tabs.layoutPriority(1) }
-            page.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    // MARK: Ramadan and occasions (Umm al-Qura dates from the app; local sighting may differ by a day)
-    private var phase: RamadanPhase? { RamadanPhase.of(entry.ramadan, on: entry.date) }
-    private func ramNum(_ n: Int) -> String { let f = NumberFormatter(); f.locale = entry.locale; return f.string(from: NSNumber(value: n)) ?? String(n) }
-    /// "day" / "days", with the Arabic forms for 1, 2, 3-10 and 11+.
-    private func dayWord(_ n: Int) -> String {
-        let ar = entry.locale.identifier.hasPrefix("ar"), l = entry.labels
-        return n == 1 ? (l["wDay1"] ?? "day") : ar && n == 2 ? (l["wDay2"] ?? "days") : ar && n <= 10 ? (l["wDayFew"] ?? "days") : (l["wDayMany"] ?? "days")
-    }
-    private func daysFrom(_ ms: Double) -> Int { let c = Calendar.current; return c.dateComponents([.day], from: c.startOfDay(for: entry.date), to: c.startOfDay(for: Date(timeIntervalSince1970: ms / 1000))).day ?? 0 }
-    private func inDays(_ n: Int) -> String { n <= 0 ? (entry.labels["wToday"] ?? "Today") : n == 1 ? (entry.labels["wTomorrow"] ?? "Tomorrow") : "\(ramNum(n)) \(dayWord(n))" }
-    private var iftar: String? {
-        guard let m = entry.today.first(where: { $0.key == "maghrib" }), Calendar.current.isDate(m.date, inSameDayAs: entry.date) else { return nil }
-        let f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("jmm"); return f.string(from: m.date)
-    }
-    private var coming: [SharedTimeline.Upcoming] { let start = Calendar.current.startOfDay(for: entry.date).timeIntervalSince1970 * 1000; return entry.upcoming.filter { $0.at >= start }.sorted { $0.at < $1.at } }
-    /// Header chip: the days until Ramadan, or the day of Ramadan with today's iftar.
-    @ViewBuilder private var ramadanChip: some View {
-        if let p = phase {
-            let l = entry.labels
-            let text: String = { switch p {
-                case let .before(n, _): return "\(l["wRamadanDay"] ?? "Ramadan") · \(ramNum(n)) \(dayWord(n))"
-                case let .during(d, _): return "\(l["wDayWord"] ?? "Day") \(ramNum(d))" + (iftar.map { " · \(l["wIftar"] ?? "Iftar") \($0)" } ?? "")
-            } }()
-            let short: String = { switch p {
-                case let .before(n, _): return "\(ramNum(n)) \(dayWord(n))"
-                case let .during(d, _): return "\(l["wDayWord"] ?? "Day") \(ramNum(d))"
-            } }()
-            let chip = { (t: String) in HStack(spacing: 4) { Image(systemName: "moon").font(.system(size: 9, weight: .semibold)); Text(t) }
-                .font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.goldBright).lineLimit(1).fixedSize()
-                .padding(.horizontal, 6).padding(.vertical, 4).overlay(Capsule().stroke(Palette.gold.opacity(0.45), lineWidth: 1)) }
-            Group {
-                // The whole text beside the short "Prayer" tab; the short form beside the longer tab labels (never cut off).
-                if entry.page == .prayer { chip(text) } else { chip(short) }
-            }.accessibilityElement(children: .ignore).accessibilityLabel("\(text). \(l["wSighting"] ?? "Umm al-Qura")")
-        }
-    }
-    /// The date row's right end: an odd night of the last ten tonight, else the next Friday, fast or occasion.
-    private var occasionLine: String? {
-        if case let .during(d, _) = phase, d + 1 >= 21, d + 1 <= 29, (d + 1) % 2 == 1 { return entry.labels["wOddNight"] ?? "Odd night tonight" }
-        guard let u = coming.first else { return nil }
-        return "\(u.short ?? u.title) · \(inDays(daysFrom(u.at)))"
-    }
-    /// The 30 days of Ramadan: past days filled, today brighter, the odd nights of the last ten marked, day 30 faint.
-    private func ramadanStrip(_ day: Int) -> some View {
-        HStack(spacing: 2) {
-            ForEach(1...30, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(i < day ? Palette.gold : i == day ? Palette.goldBright : i >= 21 && i % 2 == 1 ? Palette.line.opacity(1.6) : Palette.panel)
-                    .frame(height: i == day ? 7 : 5).opacity(i == 30 && day < 30 ? 0.5 : 1)
-            }
-        }.accessibilityHidden(true)
-    }
-    /// The Coming up page: the next dates with weekday and days to go, the Ramadan strip during Ramadan, and the
-    /// Umm al-Qura note.
-    private var upcomingPage: some View {
-        let l = entry.labels, f = DateFormatter(); f.locale = entry.locale; f.setLocalizedDateFormatFromTemplate("EEE d MMM")
-        var rows: [(String, Double)] = coming.map { ($0.title, $0.at) }
-        // Before Ramadan its first day is always the last row (it is usually further away than the rest).
-        if case let .before(_, start) = phase { rows = Array(rows.prefix(3)) + [(l["wRamadanBegins"] ?? "Ramadan begins", start.timeIntervalSince1970 * 1000)] }
-        var during: (Int, Int)? = nil
-        if case let .during(d, e) = phase { during = (d, e) }
-        return VStack(alignment: .leading, spacing: 5) {
-            if let (d, e) = during {
-                HStack {
-                    Text("\(l["wDayWord"] ?? "Day") \(ramNum(d)) · \(l["wOf2930"] ?? "of 29 or 30")").font(.system(size: 13, design: .serif)).foregroundColor(Palette.goldBright)
-                    Spacer(minLength: 6)
-                    Text((l["wEidIn"] ?? "Eid al-Fitr in {n}").replacingOccurrences(of: "{n}", with: inDays(e))).font(.system(size: 10)).foregroundColor(Palette.muted)
-                }.lineLimit(1).minimumScaleFactor(0.8)
-                ramadanStrip(d)
-            }
-            ForEach(Array(rows.prefix(during == nil ? 4 : 2).enumerated()), id: \.offset) { _, r in
-                HStack(spacing: 6) {
-                    Text(r.0).font(.system(size: 13, design: .serif)).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.8)
-                    Spacer(minLength: 6)
-                    Text("\(f.string(from: Date(timeIntervalSince1970: r.1 / 1000))) · \(inDays(daysFrom(r.1)))").font(.system(size: 10.5)).foregroundColor(Palette.muted).lineLimit(1).fixedSize()
-                }
-            }
-            Spacer(minLength: 0)
-            Text(l["wSightingLong"] ?? "Umm al-Qura · ±1 day. Local moon sighting may differ.").font(.system(size: 9.5)).foregroundColor(Palette.muted.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
-        }
-        .widgetURL(URL(string: "ayahflow://occasions"))
-    }
-
-    private func counter(_ id: String) -> SharedTimeline.Daily.Counter? { entry.daily?.counters.first { $0.id == id } }
-
-    private func istighfarRing(size: CGFloat) -> some View {
-        let c = counter("istighfar"), n = c?.n ?? 0, total = c?.total ?? 100
-        return Link(destination: URL(string: "ayahflow://counter/istighfar")!) {
-            Ring(value: Double(n % total == 0 && n > 0 ? total : n % total) / Double(total), color: n >= total ? Palette.green : Palette.gold, width: size / 11) {
-                VStack(spacing: 0) {
-                    Text("أستغفر الله").font(.system(size: size * 0.11, design: .serif)).foregroundColor(Palette.goldBright).lineLimit(1).minimumScaleFactor(0.5)
-                    Text(number(n, entry.locale)).font(.system(size: size * 0.27, weight: .regular, design: .serif)).foregroundColor(Palette.text).monospacedDigit().minimumScaleFactor(0.5)
-                    Text("/ " + number(total, entry.locale)).font(.system(size: size * 0.1)).foregroundColor(Palette.muted)
-                }.padding(size * 0.14)
-            }.frame(width: size, height: size)
-        }
-    }
-
-    private func row(_ label: String, _ value: String, _ progress: Double?, done: Bool, url: String) -> some View {
-        Link(destination: URL(string: url)!) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 4) {
-                    Text(label).foregroundColor(Palette.text).lineLimit(1).minimumScaleFactor(0.8)
-                    Spacer(minLength: 2)
-                    if done { Image(systemName: "checkmark").foregroundColor(Palette.green) }
-                    Text(value).foregroundColor(done ? Palette.green : Palette.goldBright).monospacedDigit()
-                }.font(.system(size: 11, weight: .medium))
-                if let progress {
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Palette.line)
-                            Capsule().fill(done ? Palette.green : Palette.gold).frame(width: g.size.width * max(0, min(1, progress)))
-                        }
-                    }.frame(height: 3)
-                }
-            }
-        }
-    }
-
-    private var dhikrRows: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            if let t = counter("istighfar-tawbah") { row(t.label, number(t.n, entry.locale) + " / " + number(t.total, entry.locale) + (t.atLeast ? "+" : ""), Double(t.n) / Double(t.total), done: t.n >= t.total, url: "ayahflow://counter/\(t.id)") }
-            if let t = counter("tasbih-prayer") { row(t.label, number(t.n / t.total, entry.locale) + " " + (entry.labels["rounds"] ?? "rounds"), nil, done: false, url: "ayahflow://counter/\(t.id)") }
-            ForEach(entry.daily?.adhkar.filter { $0.total > 0 }.prefix(2) ?? [], id: \.key) { a in
-                row(a.label, number(a.done, entry.locale) + " / " + number(a.total, entry.locale), Double(a.done) / Double(a.total), done: a.done >= a.total, url: "ayahflow://moment/\(a.key)")
-            }
-        }
-    }
-
-    private var dhikrPage: some View {
-        HStack(alignment: .center, spacing: 14) {
-            istighfarRing(size: 92)
-            dhikrRows.frame(maxWidth: .infinity)
-        }
-    }
-
-    @ViewBuilder private func stepsSummary(ringSize: CGFloat) -> some View {
-        if let st = entry.daily?.steps {
-            let met = st.today >= st.goal
-            HStack(alignment: .center, spacing: 14) {
-                Ring(value: Double(st.today) / Double(max(1, st.goal)), color: met ? Palette.green : Palette.gold, width: ringSize / 11) {
-                    Image(systemName: "figure.walk").font(.system(size: ringSize * 0.32)).foregroundColor(met ? Palette.green : Palette.gold)
-                }.frame(width: ringSize, height: ringSize)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text((entry.labels["stepsTab"] ?? "Steps").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold)
-                    Text(number(st.today, entry.locale)).font(.system(size: ringSize * 0.34, design: .serif)).foregroundColor(Palette.text).monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
-                    Text(met ? (entry.labels["goalReached"] ?? "Goal reached") : number(st.goal - st.today, entry.locale) + " " + (entry.labels["toGo"] ?? "to go"))
-                        .font(.system(size: 11, weight: .medium)).foregroundColor(met ? Palette.green : Palette.goldBright)
-                    HStack(spacing: 3) { Text(entry.labels["updated"] ?? "Updated"); Text(Date(timeIntervalSince1970: st.at / 1000), style: .time) }
-                        .font(.system(size: 10)).foregroundColor(Palette.muted)
-                }
-                Spacer(minLength: 0)
-            }
-        } else {
-            HStack(spacing: 10) {
-                Image(systemName: "figure.walk").font(.title2).foregroundColor(Palette.gold)
-                Text(entry.labels["stepsOff"] ?? "Turn on step tracking in AyahFlow to see steps here.").font(.caption).foregroundColor(Palette.muted)
-            }
-        }
-    }
-
-    private var stepsPage: some View { Link(destination: URL(string: "ayahflow://steps")!) { stepsSummary(ringSize: 88) } }
-
-    // MARK: Families
-    private func small(_ next: SharedTimeline.Prayer) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            nextBlock(next, size: 26)
-            Spacer(minLength: 0)
-            progress(next)
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private func medium(_ next: SharedTimeline.Prayer) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            dateRow
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) { nextBlock(next, size: 24); Spacer(minLength: 0); progress(next) }.frame(maxWidth: .infinity, alignment: .leading)
-                prayerRows(next, spacing: 3, font: .system(size: 12)).frame(maxWidth: .infinity)
-            }
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private func large(_ next: SharedTimeline.Prayer) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack { Text("AyahFlow").font(.system(size: 13, weight: .semibold, design: .serif)).foregroundColor(Palette.gold); Spacer(); athanStatus }
-            dateHeader()
-            HStack(alignment: .bottom) { nextBlock(next, size: 34); Spacer() }
-            progress(next)
-            Rectangle().fill(Palette.line).frame(height: 1)
-            prayerRows(next, spacing: 6, font: .system(size: 14, design: .serif))
-            Spacer(minLength: 0)
-            if entry.daily != nil {
-                Rectangle().fill(Palette.line).frame(height: 1)
-                HStack(alignment: .center, spacing: 12) {
-                    istighfarRing(size: 70)
-                    if entry.daily?.steps != nil { Link(destination: URL(string: "ayahflow://steps")!) { stepsSummary(ringSize: 52) } } else { dhikrRows }
-                }
-            }
-            momentLink()
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    /// The day's Gregorian and Umm al-Qura dates, with the user's ±1 day correction shared by the app.
+    private var dateLine: some View {
+        let hijriDay = Calendar.current.date(byAdding: .day, value: Int(entry.labels["hijriOffset"] ?? "0") ?? 0, to: entry.date) ?? entry.date
+        return HStack(spacing: 6) {
+            Image(systemName: "calendar").foregroundColor(Palette.gold)
+            Text(formatted(entry.date, entry.locale, hijri: false)).foregroundColor(Palette.text)
+            Circle().fill(Palette.line).frame(width: 3, height: 3)
+            Text(formatted(hijriDay, entry.locale, hijri: true)).foregroundColor(Palette.gold)
+        }.font(.system(size: 12, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
     }
 
     @ViewBuilder private func rectangular(_ next: SharedTimeline.Prayer) -> some View {
@@ -659,16 +1128,25 @@ struct PrayerWidgetView: View {
     }
 }
 
+/// The cream (or green-black) page behind every widget. `marginsOff`: the widget draws its own margins (the prayer
+/// widget, whose emerald band reaches the edges).
 private struct WidgetBackground: ViewModifier {
     @Environment(\.widgetFamily) var family
+    var marginsOff = false
     func body(content: Content) -> some View {
         let lockScreen: Bool
         if #available(iOSApplicationExtension 16.0, *) { lockScreen = [.accessoryInline, .accessoryRectangular, .accessoryCircular].contains(family) } else { lockScreen = false }
-        let fill = LinearGradient(colors: [Palette.panel, Palette.bg], startPoint: .topLeading, endPoint: .bottomTrailing)
         if #available(iOSApplicationExtension 17.0, *) {
-            return AnyView(content.containerBackground(for: .widget) { lockScreen ? AnyView(Color.clear) : AnyView(fill) })
+            return AnyView(content.containerBackground(for: .widget) { lockScreen ? AnyView(Color.clear) : AnyView(Palette.bg) })
         }
-        return AnyView(content.padding().background(lockScreen ? AnyView(Color.clear) : AnyView(fill)))
+        return AnyView((marginsOff ? AnyView(content) : AnyView(content.padding())).background(lockScreen ? AnyView(Color.clear) : AnyView(Palette.bg)))
+    }
+}
+
+extension WidgetConfiguration {
+    /// The prayer widget draws its own margins so its emerald band can reach the edges (iOS 17+).
+    func edgeToEdge() -> some WidgetConfiguration {
+        if #available(iOSApplicationExtension 17.0, *) { return self.contentMarginsDisabled() } else { return self }
     }
 }
 
@@ -680,12 +1158,13 @@ struct NextPrayerWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "AyahFlowNextPrayer", provider: Provider()) { PrayerWidgetView(entry: $0) }
             .configurationDisplayName("Prayer times")
-            .description("Prayer times with a live countdown. The medium size has Prayer, Dhikr and Steps pages; the large size shows them together.")
+            .description("Prayer times with a live countdown. The medium size has five pages: Prayer, Upcoming, Dhikr, Moments and Quran.")
             .supportedFamilies(families)
+            .edgeToEdge()
     }
 }
 
-/// Small istighfar and steps widgets: stack them with the prayer widget (Smart Stack) and swipe between them.
+/// Small istighfar widget: stack it with the prayer widget (Smart Stack) and swipe between them.
 struct DhikrWidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: PrayerEntry
@@ -694,7 +1173,7 @@ struct DhikrWidgetView: View {
         Group {
             if family == .systemSmall {
                 VStack(spacing: 6) {
-                    Text((c?.label ?? "Istighfar").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.1).foregroundColor(Palette.gold).lineLimit(1)
+                    Text((c?.label ?? "Istighfar").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(entry.rtl ? 0 : 1.1).foregroundColor(Palette.gold).lineLimit(1)
                     Ring(value: Double(n >= total ? total : n) / Double(total), color: n >= total ? Palette.green : Palette.gold, width: 8) {
                         VStack(spacing: 0) {
                             Text(number(n, entry.locale)).font(.system(size: 30, design: .serif)).foregroundColor(Palette.text).monospacedDigit().minimumScaleFactor(0.5)
@@ -711,34 +1190,34 @@ struct DhikrWidgetView: View {
     }
 }
 
-struct StepsWidgetView: View {
+/// Daily moments in the small size: four shortcuts to the adhkar of the day's moments (driving, leaving and entering
+/// home, before sleep). It replaced the step widget (v29) and keeps its kind, so a widget already placed turns into this.
+struct MomentsWidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: PrayerEntry
     var body: some View {
-        let st = entry.daily?.steps
         Group {
             if family == .systemSmall {
-                if let st {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text((entry.labels["stepsTab"] ?? "Steps").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.1).foregroundColor(Palette.gold)
-                        Ring(value: Double(st.today) / Double(max(1, st.goal)), color: st.today >= st.goal ? Palette.green : Palette.gold, width: 8) {
-                            VStack(spacing: 0) {
-                                Text(number(st.today, entry.locale)).font(.system(size: 22, design: .serif)).foregroundColor(Palette.text).monospacedDigit().minimumScaleFactor(0.5).lineLimit(1)
-                                Text("/ " + number(st.goal, entry.locale)).font(.system(size: 10)).foregroundColor(Palette.muted)
-                            }.padding(10)
-                        }.frame(maxWidth: .infinity)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text((entry.labels["momentsTab"] ?? "Moments").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(entry.rtl ? 0 : 1.1).foregroundColor(Palette.gold).lineLimit(1)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                        ForEach(Array(MomentsPage.items.enumerated()), id: \.offset) { _, m in
+                            VStack(spacing: 3) {
+                                Image(systemName: m.symbol).font(.system(size: 15)).foregroundColor(Palette.gold)
+                                Text(entry.labels["m_\(m.key)"] ?? m.fallback).font(.system(size: 9)).foregroundColor(Palette.text).lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.8)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .background(FullColor { full in if full { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Palette.panel) } else { RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Palette.line, lineWidth: 0.8) } })
+                        }
                     }
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Image(systemName: "figure.walk").font(.title2).foregroundColor(Palette.gold)
-                        Text(entry.labels["stepsOff"] ?? "Turn on step tracking in AyahFlow to see steps here.").font(.caption).foregroundColor(Palette.muted)
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } else {
-                circularGauge(st.map { Double($0.today) / Double(max(1, $0.goal)) } ?? 0, symbol: "figure.walk", value: st.map { $0.today >= 10000 ? number($0.today / 1000, entry.locale) + "k" : number($0.today, entry.locale) } ?? "—")
+                if #available(iOSApplicationExtension 16.0, *) {
+                    ZStack { AccessoryWidgetBackground(); Image(systemName: "door.left.hand.open").font(.system(size: 18)) }
+                } else { Image(systemName: "house") }
             }
         }
-        .widgetURL(URL(string: "ayahflow://steps"))
+        .widgetURL(URL(string: "ayahflow://adhkar"))
         .modifier(WidgetBackground())
     }
 }
@@ -759,12 +1238,13 @@ struct IstighfarWidget: Widget {
     }
 }
 
-struct StepsWidget: Widget {
+/// Kind "AyahFlowSteps" is kept on purpose: widgets placed while it showed steps keep their place and show Daily moments.
+struct MomentsWidget: Widget {
     var families: [WidgetFamily] { if #available(iOSApplicationExtension 16.0, *) { return [.systemSmall, .accessoryCircular] }; return [.systemSmall] }
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "AyahFlowSteps", provider: Provider()) { StepsWidgetView(entry: $0) }
-            .configurationDisplayName("Steps")
-            .description("Today's steps against your goal, as last read by AyahFlow.")
+        StaticConfiguration(kind: "AyahFlowSteps", provider: Provider()) { MomentsWidgetView(entry: $0) }
+            .configurationDisplayName("Daily moments")
+            .description("Adhkar for driving, leaving and entering home, and before sleep.")
             .supportedFamilies(families)
     }
 }
@@ -849,7 +1329,7 @@ struct AyahBody: View {
             Link(destination: URL(string: "ayahflow://ayah/\(a.surah):\(a.ayah)")!) {
                 VStack(spacing: compact ? 4 : 8) {
                     if !compact {
-                        Text((entry.labels["ayahTab"] ?? "Du'a from the Quran").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold).lineLimit(1)
+                        Text((entry.labels["ayahTab"] ?? "Du'a from the Quran").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(entry.rtl ? 0 : 1.2).foregroundColor(Palette.gold).lineLimit(1)
                         Spacer(minLength: 0)
                     }
                     FittedAyah(text: a.text, sizes: FittedAyah.sizes(family), caption: entry.labels["readAyah"] ?? "Read it in its surah")
@@ -918,7 +1398,7 @@ struct MomentWidgetView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
                     VStack(spacing: 8) {
-                        Text((entry.labels["momentTab"] ?? "Ayah of the moment").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(1.2).foregroundColor(Palette.gold).lineLimit(1)
+                        Text((entry.labels["momentTab"] ?? "Ayah of the moment").uppercased()).font(.system(size: 10, weight: .semibold)).kerning(entry.rtl ? 0 : 1.2).foregroundColor(Palette.gold).lineLimit(1)
                         FittedAyah(text: a.text, sizes: FittedAyah.sizes(family), caption: entry.labels["readAyah"] ?? "Read it in its surah")
                             .foregroundColor(Palette.text).frame(maxWidth: .infinity, maxHeight: .infinity)
                         HStack(spacing: 6) {
@@ -958,7 +1438,7 @@ struct AyahFlowWidgets: WidgetBundle {
         MomentWidget()
         AyahWidget()
         IstighfarWidget()
-        StepsWidget()
+        MomentsWidget()
     }
 }
 

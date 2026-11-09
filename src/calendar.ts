@@ -128,17 +128,19 @@ export const OCCASION_SWITCH: readonly [OccasionKind, keyof AppState['calendar']
 
 /** For the "Jumu'ah and fasts" widget: Fridays, voluntary-fast days and the first of Ramadan in the next `days` days
  * (today included), at most `max`. The widget names the day itself; nothing here is a reminder. */
-export interface UpcomingDay { at: number; day: string; kind: 'jumuah' | 'fast' | 'ramadan'; title: string; sub: string }
+/** `lunar`: the date comes from the Umm al-Qura calendar (Ramadan, the white days, occasions) and local sighting may move
+ * it by a day; false for civil dates (every Friday, every Monday and Thursday), which are certain. */
+export interface UpcomingDay { at: number; day: string; kind: 'jumuah' | 'fast' | 'ramadan'; title: string; sub: string; lunar: boolean }
 export type UpcomingItem = Omit<UpcomingDay, 'kind'> & { kind: UpcomingDay['kind'] | 'occasion'; occ?: OccasionKind; short?: string };
 export function upcomingDays(copy: { jumuah: string; jumuahSub: string; fast: string; why: (r: FastReason[]) => string; ramadan: string; ramadanSub: string }, now = Date.now(), days = 14, max = 6): UpcomingDay[] {
     const out: UpcomingDay[] = [];
     for (let i = 0; i < days && out.length < max; i++) {
         const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
         const day = dayKey(d.getTime()), noon = new Date(d); noon.setHours(12);
-        if (ramadanDay(noon) === 1) out.push({ at: d.getTime(), day, kind: 'ramadan', title: copy.ramadan, sub: copy.ramadanSub });
-        if (d.getDay() === 5) out.push({ at: d.getTime(), day, kind: 'jumuah', title: copy.jumuah, sub: copy.jumuahSub });
+        if (ramadanDay(noon) === 1) out.push({ at: d.getTime(), day, kind: 'ramadan', title: copy.ramadan, sub: copy.ramadanSub, lunar: true });
+        if (d.getDay() === 5) out.push({ at: d.getTime(), day, kind: 'jumuah', title: copy.jumuah, sub: copy.jumuahSub, lunar: false });
         const r = fastingReasons(noon);
-        if (r.length) out.push({ at: d.getTime(), day, kind: 'fast', title: copy.fast, sub: copy.why(r) });
+        if (r.length) out.push({ at: d.getTime(), day, kind: 'fast', title: copy.fast, sub: copy.why(r), lunar: !r.includes('monday') && !r.includes('thursday') });
     }
     return out.slice(0, max);
 }
@@ -191,5 +193,5 @@ export function ramadanSpan(now = Date.now()): { start: number; eid: number } | 
 /** Occasions for the widget list (Eid, Arafah, Ashura...) in the next `days` days; the Ramadan start is the widget's
  * countdown, so it is not repeated here. */
 export function upcomingOccasions(title: (k: OccasionKind) => string, sub: string, now = Date.now(), days = 14): UpcomingItem[] {
-    return islamicOccasions(now, days).filter(o => o.kind !== 'ramadan-start').map(o => ({ at: Math.max(o.at, new Date(now).setHours(0, 0, 0, 0)), day: o.day, kind: 'occasion' as const, occ: o.kind, title: title(o.kind), sub }));
+    return islamicOccasions(now, days).filter(o => o.kind !== 'ramadan-start').map(o => ({ at: Math.max(o.at, new Date(now).setHours(0, 0, 0, 0)), day: o.day, kind: 'occasion' as const, occ: o.kind, title: title(o.kind), sub, lunar: true }));
 }
