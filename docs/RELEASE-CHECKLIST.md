@@ -3,6 +3,25 @@
 Status as of 2026-10-25, branch `feature/mushaf-design-locate`. Each tick names its evidence. Browser and unit tests do
 not stand in for native, simulator or device results, and nothing here is a store, privacy or accuracy certification.
 
+## Round 2026-11-09: the approved illustrated backgrounds
+
+Asset report, screenshots and the contrast measurement: `evidence/art-backgrounds-2026-11-09/` (README there).
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| `npm run typecheck`, `npm test` | PASS | 345/345; new `tests/art-backgrounds.test.mjs` (files, mapping, packaging, fallbacks, contrast report) |
+| iOS simulator build, full App scheme | PASS | BUILD SUCCEEDED. The Capacitor 8.5.2 binary frameworks had been purged from the scratch build folder; re-downloaded with the owner's approval (2 zips, 8,454,112 bytes, SHA-256 matching the pinned checksums) |
+| Android `assembleDebug` (offline) | PASS | APK holds exactly the 10 WebP files (`assets/public/art`, 369,288 bytes) |
+| Widget, next prayer's scene (Fajr, Dhuhr, Asr, Maghrib, Isha; tomorrow's Fajr after Isha) | PASS (simulator) | `after-widget-1-fajr.jpg` … `5-isha.jpg`; to reach each prayer now, a temporary, uncommitted build moved the widget clock forward |
+| Widget pages: five tabs and their App Intents | PASS (simulator) | each tab tapped on the Home Screen; Dhikr, Moments and Quran with their scenes; the app did not open |
+| Widget light, dark, tinted | PASS (simulator) | `after-widget-6-fajr-dark.jpg`, `7-fajr-tinted-fallback.jpg` (no picture, plain arch); clear look not available on the simulator, same code path as tinted |
+| App hero surfaces: Home band, next-prayer card, Adhkar, Memorise, daily du'a, daily moments | PASS (simulator + Chromium) | `after-sim-app-home-dark.jpg`, `after-sim-app-adhkar-dark.jpg`, `after-app-*.jpg` |
+| Arabic right to left, landscape, tablet | PASS (Chromium) | scenes cropped to their other side in Arabic, never mirrored |
+| Text contrast over the pictures | PASS (measured) | `scripts/art-contrast.swift` → `contrast.json`: 45 surfaces, 99th percentile ≥ 4.5:1 everywhere |
+| Size | measured | iOS images +1,132,496 bytes (app 369,288 + widget catalog 763,208); Android +369,288; nothing unused or duplicated within a target |
+| Arabic right to left in the widget, VoiceOver, Increase Contrast fallback on a device | NOT TESTED | pictures are `accessibilityHidden`; Increase Contrast is handled in code (unit-checked), not seen on screen |
+| Physical iPhone / Android device | NOT RUN | the new build was not installed on the owner's phone |
+
 ## Round 2026-11-08 (3): app-wide emerald identity
 
 | Check | Result | Evidence |

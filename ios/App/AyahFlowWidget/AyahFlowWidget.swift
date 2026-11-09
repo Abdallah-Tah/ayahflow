@@ -269,6 +269,9 @@ private enum Palette {
     static let leaf = Color(UIColor(rgb: 0xD8B56C))
     static let leafLight = Color(UIColor(rgb: 0xEFD293))
     static let ink = Color(UIColor(rgb: 0x1B271E))
+    /// The cream of the Du'a picture, and the gold that reads on it.
+    static let cream = Color(UIColor(rgb: 0xF7EFDD))
+    static let inkGold = Color(UIColor(rgb: 0x765214))
 }
 
 private extension View {
@@ -392,24 +395,112 @@ private struct BeadsArt: View {
     }
 }
 
+/// The illustrated backgrounds (Backgrounds.xcassets, the approved 1200 × 675 JPEGs). They are decoration only: every
+/// word, time, countdown and count is drawn over them by SwiftUI, and they are left out in the tinted and clear looks and
+/// with Increase Contrast. Only the eight the widget uses are in its catalog (the Home and Hifz art ship in the app alone).
+enum Art: String, CaseIterable {
+    case fajr = "fajr_dawn", dhuhr = "dhuhr_daylight", asr = "asr_afternoon", maghrib = "maghrib_sunset", isha = "isha_night"
+    case dhikr = "dhikr_tasbih", moments = "daily_moments", dua = "quran_dua"
+    /// The scene for the next prayer (after Isha that is tomorrow's Fajr, which is simply the next prayer's key).
+    static func prayer(_ key: String) -> Art? {
+        switch key { case "fajr": return .fajr; case "dhuhr": return .dhuhr; case "asr": return .asr; case "maghrib": return .maghrib; case "isha": return .isha; default: return nil }
+    }
+    /// Scrim over the picture, chosen per picture so text keeps at least 4.5:1 where it crosses the scene (measured by
+    /// scripts/art-contrast.swift; keep the two in step). Daylight needs the most.
+    var scrim: Double {
+        switch self { case .fajr: return 0.3; case .dhuhr: return 0.66; case .asr: return 0.45; case .maghrib: return 0.35; case .isha: return 0.25; case .dhikr: return 0.35; case .moments: return 0.3; case .dua: return 0.45 }
+    }
+    /// The light pictures (midday, the cream du'a) fill their arch like paper and take dark text; the others are a
+    /// window along the bottom of an emerald arch.
+    var light: Bool { self == .dua || self == .dhuhr }
+}
+
+/// A dark scene as a window along the bottom of the arch: the whole picture across the width (its printed frame trimmed
+/// off the sides), anchored at the bottom and fading in from the emerald above, so the mosque sits beside the centred
+/// text rather than under it. Never mirrored in Arabic: a scene is not text.
+private struct ArtWindow: View {
+    let art: Art
+    var body: some View {
+        GeometryReader { g in
+            let w = g.size.width / 0.9, h = w * 675 / 1200
+            Image(art.rawValue).resizable().interpolation(.medium).frame(width: w, height: h)
+                .overlay(Palette.emeraldDeep.opacity(art.scrim))
+                .mask(LinearGradient(stops: [.init(color: .clear, location: 0.3), .init(color: .black, location: 0.62)], startPoint: .top, endPoint: .bottom))
+                .offset(x: (g.size.width - w) / 2, y: g.size.height - h)
+        }
+        .environment(\.layoutDirection, .leftToRight)
+        .clipped()
+        .accessibilityHidden(true)
+    }
+}
+
+/// A light picture filling its frame like paper: enlarged and anchored at the bottom right, where its mosque is, so the
+/// arch printed at the top of the picture stays out of the crop; a cream scrim keeps dark text above 4.5:1.
+private struct ArtPaper: View {
+    let art: Art
+    var body: some View {
+        GeometryReader { g in
+            let h = max(g.size.height * 1.95, g.size.width * 675 / 1200 / 0.9), w = h * 1200 / 675, edge = w * 0.04
+            Image(art.rawValue).resizable().interpolation(.medium).frame(width: w, height: h)
+                .offset(x: min(max(g.size.width / 2 - 0.8 * w, g.size.width - w + edge), -edge), y: g.size.height - h * 0.93)
+            LinearGradient(stops: [.init(color: Palette.cream.opacity(art.scrim), location: 0), .init(color: Palette.cream.opacity(art.scrim), location: 0.82), .init(color: Palette.cream.opacity(art.scrim * 0.25), location: 1)], startPoint: .top, endPoint: .bottom)
+        }
+        .environment(\.layoutDirection, .leftToRight)
+        .clipped()
+        .accessibilityHidden(true)
+    }
+}
+
+/// Text colours inside an arch: cream and gold on emerald or a dark scene, ink and dark gold on a light one.
+private struct ArchInk {
+    let light: Bool
+    init(_ art: Art?) { light = art?.light == true }
+    var title: Color { light ? Palette.ink : Palette.onEmerald }
+    var label: Color { light ? Palette.inkGold : Palette.leafLight }
+    var tag: Color { light ? Palette.inkGold : Palette.leaf }
+}
+
+private struct ArtBackdrop: View {
+    let art: Art
+    var body: some View { if art.light { ArtPaper(art: art) } else { ArtWindow(art: art) } }
+}
+
+/// Passes the picture on only when it should be drawn: full colour (decided by the caller), Increase Contrast off, and
+/// the image present. Otherwise the plain emerald arch is the fallback.
+private struct ArtGate<Content: View>: View {
+    @Environment(\.colorSchemeContrast) private var contrast
+    let art: Art?
+    @ViewBuilder let content: (Art?) -> Content
+    var body: some View { content(art.flatMap { contrast == .increased || UIImage(named: $0.rawValue) == nil ? nil : $0 }) }
+}
+
 /// The arch panel on the leading side of each page: emerald, a gold outline, a small ornament at the apex and the
-/// page's own illustration, drawn natively (no bitmaps).
+/// page's illustration. `content` is told whether the picture is shown (a cream picture takes dark text).
 private struct ArchPanel<Content: View>: View {
     var width: CGFloat
-    @ViewBuilder let content: () -> Content
+    var art: Art? = nil
+    @ViewBuilder let content: (Art?) -> Content
     var body: some View {
         FullColor { full in
-            ZStack {
-                if full {
-                    ArchShape().fill(LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .top, endPoint: .bottom))
-                    ArchShape().stroke(Palette.leaf.opacity(0.75), lineWidth: 1).padding(3)
-                } else {
-                    ArchShape().stroke(Palette.leaf.opacity(0.6), lineWidth: 1)
+            ArtGate(art: full ? art : nil) { shown in
+                ZStack {
+                    if full {
+                        ArchShape().fill(LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .top, endPoint: .bottom))
+                        if let shown { ArtBackdrop(art: shown).clipShape(ArchShape()) }
+                        ArchShape().stroke(Palette.leaf.opacity(0.75), lineWidth: 1).padding(3)
+                    } else {
+                        ArchShape().stroke(Palette.leaf.opacity(0.6), lineWidth: 1)
+                    }
+                    content(shown).padding(.horizontal, 6).padding(.top, 12).padding(.bottom, 6)
                 }
-                content().padding(.horizontal, 6).padding(.top, 12).padding(.bottom, 6)
             }
         }.frame(width: width)
     }
+}
+
+extension ArchPanel {
+    /// A panel without a picture.
+    init(width: CGFloat, @ViewBuilder content: @escaping () -> Content) { self.init(width: width, art: nil) { _ in content() } }
 }
 
 /// "—◆—", the gold mark under the apex.
@@ -691,18 +782,20 @@ private struct PrayerPage: View {
         }
     }
     private func nextPanel(_ next: SharedTimeline.Prayer) -> some View {
-        ArchPanel(width: large ? 128 : 112) {
+        // The scene of the next prayer: dawn for Fajr (also tomorrow's Fajr after Isha), daylight, afternoon, sunset, night.
+        ArchPanel(width: large ? 128 : 112, art: Art.prayer(next.key)) { shown in
+            let ink = ArchInk(shown)
             VStack(spacing: large ? 4 : 1) {
                 if tomorrow(next) {
-                    Text(info.l["wTomorrow"] ?? "Tomorrow").font(.system(size: 8, weight: .semibold)).foregroundColor(Palette.leaf).lineLimit(1)
+                    Text(info.l["wTomorrow"] ?? "Tomorrow").font(.system(size: 8, weight: .semibold)).foregroundColor(ink.tag).lineLimit(1)
                 } else { Ornament(crescent: true) }
-                Text((info.l["next"] ?? "Next prayer").uppercased()).font(.system(size: 7.5, weight: .semibold)).kerning(info.entry.rtl ? 0 : 1.1).foregroundColor(Palette.leafLight).lineLimit(1).minimumScaleFactor(0.8)
-                Text(next.label).font(.system(size: large ? 30 : 21, weight: .regular, design: .serif)).foregroundColor(Palette.onEmerald).lineLimit(1).minimumScaleFactor(0.7).accent()
-                Text(next.date, style: .time).font(.system(size: large ? 19 : 14, weight: .semibold, design: .serif)).foregroundColor(Palette.leafLight).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
-                Text(next.date, style: .timer).font(.system(size: 9.5).monospacedDigit()).foregroundColor(Palette.onEmeraldMuted).multilineTextAlignment(.center).lineLimit(1)
+                Text((info.l["next"] ?? "Next prayer").uppercased()).font(.system(size: 7.5, weight: .semibold)).kerning(info.entry.rtl ? 0 : 1.1).foregroundColor(ink.label).lineLimit(1).minimumScaleFactor(0.8)
+                Text(next.label).font(.system(size: large ? 30 : 21, weight: .regular, design: .serif)).foregroundColor(ink.title).lineLimit(1).minimumScaleFactor(0.7).accent()
+                Text(next.date, style: .time).font(.system(size: large ? 19 : 14, weight: .semibold, design: .serif)).foregroundColor(ink.label).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
+                Text(next.date, style: .timer).font(.system(size: 9.5).monospacedDigit()).foregroundColor(shown == nil ? Palette.onEmeraldMuted : ink.title).multilineTextAlignment(.center).lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .background(alignment: .bottom) { MosqueShape().fill(Palette.leaf.opacity(0.11)).frame(width: 78, height: 30).offset(y: 6).accessibilityHidden(true) }
+            .background(alignment: .bottom) { if shown == nil { MosqueShape().fill(Palette.leaf.opacity(0.11)).frame(width: 78, height: 30).offset(y: 6).accessibilityHidden(true) } }
         }
         .accessibilityElement(children: .combine)
     }
@@ -862,7 +955,7 @@ private struct DhikrPage: View {
         let c = info.counter("istighfar"), n = c?.n ?? 0, total = max(1, c?.total ?? 100)
         let met = n >= total, value = Double(n % total == 0 && n > 0 ? total : n % total) / Double(total)
         return Link(destination: URL(string: "ayahflow://counter/istighfar")!) {
-            ArchPanel(width: 96) {
+            ArchPanel(width: 96, art: .dhikr) { _ in
                 VStack(spacing: 3) {
                     Text("أستغفر الله").font(.system(size: 10.5, weight: .medium)).foregroundColor(Palette.leafLight).lineLimit(1).environment(\.layoutDirection, .rightToLeft)
                     Ring(value: value, color: met ? Palette.green : Palette.leaf, track: Color.white.opacity(0.14), width: 4.5) {
@@ -924,12 +1017,12 @@ private struct MomentsPage: View {
     static let items: [(key: String, symbol: String, fallback: String)] = [("vehicle", "car.fill", "Riding or travelling"), ("leave_home", "door.left.hand.open", "Leaving home"), ("enter_home", "house.fill", "Entering home"), ("sleep", "moon.zzz.fill", "Before sleep")]
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            ArchPanel(width: 86) {
+            ArchPanel(width: 86, art: .moments) { shown in
                 VStack(spacing: 4) {
                     Ornament()
                     Text(info.l["momentsTitle"] ?? "Adhkar for daily moments").font(.system(size: 11.5, design: .serif)).foregroundColor(Palette.onEmerald).multilineTextAlignment(.center).lineLimit(3).minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
-                    Image(systemName: "house").font(.system(size: 18, weight: .light)).foregroundColor(Palette.leaf).accessibilityHidden(true)
+                    if shown == nil { Image(systemName: "house").font(.system(size: 18, weight: .light)).foregroundColor(Palette.leaf).accessibilityHidden(true) }
                 }
             }
             VStack(spacing: 0) {
@@ -965,12 +1058,13 @@ private struct QuranPage: View {
                 if #available(iOSApplicationExtension 16.0, *) {
                     ViewThatFits(in: .vertical) {
                         HStack(spacing: 10) {
-                            ArchPanel(width: 76) {
+                            // The cream du'a scene takes dark text; the plain emerald arch keeps cream text.
+                            ArchPanel(width: 76, art: .dua) { shown in
                                 VStack(spacing: 4) {
                                     Ornament()
-                                    Text(entry.labels["ayahTab"] ?? "Du'a from the Quran").font(.system(size: 10.5, design: .serif)).foregroundColor(Palette.onEmerald).multilineTextAlignment(.center).lineLimit(3).minimumScaleFactor(0.8)
+                                    Text(entry.labels["ayahTab"] ?? "Du'a from the Quran").font(.system(size: 10.5, design: .serif)).foregroundColor(ArchInk(shown).title).multilineTextAlignment(.center).lineLimit(3).minimumScaleFactor(0.8)
                                     Spacer(minLength: 0)
-                                    Image(systemName: "book").font(.system(size: 16, weight: .light)).foregroundColor(Palette.leaf).accessibilityHidden(true)
+                                    if shown == nil { Image(systemName: "book").font(.system(size: 16, weight: .light)).foregroundColor(Palette.leaf).accessibilityHidden(true) }
                                 }
                             }
                             VStack(spacing: 4) { lines([19, 16.5, 14]); reference(a) }
@@ -1052,24 +1146,28 @@ struct PrayerWidgetView: View {
     /// The small size: the next prayer in the arch, the countdown under it.
     private func small(_ next: SharedTimeline.Prayer) -> some View {
         Margins { m in
-            VStack(spacing: 3) {
-                Ornament()
-                Text((entry.labels["next"] ?? "Next prayer").uppercased()).font(.system(size: 9, weight: .semibold)).kerning(entry.rtl ? 0 : 1.2).foregroundColor(Palette.leafLight).lineLimit(1).minimumScaleFactor(0.8)
-                Text(next.label).font(.system(size: 26, design: .serif)).foregroundColor(Palette.onEmerald).lineLimit(1).minimumScaleFactor(0.6).accent()
-                Text(next.date, style: .time).font(.system(size: 16, weight: .semibold, design: .serif)).foregroundColor(Palette.leafLight).monospacedDigit()
-                Text(next.date, style: .timer).font(.system(size: 11).monospacedDigit()).foregroundColor(Palette.onEmeraldMuted).multilineTextAlignment(.center)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 16).padding(.horizontal, 8).padding(.bottom, 6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(FullColor { full in
-                ZStack {
-                    if full { ArchShape(shoulder: 0.26).fill(LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .top, endPoint: .bottom)) }
-                    ArchShape(shoulder: 0.26).stroke(Palette.leaf.opacity(0.7), lineWidth: 1).padding(full ? 3 : 0)
-                    VStack { Spacer(); MosqueShape().fill(Palette.leaf.opacity(0.14)).frame(width: 90, height: 34) }.accessibilityHidden(true)
+            FullColor { full in
+                ArtGate(art: full ? Art.prayer(next.key) : nil) { shown in
+                    let ink = ArchInk(shown)
+                    VStack(spacing: 3) {
+                        Ornament()
+                        Text((entry.labels["next"] ?? "Next prayer").uppercased()).font(.system(size: 9, weight: .semibold)).kerning(entry.rtl ? 0 : 1.2).foregroundColor(ink.label).lineLimit(1).minimumScaleFactor(0.8)
+                        Text(next.label).font(.system(size: 26, design: .serif)).foregroundColor(ink.title).lineLimit(1).minimumScaleFactor(0.6).accent()
+                        Text(next.date, style: .time).font(.system(size: 16, weight: .semibold, design: .serif)).foregroundColor(ink.label).monospacedDigit()
+                        Text(next.date, style: .timer).font(.system(size: 11).monospacedDigit()).foregroundColor(shown == nil ? Palette.onEmeraldMuted : ink.title).multilineTextAlignment(.center)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 16).padding(.horizontal, 8).padding(.bottom, 6)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(ZStack {
+                        if full { ArchShape(shoulder: 0.26).fill(LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .top, endPoint: .bottom)) }
+                        if let shown { ArtBackdrop(art: shown).clipShape(ArchShape(shoulder: 0.26)) }
+                        ArchShape(shoulder: 0.26).stroke(Palette.leaf.opacity(0.7), lineWidth: 1).padding(full ? 3 : 0)
+                        if shown == nil { VStack { Spacer(); MosqueShape().fill(Palette.leaf.opacity(0.14)).frame(width: 90, height: 34) }.accessibilityHidden(true) }
+                    })
+                    .padding(EdgeInsets(top: m.top * 0.6, leading: m.leading * 0.6, bottom: m.bottom * 0.6, trailing: m.trailing * 0.6))
                 }
-            })
-            .padding(EdgeInsets(top: m.top * 0.6, leading: m.leading * 0.6, bottom: m.bottom * 0.6, trailing: m.trailing * 0.6))
+            }
         }
     }
 

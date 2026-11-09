@@ -1,0 +1,15 @@
+{
+  "images" : [
+    {
+      "filename" : "quran_dua.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "preserves-vector-representation" : false
+  }
+}

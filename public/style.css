@@ -620,11 +620,13 @@ html[data-theme=light] :is(.lesson-card,.lesson-example,.question-ayah,.option,.
 
 /* Emerald heroes: the arch-topped next-prayer card and the adhkar of the moment. */
 .prayer-day:not(.empty){border:1.5px solid rgb(var(--tint) / .75);border-radius:var(--r-arch);padding-top:28px;background:var(--mosque) right 4px bottom 2px / 96px auto no-repeat,radial-gradient(45% 30% at 88% 100%,rgb(var(--tint) / .16),transparent 70%),var(--hero-fill)}
-.prayer-day:not(.empty)::before{content:'';position:absolute;top:7px;left:50%;width:7px;height:7px;margin-left:-3.5px;transform:rotate(45deg);background:var(--gold);opacity:.8}
+.prayer-day:not(.empty)::before{content:'';position:absolute;z-index:2;top:7px;left:50%;width:7px;height:7px;margin-left:-3.5px;transform:rotate(45deg);background:var(--gold);opacity:.8}
 .now-card{border-color:rgb(var(--tint) / .6);background:var(--mosque) right -8px bottom -6px / 120px auto no-repeat,var(--hero-fill)}
 
 /* Home: the date under the header with the mosque and a gold wave, then Today's Quran on paper. */
-.home-band{position:relative;margin:-8px -22px 0;padding:8px 22px 52px;background:var(--mosque) right 14px bottom 8px / 118px auto no-repeat,var(--pattern),radial-gradient(70% 90% at 82% 100%,rgb(var(--tint) / .16),transparent 70%)}
+/* The home scene sits below the date row (never behind text), fading in from the start side and from its top. */
+.home-band{position:relative;isolation:isolate;margin:-8px -22px 0;padding:8px 22px 84px;background:var(--pattern)}
+.home-band::before{content:'';position:absolute;z-index:-1;inset:28px 0 0 auto;width:175px;background:url(art/home_emerald.webp) right -7px bottom 0 / 240px auto no-repeat;-webkit-mask-image:linear-gradient(90deg,transparent,#000 45%),linear-gradient(transparent,#000 30%);-webkit-mask-composite:source-in;mask-image:linear-gradient(90deg,transparent,#000 45%),linear-gradient(transparent,#000 30%);mask-composite:intersect;pointer-events:none}
 .home-band::after{content:'';position:absolute;left:0;right:0;bottom:0;height:22px;background:var(--wave) center / 100% 100% no-repeat;pointer-events:none}
 .home-band .date-line{margin:0;color:var(--text)}
 .plan-card{margin-top:-4px;border:1.5px solid rgb(var(--tint) / .55);border-radius:var(--r-xl);background:var(--card-fill);padding:18px 14px 14px}
@@ -645,14 +647,41 @@ html[data-theme=light] :is(.lesson-card,.lesson-example,.question-ayah,.option,.
 .range-chip.selected,.segment button.active{color:var(--on-gold);background:var(--gold-fill);border-color:var(--gold-edge)}
 
 @media (min-width:700px){.app-shell{max-width:600px}.bottom-nav{max-width:600px}}
-@media (orientation:landscape) and (max-height:500px){.home-band{background-size:96px auto;padding-bottom:22px}.prayer-day:not(.empty){background-size:84px auto,auto,auto}}
+@media (orientation:landscape) and (max-height:500px){.home-band{padding-bottom:60px}.prayer-day:not(.empty){background-size:84px auto,auto,auto}}
 /* Dimmed rows fade ink on cream faster than cream on emerald: keep past prayers readable (≥ 4.5:1) on paper. */
 :is(.prayer-list,.widget) .prayer-row.past{opacity:.74}
 /* Memorisation: each ayah is a cream card (the learning surface), the current one edged in gold. */
 .hifz-verse{background:var(--card-fill);border:1px solid var(--line);border-radius:var(--r-lg);padding:12px 14px;margin-top:10px}
 .hifz-verse.current{border:1.5px solid rgb(var(--tint) / .6)}
 /* Right to left: the ornaments move to the start side so they never sit under the text. */
-[dir=rtl] .home-band{background-position:left 14px bottom 8px,0 0,0 0;background-image:var(--mosque),var(--pattern),radial-gradient(70% 90% at 18% 100%,rgb(var(--tint) / .16),transparent 70%)}
+[dir=rtl] .home-band::before{inset:28px auto 0 0;-webkit-mask-image:linear-gradient(270deg,transparent,#000 45%),linear-gradient(transparent,#000 30%);mask-image:linear-gradient(270deg,transparent,#000 45%),linear-gradient(transparent,#000 30%)}
 [dir=rtl] .prayer-day:not(.empty){background-position:left 4px bottom 2px,0 0,0 0;background-image:var(--mosque),radial-gradient(45% 30% at 12% 100%,rgb(var(--tint) / .16),transparent 70%),var(--hero-fill)}
 [dir=rtl] .plan-step.primary{background-position:left -4px bottom -10px,0 0}
 [dir=rtl] .now-card{background-position:left -8px bottom -6px,0 0}
+
+/* ==== Illustrated backgrounds (2026-11-09) ==================================================================
+   The approved WebP scenes in public/art (1200 × 675, 27–48 KB each), on a few hero surfaces only: the Home band, the
+   next-prayer card (the scene of that prayer, so tomorrow's Fajr after Isha) and one banner each on Adhkar, Memorise,
+   the daily Quranic du'a and the adhkar of daily moments. Words stay live text over a scrim measured by
+   scripts/art-contrast.swift (keep the scrims in step); a scene is never mirrored: in Arabic it is cropped to its other
+   side so the text never covers it. A background image loads only when its element is drawn. */
+[data-art=home_emerald]{--art:url(art/home_emerald.webp)}[data-art=fajr_dawn]{--art:url(art/fajr_dawn.webp)}[data-art=dhuhr_daylight]{--art:url(art/dhuhr_daylight.webp)}[data-art=asr_afternoon]{--art:url(art/asr_afternoon.webp)}[data-art=maghrib_sunset]{--art:url(art/maghrib_sunset.webp)}[data-art=isha_night]{--art:url(art/isha_night.webp)}[data-art=quran_dua]{--art:url(art/quran_dua.webp)}[data-art=dhikr_tasbih]{--art:url(art/dhikr_tasbih.webp)}[data-art=hifz_practice]{--art:url(art/hifz_practice.webp)}[data-art=daily_moments]{--art:url(art/daily_moments.webp)}
+/* Banner: eyebrow and title on the start side over a scrim, the scene's subject on the end side. */
+.art-hero{--text:var(--on-emerald);--gold:var(--leaf-light);--scrim-rgb:8 37 25;--scrim:.62;position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;min-height:clamp(128px,34vw,188px);margin:12px 0 16px;padding:18px 18px 16px;border:1.5px solid rgb(216 181 108 / .7);border-radius:var(--r-xl);background:var(--emerald-deep);color:var(--text)}
+.art-hero::before{content:'';position:absolute;z-index:-2;bottom:0;right:-4%;width:112%;aspect-ratio:1200/675;background:var(--art) center / cover no-repeat}
+.art-hero::after{content:'';position:absolute;z-index:-1;inset:0;background:linear-gradient(90deg,rgb(var(--scrim-rgb) / var(--scrim)) 0 58%,rgb(var(--scrim-rgb) / calc(var(--scrim) * .25)))}
+.art-hero .eyebrow{margin:0 0 4px;color:var(--gold)}
+.art-hero .page-title{margin:0;max-width:62%;color:var(--text);text-wrap:balance}
+.art-hero[data-art=hifz_practice]{--scrim:.7}.art-hero[data-art=daily_moments]{--scrim:.5}.art-hero[data-art=dhikr_tasbih]{--scrim:.6}
+/* The du'a scene is cream: dark text over a cream scrim, in both appearances. */
+.art-hero[data-art=quran_dua]{--text:#1c2a21;--gold:#765214;--scrim-rgb:247 239 221;--scrim:.55;background:#f7efdd;border-color:rgb(118 82 20 / .55)}
+[dir=rtl] .art-hero::before{right:auto;left:-6.6%;width:165%}
+[dir=rtl] .art-hero::after{background:linear-gradient(270deg,rgb(var(--scrim-rgb) / var(--scrim)) 0 58%,rgb(var(--scrim-rgb) / calc(var(--scrim) * .25)))}
+/* Next-prayer card: the scene fills the arch top, fading into the card above the text. */
+.prayer-day.has-art{--art-scrim:.2;padding-top:23%}
+.prayer-day.has-art > :not(.art-window){position:relative;z-index:1}
+.prayer-day .art-window{position:absolute;z-index:0;top:0;left:0;right:0;aspect-ratio:3.4;border-radius:inherit;background:linear-gradient(rgb(8 37 25 / var(--art-scrim)),rgb(8 37 25 / var(--art-scrim))),var(--art) center bottom / 112% auto no-repeat;-webkit-mask-image:linear-gradient(#000 40%,transparent 85%);mask-image:linear-gradient(#000 40%,transparent 85%);pointer-events:none}
+/* Instead of the vector mosque (beats the right-to-left rule above). */
+[dir] .prayer-day.has-art:not(.empty){background:var(--hero-fill)}
+.prayer-day[data-art=dhuhr_daylight]{--art-scrim:.42}.prayer-day[data-art=asr_afternoon]{--art-scrim:.3}
+@media (orientation:landscape) and (max-height:500px){.prayer-day.has-art{padding-top:14%}.prayer-day .art-window{aspect-ratio:5.4}.art-hero{min-height:120px}}

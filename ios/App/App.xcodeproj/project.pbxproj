@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A7F0C0DE00000000000000A2 /* Backgrounds.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A7F0C0DE00000000000000A1 /* Backgrounds.xcassets */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		39083E29B04E87745E3C0DDA /* FajrAlarm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2004AF92C6E939BBCDBCE100 /* FajrAlarm.swift */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
@@ -52,6 +53,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A7F0C0DE00000000000000A1 /* Backgrounds.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Backgrounds.xcassets; sourceTree = "<group>"; };
 		2004AF92C6E939BBCDBCE100 /* FajrAlarm.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FajrAlarm.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		3A2A8F37869BEA3127E231D5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 				5DEA255583ED34A1AD0F03C2 /* AyahFlowQuran-Regular.ttf */,
 				DE091FA3FB16C84E1025A7E1 /* OFL-AyahFlowQuran.txt */,
 				83ABFCD7F782E41AB898D48E /* AyahMoments.json */,
+				A7F0C0DE00000000000000A1 /* Backgrounds.xcassets */,
 			);
 			name = AyahFlowWidget;
 			path = AyahFlowWidget;
@@ -272,6 +275,7 @@
 			files = (
 				4EB86494D48A2A00048EB98D /* AyahFlowQuran-Regular.ttf in Resources */,
 				8744B288A81C119ACCE47612 /* AyahMoments.json in Resources */,
+				A7F0C0DE00000000000000A2 /* Backgrounds.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

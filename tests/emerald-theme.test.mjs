@@ -33,10 +33,11 @@ test('Cards are styled once through the paper scope, not per screen', () => {
     assert.ok(scope, 'one paper scope');
     for (const c of ['.plan-card', '.hifz-verse', '.widget:not(.prayer-day', '.feature-wide', '.dhikr-card', '.lesson-card', '.verse-card', '.notice', '.prayer-list', 'dialog']) assert.ok(scope[1].includes(c), c);
     assert.match(css, /\.prayer-day:not\(\.empty\)\{[^}]*border-radius:var\(--r-arch\)/, 'the next-prayer card keeps the arch');
-    assert.match(css, /\[dir=rtl\] \.home-band\{background-position:left/, 'ornaments move to the start side in Arabic');
+    // 2026-11-09: the Home band's mosque is now the approved home scene; in Arabic it moves to the end side (left).
+    assert.match(css, /\[dir=rtl\] \.home-band::before\{inset:28px auto 0 0;/, 'the Home scene moves to the other side in Arabic');
 });
 
-test('Ornaments are inline vectors: no new image files, and the reader keeps its own reading themes', () => {
+test('Ornaments stay inline vectors (the illustrated scenes are covered by art-backgrounds.test.mjs), and the reader keeps its own reading themes', () => {
     for (const k of ['--pattern', '--mosque', '--wave']) assert.match(css, new RegExp(`${k}:url\\("data:image/svg\\+xml,`));
     assert.ok(statSync(new URL('../public/style.css', import.meta.url)).size < 120_000, 'the stylesheet stays small');
     assert.match(css, /html\[data-theme=light\] body\.reading\{--r-body:#f7f2e4\}/, 'reading themes unchanged');

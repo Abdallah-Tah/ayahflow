@@ -22,7 +22,7 @@ test('Blocked only when place or vehicle reminders are on and location is not Al
 test('Home and Adhkar show the card; the native engine logs stop and restore', () => {
     const app = read('src/app.ts');
     assert.match(app, /function homeView\(\): string \{\n    return `<div class="home-band">\$\{dateLine\(\)\}<\/div>\$\{watchCard\(\)\}/, 'the watch card stays directly under the date');
-    assert.match(app, /\$\{t\('adhkarTitle'\)\}<\/h1>\$\{watchCard\(\)\}/);
+    assert.match(app, /\$\{artHero\('dhikr_tasbih', t\('adhkar'\), t\('adhkarTitle'\)\)\}\$\{watchCard\(\)\}/, 'directly under the Adhkar title (in its banner since 2026-11-09)');
     const swift = read('plugins/smart-reminders/ios/Sources/SmartRemindersPlugin/SmartReminders.swift');
     const note = swift.slice(swift.indexOf('private func noteWatching('), swift.indexOf('public func locationManager(_ manager: CLLocationManager, didUpdateLocations'));
     assert.match(note, /cfg\.location \|\| cfg\.vehicle/);
