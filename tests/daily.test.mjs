@@ -84,7 +84,7 @@ test('Today\'s progress counts only saved records; days off are respected; at le
 
 test('Wiring: Home leads with the plan; memorisation saves through the engine; reminder skips days off; three languages', () => {
     const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
-    assert.match(app, /\$\{watchCard\(\)\}\$\{planCard\(\)\}/);
+    assert.match(app, /\$\{watchCard\(\)\}\$\{welcomeCard\(\)\}\$\{planCard\(\)\}/);
     const plan = app.slice(app.indexOf('function planCard'), app.indexOf('function homeView'));
     assert.doesNotMatch(plan, /streak|xp|accuracy|%/i, 'no streaks, scores or percentages in the plan');
     assert.doesNotMatch(readFileSync(new URL('../src/daily.ts', import.meta.url), 'utf8'), /setTimeout|fetch\(|planSession\(/, 'the plan schedules nothing itself');
@@ -94,4 +94,20 @@ test('Wiring: Home leads with the plan; memorisation saves through the engine; r
     assert.doesNotMatch(bridge, /Your next review is ready/, 'the reminder no longer claims a review is waiting');
     for (const k of ['planTitle', 'planMinutes', 'planRead', 'planPages', 'planOpened', 'planDone', 'planMemorise', 'planAyahsToday', 'planReview', 'planReviewResume', 'planReviewSub', 'planDue', 'planReviewNone', 'planReviewClear', 'planMemorisedDue', 'planToday', 'planAnswered', 'planNothingYet', 'planRest', 'daysOff', 'daysOffNote', 'practiceReminderBody'])
         for (const l of ['en', 'fr', 'ar']) assert.ok(tr(k, l) !== k && tr(k, l).length > 0, `${k} ${l}`);
+});
+
+test('Interface order: Home leads with Quran, then prayer, then remembrance; the Quran tab puts learning first', () => {
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+    const home = app.slice(app.indexOf('function homeView'), app.indexOf('/** Status choices for one prayer'));
+    const order = ['welcomeCard()', 'planCard()', 'nextPrayerWidget()', 'trackerWidget()', 'nowCard()', 'quickDhikrWidget()', 'ayahWidget()', 'qiblaTile()', 'dailyPulse()'].map(x => home.indexOf(x));
+    assert.ok(order.every(i => i > 0), 'every Home section is still there');
+    assert.deepEqual([...order].sort((a, b) => a - b), order, 'in this order');
+    const quran = app.slice(app.indexOf('function quranView'), app.indexOf('\n', app.indexOf('function quranView')));
+    assert.match(quran, /read-last.*\$\{hifzEntry\(\)\}\$\{practiceEntry\(\)\}\$\{khatmEntry\(\)\}\$\{reviewEntry\(\)\}.*surah-search.*\$\{quranMore\(\)\}/);
+    for (const v of ['verses', 'recitations', 'tajweed', 'recite']) assert.match(app.slice(app.indexOf('function quranMore')), new RegExp(`data-view="${v}"`), `${v} still reachable from the Quran tab`);
+    const welcome = app.slice(app.indexOf('const WELCOME_KEY'), app.indexOf('/** Today\'s Quran'));
+    assert.match(welcome, /try \{ return localStorage/, 'the dismissal never throws');
+    assert.doesNotMatch(welcome, /commit\(/, 'the welcome card changes no saved data');
+    for (const k of ['welcomeTitle', 'welcomeSub', 'welcomeRead', 'welcomeReadSub', 'welcomePrayer', 'welcomePrayerSub', 'welcomeDone', 'learnAndRecord'])
+        for (const l of ['en', 'fr', 'ar']) assert.ok(tr(k, l) !== k, `${k} ${l}`);
 });

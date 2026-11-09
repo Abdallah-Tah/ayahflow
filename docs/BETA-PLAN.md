@@ -57,8 +57,17 @@ Still to run: the same checks in an Android WebView and on a physical iPhone.
   `tests/daily.test.mjs`.
 - Optional recitation-following pack: not in the base app, downloaded on request with manifest, SHA-256, progress,
   atomic activation, removal and storage check. **Blocked on a licence and hosting decision** (section F).
-- UI: Quran and learning first on Home; secondary features (steps, bead designs, Zakat, Eid, libraries) one level
-  down; onboarding, empty states, small screens.
+- **Done (phase 4):** Home order is Quran plan → prayer (next prayer, today's five) → remembrance (adhkar of the
+  moment, quick dhikr) → ayah of the moment → Qibla → native pulse (istighfar, steps). The daily-verse and
+  short-recitation tiles, previously on both Home and the Quran tab, are now only on the Quran tab. The Quran tab leads
+  with continue reading, memorisation, review practice, khatm and highlight review. Tajweed drafts and recording are
+  under "Learn and record". Zakat, Eid and the hadith and names libraries stay where they were, one level down
+  (Occasions, Adhkar). Bead designs are in tasbih settings. Nothing removed, no setting or data changed.
+- **Done:** a first-run welcome card (language, open the Quran, memorise, set up prayer times). It hides once the
+  learner has any saved activity or taps "Got it". The dismissal is a browser-storage convenience, not part of the save.
+- **Gap, documented:** UI text uses fixed pixel sizes. Android WebView applies the system font scale on its own.
+  iOS WKWebView does not follow Dynamic Type for these. The Quran text has its own size controls (Settings, reader).
+  A full rem conversion is a broad layout change, left for after the beta.
 
 ## E. Native audit (section 6 of the brief) — to do, item by item, with platform labels
 

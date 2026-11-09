@@ -69,8 +69,8 @@ test('Migration v19 → v20 adds no plan; a saved plan round-trips; bad plans ar
 test('Wiring: page turns go through the plan, Home and Quran entries, wording in three languages', () => {
     const app = read('src/app.ts');
     assert.match(app, /await commit\(\{ \.\.\.turnedPage\(state, before, page\), readPosition: \{ surah: s, ayah: a \} \}\);/);
-    assert.match(app, /\$\{watchCard\(\)\}\$\{planCard\(\)\}/, 'Home shows the plan, today\'s khatm portion included');
-    assert.match(app.slice(app.indexOf('function planCard'), app.indexOf('function homeView')), /khatmStatus\(k\)/); assert.match(app, /\$\{khatmEntry\(\)\}\$\{hifzEntry\(\)\}\$\{reviewEntry\(\)\}/);
+    assert.match(app, /\$\{watchCard\(\)\}\$\{welcomeCard\(\)\}\$\{planCard\(\)\}/, 'Home shows the plan, today\'s khatm portion included');
+    assert.match(app.slice(app.indexOf('function planCard'), app.indexOf('function homeView')), /khatmStatus\(k\)/); assert.match(app, /\$\{hifzEntry\(\)\}\$\{practiceEntry\(\)\}\$\{khatmEntry\(\)\}\$\{reviewEntry\(\)\}/);
     for (const k of ['khatmTitle', 'khatmPlanIt', 'khatmSub', 'khatmFinishIn', 'khatmNDays', 'khatmNDaysFew', 'khatmStartAt', 'khatmFromStart', 'khatmFromHere', 'khatmPreview', 'khatmStart', 'khatmStarted', 'khatmHonest', 'khatmDayOf', 'khatmEnds', 'khatmToday', 'khatmTodayPages', 'khatmFromTo', 'khatmReached', 'khatmPageN', 'khatmNotYet', 'khatmReachedOf', 'khatmOnTrack', 'khatmTodayDone', 'khatmBehind', 'khatmAhead', 'khatmContinue', 'khatmCorrect', 'khatmCorrectNote', 'khatmBadPage', 'khatmEnd', 'khatmEndPrompt', 'khatmFinished', 'khatmFinishedNote', 'khatmNew'])
         for (const l of ['en', 'fr', 'ar']) assert.ok(tr(k, l) !== k && tr(k, l).length > 0, `${k} ${l}`);
 });
