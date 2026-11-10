@@ -48,7 +48,9 @@ struct SharedTimeline: Decodable {
     struct Daily: Decodable {
         struct Counter: Decodable { let id: String; let label: String; let n: Int; let total: Int; let atLeast: Bool; let perPrayer: Bool }
         /// `done` counts only adhkar the user confirmed today; `labelAr` is the collection's Arabic name.
-        struct Adhkar: Decodable { let key: String; let label: String; var labelAr: String? = nil; let done: Int; let total: Int }
+        struct Adhkar: Decodable { let key: String; let label: String; var labelAr: String? = nil; let done: Int; let total: Int
+            /// The collection's first dhikr as the app has it (its sourced Arabic text), when it is not Quran text.
+            var firstAr: String? = nil }
         let day: String
         let counters: [Counter]
         let adhkar: [Adhkar]
@@ -658,7 +660,6 @@ private struct HeaderBar: View {
             if mark { wordmark }
             if let chip, let text = info.ramadanText(short: chip) { ramadanChip(text) }
             Spacer(minLength: 2)
-            if divider && tabs { Rectangle().fill(Palette.leaf.opacity(0.35)).frame(width: 0.8, height: 16).accessibilityHidden(true) }
             if tabs { tabRow } else if let trailing { trailing }
         }
     }
@@ -695,7 +696,7 @@ private struct HeaderBar: View {
                             .background(Group {
                                 if on && full { Capsule().fill(LinearGradient(colors: [Palette.leafLight, Palette.leaf], startPoint: .top, endPoint: .bottom)) }
                                 else if on { Capsule().stroke(Palette.onEmerald, lineWidth: 1.2) }
-                                else { Capsule().fill(Color.white.opacity(0.07)) }
+                                else { Color.clear }
                             })
                             .widgetAccentable(on)
                         }
@@ -732,19 +733,25 @@ struct MediumWidget: View {
     private var info: EntryInfo { EntryInfo(entry: entry) }
     var body: some View {
         Margins { m in
-            VStack(spacing: 0) {
-                HeaderBar(info: info, tabs: tabsAvailable)
-                    .padding(.leading, max(12, m.leading - 2)).padding(.trailing, max(10, m.trailing - 6))
-                    .padding(.top, max(8, m.top * 0.55)).padding(.bottom, 6)
-                    .background(Band())
-                page
-                    .padding(.leading, m.leading).padding(.trailing, m.trailing)
-                    .padding(.top, 7).padding(.bottom, max(8, m.bottom * 0.6))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            if composed, let next = entry.next {
+                PrayerComposition(info: info, next: next, margins: m, tabs: tabsAvailable)
+            } else {
+                VStack(spacing: 0) {
+                    HeaderBar(info: info, tabs: tabsAvailable)
+                        .padding(.leading, max(12, m.leading - 2)).padding(.trailing, max(10, m.trailing - 6))
+                        .padding(.top, max(6, m.top * 0.45)).padding(.bottom, 5)
+                        .background(Band())
+                    page
+                        .padding(.leading, m.leading).padding(.trailing, m.trailing)
+                        .padding(.top, 7).padding(.bottom, max(8, m.bottom * 0.6))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
             }
         }
     }
     private var tabsAvailable: Bool { if #available(iOSApplicationExtension 17.0, *) { return true }; return false }
+    /// The Prayer page in the approved composition (arch, prayer panel, adhkar pill) whenever there is a next prayer.
+    private var composed: Bool { (tabsAvailable ? entry.page : .prayer) == .prayer && entry.state == .ready && entry.next != nil }
     @ViewBuilder private var page: some View {
         switch tabsAvailable ? entry.page : .prayer {
         case .prayer: PrayerPage(info: info)
@@ -857,6 +864,246 @@ private struct AdhkarStrip: View {
             }
             Image(systemName: info.entry.rtl ? "chevron.left" : "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundColor(Palette.gold).accessibilityHidden(true)
         }
+    }
+}
+
+// MARK: Page 1 (medium): the approved composition
+
+extension Art {
+    /// The side of the picture its mosque stands on (in the picture, never mirrored); the arch's words take the other.
+    var subjectOnLeft: Bool { self == .fajr || self == .maghrib }
+    /// The scrim of the hero arch, strongest under the words, measured by scripts/art-contrast.swift.
+    var heroScrim: Double {
+        switch self { case .fajr: return 0.62; case .dhuhr: return 0.93; case .asr: return 0.78; case .maghrib: return 0.66; case .isha: return 0.6; default: return 0.6 }
+    }
+}
+
+/// The approved composition: one emerald shape runs from the header down the left column; in it the arch, a gold
+/// window onto the next prayer's scene that runs off the left edge; on the right the cream prayer panel; across the
+/// bottom, over the foot of the column, the adhkar pill.
+private struct PrayerComposition: View {
+    let info: EntryInfo
+    let next: SharedTimeline.Prayer
+    let margins: EdgeInsets
+    let tabs: Bool
+    var body: some View {
+        GeometryReader { g in
+            let W = g.size.width, H = g.size.height
+            let headerH: CGFloat = max(5, margins.top * 0.4) + 25, col = (W * 0.45).rounded()
+            let side: CGFloat = 9, pillH: CGFloat = 30, pillTop = H - max(6, margins.bottom * 0.4) - pillH
+            let fieldBottom = pillTop + pillH / 2
+            ZStack(alignment: .topLeading) {
+                FullColor { full in
+                    if full {
+                        ZStack {
+                            LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .top, endPoint: .bottom)
+                            StarLattice().stroke(Palette.leaf.opacity(0.09), lineWidth: 0.6)
+                        }
+                        .clipShape(GreenField(headerH: headerH, col: col, bottom: fieldBottom, radius: 16))
+                    }
+                    // The header's gold hairline, over the cream side only.
+                    Path { p in p.move(to: CGPoint(x: col + 16, y: headerH)); p.addLine(to: CGPoint(x: W, y: headerH)) }.stroke(Palette.leaf.opacity(0.5), lineWidth: 0.8)
+                }
+                .accessibilityHidden(true)
+                HeaderBar(info: info, tabs: tabs)
+                    .padding(.leading, max(12, margins.leading - 2)).padding(.trailing, max(10, margins.trailing - 6))
+                    .frame(width: W, height: headerH).padding(.top, max(5, margins.top * 0.4) / 2)
+                HeroArch(info: info, next: next, bleed: 16)
+                    .frame(width: col + 16 - 8, height: fieldBottom - headerH - 3)
+                    .offset(x: -16, y: headerH + 3)
+                PrayerPanel(info: info, next: next)
+                    .frame(width: W - col - side - 6, height: pillTop - headerH - 8)
+                    .offset(x: col + 6, y: headerH + 4)
+                AdhkarPill(info: info)
+                    .frame(width: W - 2 * side, height: pillH)
+                    .offset(x: side, y: pillTop)
+            }
+        }
+    }
+}
+
+/// The emerald area: the header band and the left column as one shape, the inner corner rounded.
+private struct GreenField: Shape {
+    let headerH: CGFloat, col: CGFloat, bottom: CGFloat, radius: CGFloat
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: .zero)
+        p.addLine(to: CGPoint(x: r.maxX, y: 0))
+        p.addLine(to: CGPoint(x: r.maxX, y: headerH))
+        p.addLine(to: CGPoint(x: col + radius, y: headerH))
+        p.addQuadCurve(to: CGPoint(x: col, y: headerH + radius), control: CGPoint(x: col, y: headerH))
+        p.addLine(to: CGPoint(x: col, y: bottom))
+        p.addLine(to: CGPoint(x: 0, y: bottom))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// The feature arch: the next prayer's scene in a gold-framed arch (tomorrow's Fajr after Isha), the words large on
+/// the side away from the mosque, the time left in hours and minutes in gold. `bleed`: how far it runs off the left.
+private struct HeroArch: View {
+    let info: EntryInfo
+    let next: SharedTimeline.Prayer
+    var bleed: CGFloat = 0
+    private var tomorrow: Bool { (next.day ?? dayKey(next.date)) > dayKey(info.entry.date) }
+    var body: some View {
+        FullColor { full in
+            ArtGate(art: full ? Art.prayer(next.key) : nil) { shown in
+                let ink = ArchInk(shown), trailing = shown?.subjectOnLeft ?? false
+                ZStack {
+                    if full {
+                        ArchShape(shoulder: 0.24).fill(LinearGradient(colors: [Palette.emerald, Palette.emeraldDeep], startPoint: .top, endPoint: .bottom))
+                        if let shown { HeroScene(art: shown).clipShape(ArchShape(shoulder: 0.24)) }
+                        ArchShape(shoulder: 0.24).stroke(LinearGradient(colors: [Palette.leafLight, Palette.leaf], startPoint: .top, endPoint: .bottom), lineWidth: 1.6)
+                    } else {
+                        ArchShape(shoulder: 0.24).stroke(Palette.leaf.opacity(0.6), lineWidth: 1)
+                    }
+                    if shown == nil { VStack { Spacer(); MosqueShape().fill(Palette.leaf.opacity(0.14)).frame(width: 70, height: 28) }.accessibilityHidden(true) }
+                    VStack { Ornament().padding(.top, 7); Spacer() }.padding(.leading, bleed)
+                    VStack(alignment: trailing ? .trailing : .leading, spacing: 0) {
+                        Text((tomorrow ? (info.l["wTomorrow"] ?? "Tomorrow") : (info.l["next"] ?? "Next prayer")).uppercased())
+                            .font(.system(size: 8, weight: .semibold)).kerning(info.entry.rtl ? 0 : 1.4).foregroundColor(ink.label).lineLimit(1).minimumScaleFactor(0.75)
+                        Text(next.label).font(.system(size: 27, weight: .semibold, design: .serif)).foregroundColor(ink.title).lineLimit(1).minimumScaleFactor(0.6).accent()
+                        countdown.font(.system(size: 19, weight: .semibold, design: .serif).monospacedDigit()).foregroundColor(ink.label)
+                            .multilineTextAlignment(trailing ? .trailing : .leading).lineLimit(1).minimumScaleFactor(0.6)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: trailing ? .trailing : .leading)
+                    .padding(.leading, 9 + bleed).padding(.trailing, 9).padding(.top, 16).padding(.bottom, 14)
+                }
+                // Laid out against the picture (left and right as drawn), the words read in their own direction.
+                .environment(\.layoutDirection, .leftToRight)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+    /// "36 min" / "7 hr, 14 min", kept live by the system.
+    @ViewBuilder private var countdown: some View {
+        Text(next.date, style: .relative)
+    }
+}
+
+/// The scene filling the arch: enlarged so the arch printed at the top of the picture stays out, anchored at the
+/// bottom and at the mosque's side, with a scrim strongest under the words.
+private struct HeroScene: View {
+    let art: Art
+    var body: some View {
+        GeometryReader { g in
+            let h = max(g.size.height * 1.55, g.size.width / 0.88 * 675 / 1200), w = h * 1200 / 675, edge = w * 0.06
+            Image(art.rawValue).resizable().interpolation(.medium).frame(width: w, height: h)
+                .offset(x: art.subjectOnLeft ? -edge : g.size.width - w + edge, y: g.size.height - h)
+            let tint = art.light ? Palette.cream : Palette.emeraldDeep, a = art.heroScrim
+            LinearGradient(stops: [.init(color: tint.opacity(a), location: 0), .init(color: tint.opacity(a), location: 0.5), .init(color: tint.opacity(a * 0.15), location: 1)],
+                           startPoint: art.subjectOnLeft ? .trailing : .leading, endPoint: art.subjectOnLeft ? .leading : .trailing)
+        }
+        .clipped()
+        .accessibilityHidden(true)
+    }
+}
+
+/// The cream panel: the day's dates, then the five prayers, each on its own row, the next one highlighted.
+private struct PrayerPanel: View {
+    let info: EntryInfo
+    let next: SharedTimeline.Prayer
+    private var entry: PrayerEntry { info.entry }
+    var body: some View {
+        let shownDay = entry.today.first?.day ?? dayKey(entry.date)
+        VStack(alignment: .leading, spacing: 1) {
+            header.padding(.horizontal, 5).frame(height: 13)
+            VStack(spacing: 0) {
+                ForEach(Array(entry.today.enumerated()), id: \.element.at) { i, p in
+                    let isNext = p.at == next.at, past = p.date <= entry.date
+                    HStack(spacing: 4) {
+                        Text(p.label).fontWeight(isNext ? .semibold : .regular).foregroundColor(isNext ? Palette.text : Palette.text.opacity(past ? 0.55 : 0.9))
+                        if entry.kept.contains(p.key) && (p.day ?? dayKey(p.date)) == shownDay {
+                            Image(systemName: "checkmark.circle.fill").font(.system(size: 8.5)).foregroundColor(Palette.green).accessibilityLabel(info.l["prayed"] ?? "prayed")
+                        }
+                        Spacer(minLength: 4)
+                        Text(p.date, style: .time).monospacedDigit().fontWeight(isNext ? .semibold : .regular).foregroundColor(isNext ? Palette.goldBright : Palette.muted.opacity(past ? 0.75 : 1))
+                    }
+                    .font(.system(size: 11.5, weight: isNext ? .semibold : .regular)).lineLimit(1).minimumScaleFactor(0.85)
+                    .padding(.horizontal, 7).frame(minHeight: 11, maxHeight: .infinity)
+                    .background(FullColor { full in
+                        if isNext { if full { RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Palette.highlight) } else { RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Palette.text.opacity(0.6), lineWidth: 1) } }
+                    })
+                    // A hairline between rows, left out around the highlighted one.
+                    .overlay(alignment: .bottom) {
+                        if i < entry.today.count - 1 && !isNext && entry.today[i + 1].at != next.at { Rectangle().fill(Palette.line).frame(height: 0.5).padding(.horizontal, 6).accessibilityHidden(true) }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 3).padding(.vertical, 3)
+        .frame(maxHeight: .infinity)
+        .background(FullColor { full in if full { RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.panel) } })
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Palette.line, lineWidth: 0.7))
+    }
+    /// The dates, and the next occasion beside them when there is room (a fast, Jumu'ah, Ramadan).
+    @ViewBuilder private var header: some View {
+        if #available(iOSApplicationExtension 16.0, *), let c = info.coming.first {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) { dates; Spacer(minLength: 2); chip(c) }
+                dates
+            }
+        } else { dates }
+    }
+    private func chip(_ c: SharedTimeline.Upcoming) -> some View {
+        HStack(spacing: 3) { Image(systemName: "moon").font(.system(size: 8, weight: .semibold)); Text("\(c.short ?? c.title) · \(info.inDays(info.daysFrom(c.at)))") }
+            .font(.system(size: 9, weight: .medium)).foregroundColor(Palette.text).lineLimit(1).fixedSize()
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(FullColor { full in if full { Capsule().fill(Palette.highlight) } })
+    }
+    /// "Mon 9 Nov · 29 Jumada I": the Gregorian day and the Umm al-Qura date with the user's correction.
+    private var dates: some View {
+        let hijriDay = Calendar.current.date(byAdding: .day, value: Int(info.l["hijriOffset"] ?? "0") ?? 0, to: entry.date) ?? entry.date
+        let g = DateFormatter(), h = DateFormatter()
+        g.locale = entry.locale; g.setLocalizedDateFormatFromTemplate("EEE d MMM")
+        h.locale = entry.locale; h.calendar = Calendar(identifier: .islamicUmmAlQura); h.setLocalizedDateFormatFromTemplate("d MMMM")
+        return HStack(spacing: 4) {
+            Image(systemName: "calendar").font(.system(size: 8.5, weight: .semibold)).foregroundColor(Palette.gold).accessibilityHidden(true)
+            Text(g.string(from: entry.date)).foregroundColor(Palette.text)
+            Text("·").foregroundColor(Palette.muted)
+            Text(h.string(from: hijriDay)).foregroundColor(Palette.gold)
+        }
+        .font(.system(size: 10, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8).fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+/// "Today's adhkar" across the whole width, over the foot of the green column: a boxed icon, the label and the
+/// collection, its first dhikr in Arabic (the app's sourced text, never Quran text cut short) or its Arabic name, the
+/// arrow. Opens that collection in the app.
+private struct AdhkarPill: View {
+    let info: EntryInfo
+    var body: some View {
+        let key = info.adhkarKey, a = info.adhkar(key)
+        let name = a?.label ?? info.l[key == "sleep" ? "m_sleep" : key] ?? (key == "morning" ? "Morning adhkar" : key == "evening" ? "Evening adhkar" : "Before sleep")
+        let arabic = info.entry.rtl ? nil : (a?.firstAr ?? a?.labelAr)
+        Link(destination: URL(string: "ayahflow://moment/\(key)")!) {
+            HStack(spacing: 8) {
+                Image(systemName: key == "morning" ? "sun.max" : key == "sleep" ? "moon.zzz" : "book").font(.system(size: 12, weight: .regular)).foregroundColor(Palette.text)
+                    .frame(width: 24, height: 22)
+                    .background(FullColor { full in if full { RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Palette.bg) } })
+                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Palette.line, lineWidth: 0.7)).accessibilityHidden(true)
+                Rectangle().fill(Palette.line).frame(width: 0.7, height: 20).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: -1) {
+                    Text(info.l["todaysAdhkar"] ?? "Today's adhkar").font(.system(size: 11.5, weight: .semibold, design: .serif)).foregroundColor(Palette.text)
+                    Text(name).font(.system(size: 9.5)).foregroundColor(Palette.muted)
+                }
+                .lineLimit(1).fixedSize()
+                if let arabic {
+                    Rectangle().fill(Palette.line).frame(width: 0.7, height: 20).accessibilityHidden(true)
+                    Text(arabic).font(.system(size: 14, weight: .medium)).foregroundColor(Palette.text).lineLimit(1).truncationMode(.tail).minimumScaleFactor(0.85)
+                        .frame(maxWidth: .infinity, alignment: .trailing).environment(\.layoutDirection, .rightToLeft)
+                } else { Spacer(minLength: 4) }
+                if let a, a.total > 0, a.done >= a.total { Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundColor(Palette.green) }
+                Image(systemName: info.entry.rtl ? "chevron.left" : "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundColor(Palette.gold).accessibilityHidden(true)
+            }
+            .padding(.leading, 6).padding(.trailing, 11)
+            .frame(maxHeight: .infinity)
+            .background(FullColor { full in if full { Capsule().fill(Palette.panel).shadow(color: Color.black.opacity(0.12), radius: 2, y: 1) } })
+            .overlay(Capsule().stroke(Palette.line, lineWidth: 0.7))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(info.l["todaysAdhkar"] ?? "Today's adhkar"): \(name)")
     }
 }
 

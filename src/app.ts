@@ -728,11 +728,17 @@ async function syncSmart(): Promise<void> {
     catch (e) { console.error('AyahFlow reminders sync failed', e instanceof Error ? e.message : e); if (state.smart.location || state.smart.vehicle || state.smart.timed || state.athan.enabled) toast(t('reminderSyncFailed')); }
 }
 /** Today's counts and adhkar progress for the widget. */
+/** The collection's first dhikr in Arabic, as the app has it, for the widget's adhkar strip; none when it quotes the
+ * Quran (the widget would have to cut it) or the collection is empty. */
+function firstDhikr(m: Moment): string | undefined {
+    const e = entriesFor(m).find(x => x.kind !== 'guidance' && typeof x.text === 'string' && x.text.length > 0);
+    return e && !/[﴿﴾]/.test(e.text as string) ? e.text as string : undefined;
+}
 function widgetDaily(): WidgetDaily {
     return {
         day: dayKey(),
         counters: counterDefs().map(c => ({ id: c.id, label: c.name, n: count(c.id), total: c.total, atLeast: !!c.atLeast, perPrayer: !!c.perPrayer })),
-        adhkar: (['morning', 'evening', 'sleep', 'vehicle', 'leave_home', 'enter_home'] as const).map(m => { const [done, total] = momentProgress(m); return { key: m, label: t('m_' + m), labelAr: tr('m_' + m, 'ar'), done, total }; }),
+        adhkar: (['morning', 'evening', 'sleep', 'vehicle', 'leave_home', 'enter_home'] as const).map(m => { const [done, total] = momentProgress(m); return { key: m, label: t('m_' + m), labelAr: tr('m_' + m, 'ar'), firstAr: firstDhikr(m), done, total }; }),
     };
 }
 function widgetWorship(now = Date.now()) {

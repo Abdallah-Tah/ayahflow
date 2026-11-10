@@ -91,7 +91,7 @@ test('Fallbacks: no picture in the tinted and clear looks or with Increase Contr
 
 test('Contrast: the measured report covers every surface and every one passes 4.5:1; scrims match the measurement', () => {
     const report = JSON.parse(read('evidence/art-backgrounds-2026-11-09/contrast.json'));
-    assert.ok(report.surfaces.length >= 45);
+    assert.ok(report.surfaces.length >= 50);
     for (const s of report.surfaces) { assert.equal(s.pass, true, s.surface); for (const z of s.zones) assert.ok(z.p99 >= 4.5, `${s.surface}: ${z.p99}`); }
     const script = read('scripts/art-contrast.swift');
     const scrim = Object.fromEntries([...swift.slice(swift.indexOf('var scrim: Double'), swift.indexOf('var light: Bool')).matchAll(/case \.(\w+): return ([\d.]+)/g)].map(m => [m[1], Number(m[2])]));
@@ -105,4 +105,27 @@ test('Offline and light: the art is bundled, no network URL, the stylesheet stay
     assert.doesNotMatch(css, /url\((?:"|')?https?:/);
     assert.ok(statSync(new URL('../public/style.css', import.meta.url)).size < 120_000);
     if (existsSync(new URL('../www/art', import.meta.url))) assert.deepEqual(readdirSync(new URL('../www/art', import.meta.url)).sort(), APP_ART.map(n => `${n}.webp`).sort(), 'the build copies exactly these');
+});
+
+test('Medium Prayer page follows the approved composition: one green field, a bleeding arch, cream panel, adhkar pill', () => {
+    const comp = swift.slice(swift.indexOf('private struct PrayerComposition'), swift.indexOf('// MARK: Page 2: Upcoming'));
+    assert.match(comp, /\.clipShape\(GreenField\(headerH: headerH, col: col, bottom: fieldBottom, radius: 16\)\)/, 'header and left column are one emerald shape');
+    assert.match(comp, /HeroArch\(info: info, next: next, bleed: 16\)[\s\S]*?\.offset\(x: -16, y: headerH \+ 3\)/, 'the arch runs off the left edge');
+    assert.match(comp, /PrayerPanel\(info: info, next: next\)[\s\S]*?\.offset\(x: col \+ 6/, 'the prayers sit on the cream side');
+    assert.match(comp, /AdhkarPill\(info: info\)\s*\.frame\(width: W - 2 \* side, height: pillH\)\s*\.offset\(x: side, y: pillTop\)/, 'the pill spans the width over the foot of the column');
+    assert.match(comp, /RoundedRectangle\(cornerRadius: 12, style: \.continuous\)\.fill\(Palette\.panel\)/);
+    assert.match(comp, /Link\(destination: URL\(string: "ayahflow:\/\/moment\/\\\(key\)"\)!\)/, 'the adhkar deep link is kept');
+    assert.match(comp, /Text\(next\.date, style: \.relative\)/, 'a live countdown in hours and minutes, not a fixed value');
+    assert.match(comp, /let arabic = info\.entry\.rtl \? nil : \(a\?\.firstAr \?\? a\?\.labelAr\)/);
+    assert.match(swift, /if composed, let next = entry\.next \{\s*PrayerComposition\(info: info, next: next, margins: m, tabs: tabsAvailable\)/);
+    // Switching stays the App Intent on the header, and the chosen page stays saved.
+    assert.match(swift, /Button\(intent: ShowWidgetPage\(p\)\)/);
+    assert.match(swift, /UserDefaults\.standard\.set\(page, forKey: "widgetPage"\)/);
+    // The strip's Arabic is the app's own first dhikr, never Quran text (which the widget would have to cut).
+    assert.match(app, /return e && !\/\[﴿﴾\]\/\.test\(e\.text as string\) \? e\.text as string : undefined;/);
+    assert.match(app, /firstAr: firstDhikr\(m\)/);
+    // The hero scrims are the measured ones.
+    const script = read('scripts/art-contrast.swift');
+    const hero = Object.fromEntries([...swift.slice(swift.indexOf('var heroScrim: Double'), swift.indexOf('/// The approved composition')).matchAll(/case \.(\w+): return ([\d.]+)/g)].map(m => [m[1], m[2]]));
+    for (const [k, f] of Object.entries({ fajr: 'fajr_dawn', dhuhr: 'dhuhr_daylight', asr: 'asr_afternoon', maghrib: 'maghrib_sunset', isha: 'isha_night' })) assert.match(script.slice(script.indexOf('let archScrim')), new RegExp(`"${f}": ${hero[k]}[,\\]]`), k);
 });

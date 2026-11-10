@@ -172,6 +172,21 @@ do {
                             text: [(CGRect(x: 22 / w, y: 8 / h, width: 1 - 44 / w, height: 20 / h), 0xD9BB79)]))
 }
 
+// Widget, medium Prayer page (2026-11-09, the approved composition): HeroScene in a 160 × 104 pt arch (338 pt widget). The picture is
+// 1.55× the height, anchored at the bottom and at the mosque's side (6% of its width trimmed), the scrim horizontal:
+// full strength over the half with the words, easing to 15% at the mosque. Words: gold #EFD293 (label, countdown) and
+// cream (name) on dark scenes; #765214 and ink on daylight.
+let archScrim: [String: Double] = ["fajr_dawn": 0.62, "dhuhr_daylight": 0.93, "asr_afternoon": 0.78, "maghrib_sunset": 0.66, "isha_night": 0.6]
+for art in ["fajr_dawn", "dhuhr_daylight", "asr_afternoon", "maghrib_sunset", "isha_night"] {
+    let w = 160.0, h = 104.0, left = art == "fajr_dawn" || art == "maghrib_sunset", light = art == "dhuhr_daylight", a = archScrim[art]!
+    let ih = max(h * 1.55, w / 0.88 / ar), iw = ih * ar, edge = iw * 0.06
+    // The arch runs 16 pt off the widget's left edge; the words are in its right half, or its left half after the bleed.
+    let zone = left ? CGRect(x: 0.42, y: 0.18, width: 0.53, height: 0.7) : CGRect(x: 0.15, y: 0.18, width: 0.5, height: 0.7)
+    surfaces.append(Surface(name: "widget prayer hero · \(art)", file: widgetFile(art), w: w, h: h, place: CGRect(x: left ? -edge : w - iw + edge, y: h - ih, width: iw, height: ih),
+                            scrim: { fx, _ in let d = left ? 1 - fx : fx; return (rgb(light ? cream : deep), d <= 0.5 ? a : a * (1 - 0.85 * (d - 0.5) / 0.5)) },
+                            text: [(zone, light ? 0x765214 : 0xEFD293)]))
+}
+
 let rows = surfaces.map(run)
 let out = try! JSONSerialization.data(withJSONObject: ["measuredWith": "scripts/art-contrast.swift", "rule": "99% of the background pixels behind each text zone give at least 4.5:1 against the dimmest text colour in that zone", "surfaces": rows], options: [.prettyPrinted, .sortedKeys])
 print(String(data: out, encoding: .utf8)!)

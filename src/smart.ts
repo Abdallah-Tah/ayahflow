@@ -432,7 +432,7 @@ export function beforeSchedule(state: AppState, label: (p: PrayerName, minutes: 
 }
 /** What the home-screen widgets show. Computed here so the app stays the single source of prayer times. */
 /** Today's dhikr counts and adhkar progress, for the widget (self-reported taps and confirmations only). */
-export interface WidgetDaily { day: string; counters: { id: string; label: string; n: number; total: number; atLeast: boolean; perPrayer: boolean }[]; adhkar: { key: Moment; label: string; labelAr: string; done: number; total: number }[] }
+export interface WidgetDaily { day: string; counters: { id: string; label: string; n: number; total: number; atLeast: boolean; perPrayer: boolean }[]; adhkar: { key: Moment; label: string; labelAr: string; firstAr?: string; done: number; total: number }[] }
 export interface WidgetData { v: 1; updatedAt: number; rtl: boolean; locale: string; prayers: { key: PrayerName; label: string; at: number; day: string }[]; windows: { morning: [number, number] | null; evening: [number, number] | null }[]; labels: Record<string, string>; daily: WidgetDaily | null; ayahs: ReturnType<typeof dailyAyahs>; worship?: WidgetWorship; upcoming?: { at: number; day: string; kind: 'jumuah' | 'fast' | 'ramadan' | 'occasion'; title: string; sub: string; short?: string; lunar: boolean }[]; ramadan?: { start: number; eid: number } | null }
 /** Prayers the user confirmed (today and yesterday, so midnight does not blank them) and the Ayah of the Moment for the
  * next half-hour slots, so the widget can follow without the app (within the system's refresh limits). */
