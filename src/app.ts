@@ -313,7 +313,15 @@ function fitPage(on?: HTMLElement): void {
     if (!surface || !page || !surface.clientHeight) return;
     // Where the reader is on a page that scrolls, as a fraction, so a refit (rotation, a late font) keeps the place.
     const scrolled = surface.scrollHeight - surface.clientHeight, place = scrolled > 0 ? surface.scrollTop / scrolled : 0;
-    const cs = getComputedStyle(surface), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    // The reader's bar and footer float over the page and show on a tap (style.css). The running header and the page
+    // number may sit under them, the verses may not: the page is padded so the text starts below the bar and ends
+    // above the footer, safe areas included, whether or not they are showing (a tap never moves the lines).
+    surface.style.paddingTop = surface.style.paddingBottom = '';
+    const cs = getComputedStyle(surface), reader = surface.closest('.reader');
+    const under = (bar: string, run: string) => Math.max(0, (reader?.querySelector<HTMLElement>(bar)?.offsetHeight ?? 0) - (surface.querySelector<HTMLElement>(run)?.offsetHeight ?? 0));
+    const padTop = Math.max(parseFloat(cs.paddingTop), under('.r-bar', '.r-run')), padBottom = Math.max(parseFloat(cs.paddingBottom), under('.r-foot', '.r-run-no'));
+    surface.style.paddingTop = `${padTop}px`; surface.style.paddingBottom = `${padBottom}px`;
+    const pad = padTop + padBottom;
     // Leave room for marks below the last line (kasra, tanween) so nothing is clipped.
     // The running header and the page number sit inside the surface too.
     const runs = [...surface.querySelectorAll<HTMLElement>('.r-run, .r-run-no')].reduce((n, el) => n + el.offsetHeight, 0);

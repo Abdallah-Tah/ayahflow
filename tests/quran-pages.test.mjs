@@ -268,3 +268,15 @@ test('Reading place survives what WebKit does on its own, and Continue reading l
     assert.match(sheet, /d\.tabIndex = -1; d\.focus\(\{ preventScroll: true \}\);/);
     assert.match(css, /\.r-sheet:focus\{outline:none\}/);
 });
+
+test('Mushaf page: the floating bar and footer never cover a verse (iPhone, page 164: the last line was cut)', () => {
+    const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8'), css = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
+    // The bars float over the page (they show on a tap), so the fit has to keep the text out from under them.
+    assert.match(css, /\.r-page \.r-bar,\.r-page \.r-foot\{position:absolute;left:0;right:0\}/);
+    const fit = app.slice(app.indexOf('function fitPage'), app.indexOf('/** Keyboard: the verses'));
+    assert.match(fit, /surface\.style\.paddingTop = surface\.style\.paddingBottom = '';\n\s*const cs = getComputedStyle\(surface\)/, 'the CSS padding (safe areas) is read afresh on every fit');
+    assert.match(fit, /padTop = Math\.max\(parseFloat\(cs\.paddingTop\), under\('\.r-bar', '\.r-run'\)\), padBottom = Math\.max\(parseFloat\(cs\.paddingBottom\), under\('\.r-foot', '\.r-run-no'\)\)/,
+        'only the running header and the page number may sit under the bars');
+    assert.match(fit, /const pad = padTop \+ padBottom;[\s\S]*const room = surface\.clientHeight - pad/, 'the text is sized for the room between them');
+    assert.ok(!/chromeOff\(\)|chromeHidden/.test(fit), 'showing or hiding the bars never moves the lines');
+});
