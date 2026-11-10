@@ -437,12 +437,33 @@ body.reduced-motion dialog.r-sheet[open],body.reduced-motion .q-page.fitted{anim
 .t-name{font:600 14px var(--ui)}.t-sub{font:11.5px var(--ui);color:var(--r-muted)}
 .s-note{font:13px/1.55 var(--ui);color:var(--r-muted);margin:0 2px}
 .s-others{margin-top:18px;border-top:1px solid var(--r-line);padding-top:10px}.s-others summary{display:grid;gap:2px;cursor:pointer;min-height:44px;font:600 14px var(--ui)}.s-others ul{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:10px}.s-others li{display:grid;gap:2px;font:13px/1.45 var(--ui);color:var(--r-muted)}.s-others li strong{color:var(--r-ink);font-weight:600}
-/* Qibla compass: the dial turns with the phone; the gold pointer at the top is the way the phone points. */
-.qibla .page-sub{margin-bottom:10px}.qibla-dial{display:block;width:min(78vw,300px);height:auto;margin:6px auto 0;overflow:visible}
-.qb-ring{fill:var(--panel);stroke:var(--line);stroke-width:2}.qb-tick{stroke:var(--muted);stroke-width:1;opacity:.55}.qb-tick.major{stroke:var(--text);stroke-width:2;opacity:.8}
-.qb-n{fill:var(--gold-bright,var(--gold));font:600 18px var(--sans,system-ui);text-anchor:middle}.qb-needle{stroke:var(--gold);stroke-width:3;stroke-linecap:round;opacity:.7}
-.qb-kaaba{fill:#1d1d1d;stroke:var(--gold);stroke-width:1.5}.qb-band{fill:var(--gold)}.qb-phone{fill:var(--gold-bright,var(--gold))}.qb-hub{fill:var(--gold)}
-.qibla-turn{text-align:center;font:20px var(--serif);min-height:1.6em;margin:12px 0 4px;color:var(--text)}.qibla.aligned .qibla-turn{color:var(--gold-bright,var(--gold))}.qibla.aligned .qb-ring{stroke:var(--gold);stroke-width:4}
+/* Qibla: #qibla-dial turns with the live heading (paintQibla); north-up, no phone pointer, without a trusted one. */
+.qibla{margin-top:14px}
+.qibla-intro{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1.5px solid rgb(var(--tint) / .5);border-radius:var(--r-xl);background:var(--card-fill)}
+.qibla-intro h2{font:600 20px/1.25 var(--serif)}.qibla-intro p{margin-top:3px;font-size:var(--fs-md);line-height:1.45;color:var(--muted)}
+.qibla-intro-ico{flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:var(--r-md);background:rgb(var(--green-rgb) / .2)}.qibla-intro-ico path{fill:currentColor}
+.qibla-stage{display:grid;gap:4px}.qibla-compass{display:grid;justify-items:center}
+.qibla-dial{display:block;width:min(84vw,340px);max-width:100%;height:auto;margin:16px auto 0;overflow:visible}
+.qb-shadow{opacity:.28;filter:blur(6px)}.qb-bezel{fill:none;stroke:url(#qb-gold);stroke-width:5}.qb-bezel-in{fill:none;stroke:#f0cf80;stroke-opacity:.35}
+.qb-rosette{fill:none;stroke:#e9c97f;stroke-opacity:.09}
+.qb-turn{transform-box:view-box;transform-origin:160px 160px;transition:transform .12s linear}.reduced-motion .qb-turn{transition:none}
+.qb-tick{stroke:#f4ecd8;stroke-width:1.3;stroke-opacity:.62;stroke-linecap:round}.qb-tick.major{stroke:#fbf3dc;stroke-width:3.2;stroke-opacity:1}
+.qb-n,.qb-mag{fill:#f6dd97;font:700 24px var(--serif);text-anchor:middle}.qb-mag{display:none;font:700 9px var(--ui);letter-spacing:.12em}.qibla.magnetic .qb-mag{display:inline}
+.qb-needle{stroke:#e8c675;stroke-width:3.5;stroke-linecap:round}.qb-mark{fill:#121212;stroke:#f0cf80;stroke-width:3}.qb-mark-band,.qb-kaaba .k-band,.qb-kaaba .k-door{fill:#e2bd68}
+.qb-medal rect{fill:#0d3f2a;stroke:#e8c675;stroke-width:1.6}.qb-kaaba .k-top{fill:#3a3a3a}.qb-kaaba .k-left{fill:#141414}.qb-kaaba .k-right{fill:#232323}
+.qb-hub{fill:#f0cf80;stroke:#7a5a1e}.qb-phone path{fill:url(#qb-gold);stroke:#7a5a1e;stroke-width:.8}.qb-phone line{stroke:#fbf3dc;stroke-width:3.5;stroke-linecap:round}
+.qibla.north-up .qb-phone{display:none}.qibla.rough .qb-turn,.qibla.rough .qb-phone{opacity:.5}.qibla.aligned .qb-bezel{stroke-width:8}
+.qibla-turn{display:flex;align-items:center;justify-content:center;gap:16px;min-width:min(100%,290px);max-width:100%;min-height:58px;margin:20px auto 0;padding:8px 30px;color:#f7efdc;font:30px/1.2 var(--serif);text-align:center;background:linear-gradient(#0f4430,#0a2f21);border:2px solid #e2bd68;border-radius:var(--r-lg);box-shadow:0 0 0 4px rgb(8 33 25 / .6),0 0 0 5px rgb(226 189 104 / .45)}
+.qibla-turn b{font-weight:600;color:#f3d38a}.qt-gem{flex:none;width:9px;height:9px;transform:rotate(45deg);background:#e2bd68}
+.qibla.rough .qibla-turn,.qibla.north-up .qibla-turn{font-size:22px}
+.qibla.aligned .qibla-turn{background:var(--gold-fill);color:#1b271e}.qibla.aligned .qt-gem{background:#1b271e}
+.qibla-status{max-width:36em;margin:10px auto 0;text-align:center;font-size:var(--fs-sm);line-height:1.5;color:var(--muted)}.qibla-status:empty{display:none}
+.qibla-facts{display:grid;grid-template-columns:22px auto minmax(0,1fr);column-gap:12px;margin-top:18px;padding:4px 16px;border:1.5px solid rgb(var(--tint) / .5);border-radius:var(--r-xl);background:var(--card-fill)}
+.qibla-fact{grid-column:1/-1;display:grid;grid-template-columns:22px minmax(0,1fr) auto;grid-template-columns:subgrid;align-items:center;gap:12px;min-height:56px;padding:6px 0;border-top:1px solid var(--line)}.qibla-fact:first-child{border-top:0}
+.qibla-fact-ico{display:grid;opacity:.85}.qibla-fact-name{font-weight:600}.qibla-fact :is(.qibla-fact-name,.qibla-fact-value){font-size:var(--fs-base)}
+.qibla-fact-value{text-align:end;overflow-wrap:anywhere;padding-inline-start:12px;border-inline-start:1px solid rgb(var(--tint) / .55)}
+@media (min-width:700px){.qibla-dial{width:340px}}
+@media (orientation:landscape) and (max-height:500px){.qibla-stage{grid-template-columns:1fr 1fr;align-items:start;gap:20px}.qibla-dial{width:min(100%,78vh,300px)}.qibla-turn{font-size:22px;min-height:46px;padding-inline:18px;min-width:0}}
 /* Highlight review cards: the highlight colour as an edge, the verse only once the user asks for it. */
 .review-card{border:1px solid var(--line);border-inline-start:4px solid rgb(212 175 55 / .85);border-radius:var(--r-lg);padding:14px 16px;background:var(--panel)}
 .review-card[data-hl=green]{border-inline-start-color:rgb(76 175 120 / .85)}.review-card[data-hl=blue]{border-inline-start-color:rgb(90 145 220 / .85)}.review-card[data-hl=rose]{border-inline-start-color:rgb(225 110 150 / .85)}.review-card[data-hl=violet]{border-inline-start-color:rgb(150 120 220 / .85)}
@@ -611,7 +632,7 @@ body{background:var(--bg)}
 .bottom-nav{border-top-color:rgb(var(--tint) / .25)}
 
 /* Paper: cream cards with ink (light), deep-green cards (dark). */
-:is(.plan-card,.hifz-verse,.widget:not(.prayer-day),.feature-card,.feature-wide,.lib-card,.dhikr-card,.mode-card,.lesson-card,.review-card,.verse-card,.ayah-day,.ayah-moment,.week-card,.metric,.pulse-card,.moment-tile,.tasbih-tile,.mini-tile,.place-card,.link-row,.auto-row,.diag,.notice,.prayer-list,.recap-row,.weak-row,.question-ayah,.option,.knowledge-choice,.occasion,.name-cell,.card-preview,.lesson-example,.f-card,.welcome-card,.sheet,dialog){
+:is(.qibla-intro,.qibla-facts,.plan-card,.hifz-verse,.widget:not(.prayer-day),.feature-card,.feature-wide,.lib-card,.dhikr-card,.mode-card,.lesson-card,.review-card,.verse-card,.ayah-day,.ayah-moment,.week-card,.metric,.pulse-card,.moment-tile,.tasbih-tile,.mini-tile,.place-card,.link-row,.auto-row,.diag,.notice,.prayer-list,.recap-row,.weak-row,.question-ayah,.option,.knowledge-choice,.occasion,.name-cell,.card-preview,.lesson-example,.f-card,.welcome-card,.sheet,dialog){
 --text:var(--paper-text);--muted:var(--paper-muted);--soft:var(--paper-soft);--line:var(--paper-line);--line-strong:var(--paper-strong);--track:var(--paper-track);
 --panel:var(--paper-bg);--panel2:var(--paper-raise);--raise:var(--paper-raise);--card-fill:var(--paper-fill);--hero-fill:var(--paper-fill);
 --gold:var(--paper-gold);--gold-bright:var(--paper-gold-bright);--tint:var(--paper-tint);--green:var(--paper-green);--green-rgb:var(--paper-green-rgb);--warning:var(--paper-warning);--warning-rgb:var(--paper-warning-rgb);
@@ -629,6 +650,12 @@ html[data-theme=light] :is(.lesson-card,.lesson-example,.question-ayah,.option,.
 .home-band::before{content:'';position:absolute;z-index:-1;inset:28px 0 0 auto;width:175px;background:url(art/home_emerald.webp) right -7px bottom 0 / 240px auto no-repeat;-webkit-mask-image:linear-gradient(90deg,transparent,#000 45%),linear-gradient(transparent,#000 30%);-webkit-mask-composite:source-in;mask-image:linear-gradient(90deg,transparent,#000 45%),linear-gradient(transparent,#000 30%);mask-composite:intersect;pointer-events:none}
 .home-band::after{content:'';position:absolute;left:0;right:0;bottom:0;height:22px;background:var(--wave) center / 100% 100% no-repeat;pointer-events:none}
 .home-band .date-line{margin:0;color:var(--text)}
+/* Prayers: the Home scene and gold wave under the title, on the end side. */
+.page-band{position:relative;isolation:isolate;margin:0 -22px 12px;padding:14px 22px 34px;background:var(--pattern)}
+.page-band::before{content:'';position:absolute;z-index:-1;inset:0 0 6px auto;width:min(205px,52%);background:url(art/home_emerald.webp) right -10px bottom -6px / 300px auto no-repeat;--m:linear-gradient(90deg,transparent,#000 45%);-webkit-mask:var(--m),linear-gradient(transparent,#000 22%);-webkit-mask-composite:source-in;mask:var(--m),linear-gradient(transparent,#000 22%);mask-composite:intersect;pointer-events:none}
+.page-band::after{content:'';position:absolute;inset:auto 0 0;height:24px;background:var(--wave) center / 100% 100% no-repeat}
+.page-band .eyebrow{margin:0 0 4px}.page-band .page-title{margin:0;max-width:60%}
+[dir=rtl] .page-band::before{inset:0 auto 6px 0;--m:linear-gradient(270deg,transparent,#000 45%)}
 .plan-card{margin-top:-4px;border:1.5px solid rgb(var(--tint) / .55);border-radius:var(--r-xl);background:var(--card-fill);padding:18px 14px 14px}
 .plan-card > .row.between{flex-wrap:wrap;row-gap:8px}.plan-card .section-title{display:flex;align-items:center;gap:9px;font-size:22px;white-space:nowrap}.plan-card .section-title svg{color:var(--emerald)}
 .plan-minutes{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;padding:6px 11px;border-radius:999px;background:rgb(var(--tint) / .14);color:var(--text)}

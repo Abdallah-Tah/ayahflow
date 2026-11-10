@@ -17,7 +17,7 @@ import { playAudio, stopAudio, startRecording, stopRecording, recordingActive, t
 import { ATHAN_RECORDINGS, ONLINE_RECORDINGS, ONLINE_PROVIDER, MAX_IMPORT_BYTES, recording, online, bundledUrl, makeAlert, toBase64, fromBase64 } from './athan.js';
 import { placeCard, setPlaceRadius } from './places.js';
 import { calendarReminders, upcomingFasts, upcomingDays, upcomingOccasions, ramadanSpan, setHijriOffset, hijriBase, islamicOccasions, calendarSpan, type FastReason, type Occasion, type UpcomingItem } from './calendar.js';
-import { qiblaBearing, kaabaDistanceKm, qiblaTurn, QIBLA_ALIGNED } from './qibla.js';
+import { qiblaBearing, kaabaDistanceKm, qiblaGuide, nearestAngle, type QiblaHeading } from './qibla.js';
 import { fajrAlarmPlan, fallbackPlan, ALARM_CHECK_MINUTES, alarmSound } from './alarm.js';
 import { hifzRange, hifzQueue, hiddenWord, HIFZ_REPEATS, HIFZ_LEVELS, HIFZ_MAX_AYAHS } from './hifz.js';
 import { dailyPlan, difficultItems, newHifz, hifzAdvance, hifzItem, hifzEventId, toggleDayOff, HIFZ_EVENT } from './daily.js';
@@ -1513,26 +1513,56 @@ function reviewView(): string {
 // ---- Qibla --------------------------------------------------------------------------------------
 /** A one-off "where I am now" for the Qibla screen; never saved. */
 let qiblaFrom: { lat: number; lng: number } | null = null;
-let heading: { heading: number; trueNorth: boolean; accuracy: number } | null = null, compassOn = false, compassMissing = false;
+let heading: QiblaHeading | null = null, compassOn = false, compassMissing = false;
+/** The dial's last drawn rotation, unwrapped (see nearestAngle) so it never spins the long way round. */
+let dialAngle = 0;
+/** The compass dial (viewBox 320): a gold bezel, a face with a faint eight-fold rosette, 5° ticks (30° major), N and the
+ * Kaaba marker on a group that the live heading turns, then, fixed: the Kaaba medallion at the centre and the gold
+ * pointer at the top (the way the phone points). Nothing in it is a fixed bearing: the marker is drawn at `b`. */
+function qiblaDial(b: number): string {
+    const C = 160, ticks = Array.from({ length: 72 }, (_, i) => `<line x1="${C}" y1="${i % 6 ? 22 : 19}" x2="${C}" y2="${i % 6 ? 31 : 40}" transform="rotate(${i * 5} ${C} ${C})" class="qb-tick${i % 6 ? '' : ' major'}"/>`).join('');
+    const rosette = Array.from({ length: 8 }, (_, i) => `<circle cx="${C}" cy="${C - 44}" r="44" transform="rotate(${i * 45} ${C} ${C})"/>`).join('');
+    const kaaba = `<g class="qb-kaaba" transform="translate(-4 -10)"><path class="k-top" d="M140 148 160 140 180 148 160 156Z"/><path class="k-left" d="M140 148 160 156V182L140 174Z"/><path class="k-right" d="M160 156 180 148V174L160 182Z"/><path class="k-band" d="M140 153 160 161V165L140 157ZM160 161 180 153V157L160 165Z"/><path class="k-door" d="M170 163.5 175 161.5V170L170 172Z"/></g>`;
+    return `<svg class="qibla-dial" viewBox="0 0 320 320" role="img" aria-label="${escapeHtml(t('qiblaBearing').replace('{n}', num(Math.round(b))))}"><defs><radialGradient id="qb-face" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#14573b"/><stop offset=".7" stop-color="#0c3d29"/><stop offset="1" stop-color="#072a1b"/></radialGradient><linearGradient id="qb-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6dd97"/><stop offset=".45" stop-color="#c79a45"/><stop offset=".75" stop-color="#f0cf80"/><stop offset="1" stop-color="#a87a2c"/></linearGradient><radialGradient id="qb-glow"><stop offset="0" stop-color="#f0cc78" stop-opacity=".35"/><stop offset="1" stop-color="#f0cc78" stop-opacity="0"/></radialGradient></defs>`
+        + `<circle cx="${C}" cy="${C}" r="152" class="qb-shadow"/><circle cx="${C}" cy="${C}" r="148" fill="url(#qb-face)"/><g class="qb-rosette">${rosette}<circle cx="${C}" cy="${C}" r="88"/></g>`
+        + `<g id="qibla-dial" class="qb-turn" data-bearing="${b}">${ticks}<text x="${C}" y="62" class="qb-n">N</text><text x="${C}" y="76" class="qb-mag">${escapeHtml(t('qiblaMagDial'))}</text><g transform="rotate(${b.toFixed(2)} ${C} ${C})"><line x1="${C}" y1="${C}" x2="${C}" y2="66" class="qb-needle"/><rect x="${C - 12}" y="36" width="24" height="30" rx="5" class="qb-mark"/><rect x="${C - 12}" y="44" width="24" height="4" class="qb-mark-band"/></g></g>`
+        + `<circle cx="${C}" cy="${C}" r="148" class="qb-bezel-in"/><circle cx="${C}" cy="${C}" r="153" class="qb-bezel"/>`
+        + `<circle cx="${C}" cy="${C}" r="62" fill="url(#qb-glow)"/><g class="qb-medal"><rect x="${C - 27}" y="${C - 27}" width="54" height="54" rx="3"/><rect x="${C - 27}" y="${C - 27}" width="54" height="54" rx="3" transform="rotate(45 ${C} ${C})"/></g>${kaaba}<circle cx="${C}" cy="${C}" r="7" class="qb-hub"/>`
+        + `<g class="qb-phone"><path d="M${C} 0 ${C + 13} 26 ${C} 20 ${C - 13} 26Z"/><line x1="${C}" y1="22" x2="${C}" y2="44"/></g></svg>`;
+}
 function qiblaView(): string {
     const saved = prayerPlace(state), from = qiblaFrom ?? saved, native = !!smartBridge();
-    if (!from) return `<div class="notice warning">${ic('pin', 18)}<p>${t('qiblaNoPlace')}</p></div><div class="stack mt20">${native ? actionButton('qibla-here', `${ic('pin', 15)} ${t('qiblaHere')}`, 'button primary full') : ''}${actionButton('nav', t('savePlaces'), 'button secondary full', 'data-view="reminders"')}</div>`;
+    const intro = `<div class="qibla-intro"><span class="qibla-intro-ico">${ic('locate', 22)}</span><span><h2>${t('qiblaFindTitle')}</h2><p>${t('qiblaSub')}</p></span></div>`;
+    if (!from) return `<section class="qibla">${intro}<div class="notice warning mt12">${ic('pin', 18)}<p>${t('qiblaNoPlace')}</p></div><div class="stack mt20">${native ? actionButton('qibla-here', `${ic('pin', 15)} ${t('qiblaHere')}`, 'button primary full') : ''}${actionButton('nav', t('savePlaces'), 'button secondary full', 'data-view="reminders"')}</div></section>`;
     const b = qiblaBearing(from.lat, from.lng), km = Math.round(kaabaDistanceKm(from.lat, from.lng));
-    const ticks = Array.from({ length: 72 }, (_, i) => `<line x1="150" y1="${i % 6 ? 16 : 12}" x2="150" y2="24" transform="rotate(${i * 5} 150 150)" class="${i % 6 ? 'qb-tick' : 'qb-tick major'}"/>`).join('');
     const label = qiblaFrom ? t('qiblaFromHere') : t(state.places.home ? 'place_home' : state.places.work ? 'place_work' : 'place_mosque');
-    const dial = `<svg class="qibla-dial" viewBox="0 0 300 300" role="img" aria-label="${t('qiblaBearing').replace('{n}', num(Math.round(b)))}"><g id="qibla-dial" data-bearing="${b}"><circle cx="150" cy="150" r="138" class="qb-ring"/>${ticks}<text x="150" y="46" class="qb-n">N</text><g transform="rotate(${b} 150 150)"><line x1="150" y1="150" x2="150" y2="64" class="qb-needle"/><rect x="138" y="34" width="24" height="24" rx="3" class="qb-kaaba"/><rect x="138" y="41" width="24" height="4" class="qb-band"/></g></g><path d="M150 0 l10 18 h-20z" class="qb-phone"/><circle cx="150" cy="150" r="6" class="qb-hub"/></svg>`;
-    return `<section class="qibla"><p class="page-sub">${t('qiblaSub')}</p>${dial}<p class="qibla-turn" id="qibla-turn" role="status" aria-live="polite"></p><div class="diag mt12"><div class="diag-row"><span>${t('qiblaDirection')}</span><span>${t('qiblaBearing').replace('{n}°', `<bdi>${num(Math.round(b))}°</bdi>`)}</span></div><div class="diag-row"><span>${t('qiblaFrom')}</span><span>${escapeHtml(label)}</span></div><div class="diag-row"><span>${t('qiblaDistance')}</span><span><bdi>${num(km)} km</bdi></span></div></div>${native ? `<div class="mt12">${qiblaFrom ? (saved ? actionButton('qibla-saved', t('qiblaUseSaved'), 'button secondary full') : '') : actionButton('qibla-here', `${ic('pin', 15)} ${t('qiblaHere')}`, 'button secondary full')}</div>` : ''}<p class="tiny muted mt12">${t('qiblaNote')}</p></section>`;
+    const row = (icon: string, name: string, value: string) => `<div class="qibla-fact"><span class="qibla-fact-ico">${ic(icon, 20)}</span><span class="qibla-fact-name">${name}</span><span class="qibla-fact-value">${value}</span></div>`;
+    const facts = `<div class="qibla-facts">${row('compass', t('qiblaDirection'), t('qiblaBearing').replace('{n}°', `<bdi>${num(Math.round(b))}°</bdi>`))}${row('pin', t('qiblaLocation'), escapeHtml(label))}${row('globe', t('qiblaDistanceShort'), `<bdi>${num(km)} km</bdi>`)}</div>`;
+    const where = native ? `<div class="mt12">${qiblaFrom ? (saved ? actionButton('qibla-saved', t('qiblaUseSaved'), 'button secondary full') : '') : actionButton('qibla-here', `${ic('pin', 15)} ${t('qiblaHere')}`, 'button secondary full')}</div>` : '';
+    dialAngle = 0;
+    return `<section class="qibla north-up">${intro}<div class="qibla-stage"><div class="qibla-compass">${qiblaDial(b)}<div class="qibla-turn" id="qibla-turn" role="status" aria-live="polite" aria-atomic="true"><span class="qt-gem"></span><span id="qibla-say"></span><span class="qt-gem"></span></div><p class="qibla-status" id="qibla-status"></p></div><div class="qibla-side">${facts}${where}<p class="tiny muted mt12">${t('qiblaNote')}</p></div></div></section>`;
 }
-/** Turns the dial and updates the guidance without a full render (heading events arrive many times a second). */
+/** Turns the dial and updates the guidance without a full render (heading events arrive many times a second). Words
+ * change only when what they say changes, so a screen reader hears each new instruction once. */
 function paintQibla(): void {
-    const dial = document.querySelector<SVGGElement>('#qibla-dial'), out = document.querySelector('#qibla-turn');
-    if (!dial || !out) return;
-    const b = Number(dial.dataset.bearing);
-    if (!heading) { dial.removeAttribute('transform'); out.textContent = t(compassMissing ? 'qiblaNoCompass' : smartBridge() ? 'qiblaWaiting' : 'qiblaNoLive'); dial.closest('.qibla')?.classList.remove('aligned'); return; }
-    dial.setAttribute('transform', `rotate(${-heading.heading} 150 150)`);
-    const turn = qiblaTurn(heading.heading, b), rough = heading.accuracy < 0 || heading.accuracy > 25, aligned = !rough && Math.abs(turn) <= QIBLA_ALIGNED;
-    out.textContent = rough ? t('qiblaCalibrate') : aligned ? t('qiblaFacing') : t(turn > 0 ? 'qiblaRight' : 'qiblaLeft').replace('{n}', num(Math.round(Math.abs(turn))));
-    document.querySelector('.qibla')?.classList.toggle('aligned', aligned);
+    const dial = document.querySelector<SVGGElement>('#qibla-dial'), say = document.querySelector<HTMLElement>('#qibla-say'), status = document.querySelector<HTMLElement>('#qibla-status'), box = dial?.closest<HTMLElement>('.qibla');
+    if (!dial || !say || !status || !box) return;
+    const g = qiblaGuide(heading, Number(dial.dataset.bearing), !!smartBridge(), compassMissing);
+    const live = g.kind === 'turn' || g.kind === 'facing' || g.kind === 'calibrate';
+    // Without a heading the dial stays north-up (the phone pointer is hidden: it would claim the phone points north).
+    if (live && heading) { dialAngle = nearestAngle(dialAngle, heading.heading); dial.style.transform = `rotate(${(-dialAngle).toFixed(1)}deg)`; }
+    else { dialAngle = 0; dial.style.transform = ''; }
+    const deg = (key: string, n: number) => t(key).replace('{n}°', `<b><bdi>${num(n)}°</bdi></b>`).replace('{n}', `<b>${num(n)}</b>`);
+    const words = g.kind === 'turn' ? deg(g.turn > 0 ? 'qiblaRight' : 'qiblaLeft', Math.round(Math.abs(g.turn))) : g.kind === 'facing' ? t('qiblaFacing') : g.kind === 'calibrate' ? t('qiblaShortCalibrate') : g.kind === 'waiting' ? t('qiblaWaiting') : t('qiblaShortNoCompass');
+    const detail = g.kind === 'calibrate' ? t('qiblaCalibrate') : g.kind === 'noLive' ? `${t('qiblaNoLive')} ${t('qiblaNorthUp')}` : g.kind === 'noCompass' ? `${t('qiblaNoCompass')} ${t('qiblaNorthUp')}` : g.kind === 'waiting' ? t('qiblaNorthUp') : '';
+    const north = live ? t(g.magnetic ? 'qiblaMagnetic' : 'qiblaTrueNorth') : '';
+    const statusText = [detail, north].filter(Boolean).join(' ');
+    if (say.dataset.words !== words) { say.dataset.words = words; say.innerHTML = words; }
+    if (status.textContent !== statusText) status.textContent = statusText;
+    box.classList.toggle('aligned', g.kind === 'facing');
+    box.classList.toggle('north-up', !live);
+    box.classList.toggle('magnetic', live && g.magnetic);
+    box.classList.toggle('rough', g.kind === 'calibrate');
 }
 /** The compass runs only while the Qibla tab is on screen and the app is in front. */
 function syncCompass(): void {
@@ -1702,7 +1732,7 @@ function prayerTabs(): string {
     return `<div class="segment" role="tablist">${(['today', 'history', 'times', 'qibla'] as const).map(x => `<button role="tab" data-action="prayer-tab" data-tab="${x}" class="${prayerTab === x ? 'active' : ''}" aria-selected="${prayerTab === x}">${t('ptab_' + x)}</button>`).join('')}</div>`;
 }
 function prayersView(): string {
-    const head = `<p class="eyebrow mt12">${t('prayers')}</p><h1 class="page-title">${t('salahTitle')}</h1>${prayerTabs()}`;
+    const head = `<div class="page-band"><p class="eyebrow">${t('prayers')}</p><h1 class="page-title">${t('salahTitle')}</h1></div>${prayerTabs()}`;
     if (prayerTab === 'times') return `${head}${prayerView()}`;
     if (prayerTab === 'qibla') return `${head}${qiblaView()}`;
     if (prayerTab === 'history') return `${head}${historyCalendar()}${insightsSection()}`;

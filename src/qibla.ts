@@ -20,3 +20,23 @@ export function qiblaTurn(heading: number, bearing: number): number {
 }
 /** Close enough to say "facing the Qibla". */
 export const QIBLA_ALIGNED = 5;
+/** A heading worse than this (degrees, from the device) is not trusted for turn-by-turn guidance. */
+export const QIBLA_ROUGH = 25;
+/** A compass reading as the native bridge sends it: degrees clockwise from true north (or magnetic north when
+ * `trueNorth` is false, i.e. iOS has no location to correct it), accuracy in degrees (negative = uncalibrated). */
+export interface QiblaHeading { heading: number; trueNorth: boolean; accuracy: number }
+/** What the Qibla screen may honestly say. `noLive`: no compass in this app (the web); `noCompass`: the device has none
+ * or refused; `waiting`: asked, nothing yet. Only `turn` and `facing` come from a trusted heading. */
+export type QiblaGuide =
+    | { kind: 'turn' | 'facing'; turn: number; magnetic: boolean }
+    | { kind: 'calibrate'; magnetic: boolean }
+    | { kind: 'waiting' | 'noCompass' | 'noLive' };
+export function qiblaGuide(h: QiblaHeading | null, bearing: number, live: boolean, missing: boolean): QiblaGuide {
+    if (!h) return { kind: missing ? 'noCompass' : live ? 'waiting' : 'noLive' };
+    const magnetic = !h.trueNorth;
+    if (!Number.isFinite(h.heading) || h.heading < 0 || !Number.isFinite(h.accuracy) || h.accuracy < 0 || h.accuracy > QIBLA_ROUGH) return { kind: 'calibrate', magnetic };
+    const turn = qiblaTurn(h.heading, bearing);
+    return { kind: Math.abs(turn) <= QIBLA_ALIGNED ? 'facing' : 'turn', turn, magnetic };
+}
+/** The angle equal to `next` (mod 360) nearest to `prev`, so a dial animates 359° → 1° by 2°, not back round by 358°. */
+export function nearestAngle(prev: number, next: number): number { return prev + qiblaTurn(prev, next); }
