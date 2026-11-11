@@ -1692,8 +1692,13 @@ function planCard(): string {
     const rest = p.rest ? `<p class="small muted mt8">${ic('leaf', 14)} ${t('planRest')}</p>` : '';
     return `<section class="section plan-card ${p.rest ? 'rest' : ''}" aria-label="${t('planTitle')}">${head}${rest}<ol class="plan-steps">${read}${memorise}${review}${memoDue}${hard}</ol><p class="tiny muted mt8">${counts.length ? `${t('planToday')} ${counts.join(' · ')}` : t('planNothingYet')}</p></section>`;
 }
+/** Under the Ayah of the Moment on Home: today's Quranic du'a and the short passages from longer surahs to learn for
+ * Salah (removed from Home by mistake in 96b0459, restored at the owner's request). */
+function homeRecitations(): string {
+    return `<div class="tile-row section"><button class="mini-tile" data-action="nav" data-view="verses"><span class="gold">${ic('bookmark', 20)}</span><span class="grow"><strong>${t('dailyVerse')}</strong><span class="tiny muted">${t('dailyVerseSub')}</span></span></button><button class="mini-tile" data-action="nav" data-view="recitations"><span class="gold">${ic('book', 20)}</span><span class="grow"><strong>${t('shortRecitations')}</strong><span class="tiny muted">${t('shortRecitationsSub')}</span></span></button></div>`;
+}
 function homeView(): string {
-    return `<div class="home-band">${dateLine()}</div>${watchCard()}${welcomeCard()}${planCard()}${fridayCard()}${ramadanCard()}${occasionCard()}${nextPrayerWidget()}${trackerWidget()}${nowCard()}${quickDhikrWidget()}${ayahWidget()}${qiblaTile()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
+    return `<div class="home-band">${dateLine()}</div>${watchCard()}${welcomeCard()}${planCard()}${fridayCard()}${ramadanCard()}${occasionCard()}${nextPrayerWidget()}${trackerWidget()}${nowCard()}${quickDhikrWidget()}${ayahWidget()}${homeRecitations()}${qiblaTile()}${isNative() ? dailyPulse() : ''}<p class="gentle">${t('gentleHome')}</p>`;
 }
 /** Status choices for one prayer: completed, missed (only the user says so), made up later, or not confirmed. */
 function chooseStatus(prayer: PrayerName, day: string, current: SalahStatus | null): Promise<SalahStatus | null | undefined> {
